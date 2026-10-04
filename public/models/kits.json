@@ -1,0 +1,64 @@
+{
+  "kits": [
+    {
+      "name": "shirt",
+      "garment": "shirt",
+      "label": "Crew neck",
+      "params": {
+        "collar": "crew",
+        "sleeves": "short",
+        "fit": "regular",
+        "sleeve_angle": 50.0
+      }
+    },
+    {
+      "name": "shirt_vneck",
+      "garment": "shirt",
+      "label": "V-neck",
+      "params": {
+        "collar": "v-neck",
+        "sleeves": "short",
+        "fit": "regular",
+        "sleeve_angle": 50.0
+      }
+    },
+    {
+      "name": "shirt_polo",
+      "garment": "shirt",
+      "label": "Polo",
+      "params": {
+        "collar": "polo",
+        "sleeves": "short",
+        "fit": "regular",
+        "sleeve_angle": 50.0
+      }
+    },
+    {
+      "name": "shirt_long",
+      "garment": "shirt",
+      "label": "Long sleeve",
+      "params": {
+        "collar": "crew",
+        "sleeves": "long",
+        "fit": "regular",
+        "sleeve_angle": 50.0
+      }
+    },
+    {
+      "name": "shorts",
+      "garment": "shorts",
+      "label": "shorts",
+      "params": {
+        "fit": "regular"
+      }
+    },
+    {
+      "name": "socks",
+      "garment": "socks",
+      "label": "socks",
+      "params": {
+        "fit": "regular"
+      }
+    }
+  ]
+}

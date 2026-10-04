@@ -1,0 +1,90 @@
+{
+  "template": "shirt",
+  "name": "shirt_vneck",
+  "params": {
+    "collar": "v-neck",
+    "sleeves": "short",
+    "fit": "regular",
+    "sleeve_angle": 50.0
+  },
+  "materials": [
+    "shirt_body",
+    "shirt_sleeves",
+    "shirt_collar"
+  ],
+  "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. A point (p, q) of an island's local frame (metres) lands at x = rect.x + scale * (p - pmin), y = rect.y + scale * (qmax - q).",
+  "islands": {
+    "front": {
+      "material": "shirt_body",
+      "kind": "body",
+      "frame": "p: metres across from the centre line, q: metres up from the hem",
+      "rect": [
+        0.02,
+        0.02,
+        0.515743,
+        0.545662
+      ],
+      "pmin": -0.369139,
+      "qmax": 0.781105,
+      "scale": 0.698577
+    },
+    "back": {
+      "material": "shirt_body",
+      "kind": "body",
+      "frame": "p: metres across from the centre line, q: metres up from the hem",
+      "rect": [
+        0.555743,
+        0.02,
+        0.424257,
+        0.542836
+      ],
+      "pmin": -0.303658,
+      "qmax": 0.77706,
+      "scale": 0.698577
+    },
+    "sleeve_left": {
+      "material": "shirt_sleeves",
+      "kind": "sleeve",
+      "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
+      "rect": [
+        0.378045,
+        0.585662,
+        0.338045,
+        0.160673
+      ],
+      "pmin": -0.241952,
+      "qmax": -0.0,
+      "scale": 0.698577,
+      "length": 0.23
+    },
+    "sleeve_right": {
+      "material": "shirt_sleeves",
+      "kind": "sleeve",
+      "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
+      "rect": [
+        0.02,
+        0.585662,
+        0.338045,
+        0.160673
+      ],
+      "pmin": -0.241952,
+      "qmax": -0.0,
+      "scale": 0.698577,
+      "length": 0.23
+    },
+    "collar": {
+      "material": "shirt_collar",
+      "kind": "collar",
+      "frame": "p: metres around from the front centre (seam at the back), q: metres up the band",
+      "rect": [
+        0.02,
+        0.766335,
+        0.432089,
+        0.017807
+      ],
+      "pmin": -0.309264,
+      "qmax": 0.02549,
+      "scale": 0.698577
+    }
+  }
+}
