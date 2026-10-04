@@ -145,7 +145,8 @@ def shirt_params(collar, sleeves, fit):
     sleeve_len = SLEEVES[sleeves] if isinstance(sleeves, str) else float(sleeves)
     neck = {  # front drop, front depth, back drop
         "crew": (0.085, 0.08, 0.035),
-        "v-neck": (0.17, 0.07, 0.02),
+        # A sports V-neck should open at the collarbone without dropping into the upper chest.
+        "v-neck": (0.12, 0.065, 0.02),
         "polo": (0.045, 0.07, 0.015),
     }[collar]
     return dict(
@@ -853,7 +854,9 @@ def drape(obj, part, names, body, frames):
             pinned.update(poly.vertices)
     if pinned and part.pin_below:
         # also hold the cloth just below the pinned band, so the band doesn't drag it into creases
-        floor = min(mesh.vertices[i].co.z for i in pinned) - part.pin_below
+        # Measure down from the upper edge of the pinned area. Using the lowest vertex here makes a V-neck
+        # pin an entire wedge of the chest because its front point sits far below the shoulders.
+        floor = max(mesh.vertices[i].co.z for i in pinned) - part.pin_below
         pinned.update(v.index for v in mesh.vertices if v.co.z >= floor)
     group = obj.vertex_groups.new(name="pin")
     group.add(sorted(pinned), 1.0, "REPLACE")

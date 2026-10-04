@@ -60,7 +60,7 @@ export { REGIONS };
 
 export const NO_MASK = { include: null, exclude: [] };
 
-export const ROLES = ["crest", "sponsor", "name", "number"];
+export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const IMAGE_SRC = /^data:image\/(png|svg\+xml|jpeg|webp);/;

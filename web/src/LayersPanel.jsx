@@ -350,6 +350,7 @@ const LockIcon = ({ open }) => (
 
 function Inspector({ layer, garment, project, template, fonts, patch, uploadImage }) {
   const { palette } = project;
+  const [librarySearch, setLibrarySearch] = useState("");
   const locked = layer.locked;
   const placed = "surface" in layer;
   const island = placed && template?.islands[layer.surface];
@@ -364,17 +365,22 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "base" && (() => {
         const design = baseDesign(garment, layer.design);
+        const choices = BASE_DESIGNS[garment].filter((b) => !!b.trim === !!design.trim && b.label.toLowerCase().includes(librarySearch.toLowerCase()));
         return (
           <>
-            <label className="field">
-              <span>Design</span>
-              <select value={design.id} onChange={(e) => {
-                const next = baseDesign(garment, e.target.value);
-                patch({ design: next.id, colors: Object.fromEntries(next.slots.map(([k, , c]) => [k, layer.colors[k] ?? c])) });
-              }}>
-                {BASE_DESIGNS[garment].filter((b) => !!b.trim === !!design.trim).map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-              </select>
+            <label className="field library-search">
+              <span>Find a base design</span>
+              <input value={librarySearch} placeholder="Search designs…" onChange={(e) => setLibrarySearch(e.target.value)} />
             </label>
+            <div className="design-gallery" role="radiogroup" aria-label="Base design">
+              {choices.map((next) => (
+                <button key={next.id} type="button" role="radio" aria-checked={design.id === next.id}
+                  className={`design-card${design.id === next.id ? " active" : ""}`} onClick={() => {
+                patch({ design: next.id, colors: Object.fromEntries(next.slots.map(([k, , c]) => [k, layer.colors[k] ?? c])) });
+              }}><DesignThumb id={next.id} /><span>{next.label}</span></button>
+              ))}
+              {!choices.length && <p className="hint">No matching designs.</p>}
+            </div>
             <div className="slot-colors">
               {design.slots.map(([k, label, def]) => (
                 <ColorField key={k} label={label} value={layer.colors[k] ?? def} palette={palette}
@@ -387,10 +393,12 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "pattern" && (() => {
         const p = patternDef(layer.pattern);
+        const choices = PATTERNS.filter((def) => def.label.toLowerCase().includes(librarySearch.toLowerCase()));
         return (
           <>
+            <label className="field library-search"><span>Find a pattern</span><input value={librarySearch} placeholder="Search patterns…" onChange={(e) => setLibrarySearch(e.target.value)} /></label>
             <div className="patterns" role="radiogroup" aria-label="Pattern">
-              {PATTERNS.map((def) => {
+              {choices.map((def) => {
                 const colors = defaultPatternColors(def, layer.colors, p);
                 return (
                   <button key={def.id} type="button" role="radio" aria-checked={p.id === def.id}
@@ -401,6 +409,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
                   </button>
                 );
               })}
+              {!choices.length && <p className="hint">No matching patterns.</p>}
             </div>
             <div className="slot-colors">
               {patternSlots(p).map((label, i) => (
@@ -451,12 +460,11 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "graphic" && (
         <>
-          <label className="field">
-            <span>Shape</span>
-            <select value={layer.shape} onChange={(e) => patch({ shape: e.target.value })}>
-              {GRAPHICS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
-            </select>
-          </label>
+          <label className="field library-search"><span>Find a graphic</span><input value={librarySearch} placeholder="Search graphics…" onChange={(e) => setLibrarySearch(e.target.value)} /></label>
+          <div className="graphic-gallery" role="radiogroup" aria-label="Graphic">
+            {GRAPHICS.filter((g) => g.label.toLowerCase().includes(librarySearch.toLowerCase())).map((g) => <button key={g.id} type="button" role="radio" aria-checked={layer.shape === g.id}
+              className={`graphic-card${layer.shape === g.id ? " active" : ""}`} onClick={() => patch({ shape: g.id })}><GraphicThumb id={g.id} /><span>{g.label}</span></button>)}
+          </div>
           <ColorField label="Colour" value={layer.color} palette={palette} onChange={(color) => patch({ color })} />
         </>
       )}
@@ -705,4 +713,13 @@ function PatternSwatch({ def, colors, ground }) {
     paintPattern(ctx, def, colors, { kind: "body", name: "front" });
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={canvas} width="64" height="64" aria-hidden="true" />;
+}
+
+function DesignThumb({ id }) {
+  return <span className={`design-thumb design-${id}`} aria-hidden="true"><i /><b /></span>;
+}
+
+function GraphicThumb({ id }) {
+  const paths = { rect: <rect x="5" y="8" width="22" height="16" rx="2" />, circle: <circle cx="16" cy="16" r="10" />, diamond: <path d="M16 4 28 16 16 28 4 16z" />, triangle: <path d="M16 4 28 27H4z" />, star: <path d="m16 3 4 9 10 1-8 7 2 10-8-5-8 5 2-10-8-7 10-1z" /> };
+  return <svg className="graphic-thumb" viewBox="0 0 32 32" aria-hidden="true">{paths[id] || <path d="M4 16h24M16 4v24" />}</svg>;
 }

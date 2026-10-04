@@ -32,8 +32,8 @@
 html, body, #root { margin: 0; height: 100%; }
 body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
 
-.app { display: grid; grid-template-columns: 1fr 340px; height: 100%; }
-.stage { position: relative; min-height: 0; background: var(--bg); }
+.app { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
+.stage { position: relative; min-height: 0; background: var(--bg); grid-column: 2; grid-row: 1; }
 .viewer { position: absolute; inset: 0; }
 .viewer canvas { display: block; touch-action: none; }
 .stage-note {
@@ -48,10 +48,17 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
 }
 .view-buttons button:hover { background: var(--chip-hover); }
 
-.panel { overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line); padding: 16px 16px 32px; }
-.panel h1 { font-size: 18px; margin: 0 0 8px; }
-.section { padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
-.section h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0; }
+.panel { grid-column: 1; grid-row: 1; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 16px 18px 32px; }
+.panel-header { display: flex; align-items: center; gap: 11px; padding: 0 0 18px; }
+.panel-header h1 { font-size: 17px; line-height: 1.15; margin: 0; letter-spacing: -.02em; }
+.panel-header p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.brand-mark { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; color: white; background: #1746a2; font-weight: 800; font-size: 20px; }
+.header-action { margin-left: auto; width: 34px; height: 34px; padding: 0 !important; font-size: 21px !important; }
+.section { padding: 15px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.section h2 { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; color: var(--text); margin: 0; }
+.section-index { color: var(--accent); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.group-label { color: var(--muted); font-size: 12px; margin-bottom: -6px; }
+.section-copy { margin: -4px 0 0; color: var(--muted); font-size: 12px; }
 
 .panel select, .panel input:not([type]), .panel input[inputmode] {
   width: 100%; font: inherit; color: var(--text); background: var(--field);
@@ -81,6 +88,25 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
   background: var(--field); color: var(--text); border: 2px solid transparent;
 }
 .panel .patterns button.active { border-color: var(--accent); }
+.library-search input { min-width: 0; }
+.design-gallery, .graphic-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.panel .design-card, .panel .graphic-card { display: grid; gap: 6px; padding: 7px; text-align: left; background: var(--field); color: var(--text); border: 2px solid transparent; font-size: 11px; }
+.panel .design-card.active, .panel .graphic-card.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--field)); }
+.design-thumb { position: relative; overflow: hidden; display: block; height: 48px; border-radius: 5px; background: linear-gradient(90deg, #1746a2 0 36%, #f5f5f5 36% 64%, #1746a2 64%); }
+.design-thumb i, .design-thumb b { position: absolute; display: block; }
+.design-thumb i { left: 39%; right: 39%; top: 0; bottom: 0; background: #d12935; }
+.design-thumb b { left: 0; right: 0; top: 42%; height: 15%; background: #f5f5f5; }
+.design-contrast-back { background: linear-gradient(90deg, #1746a2 0 48%, #f5f5f5 48% 100%); }
+.design-split-sleeves { background: linear-gradient(90deg, #d12935 0 25%, #1746a2 25% 75%, #f5f5f5 75%); }
+.design-raglan { background: linear-gradient(135deg, #d12935 0 22%, #1746a2 22% 78%, #d12935 78%); }
+.graphic-thumb { width: 100%; height: 43px; fill: var(--accent); stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.logo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.panel .logo-slot { display: grid; grid-template-columns: 42px minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; gap: 1px 9px; text-align: left; padding: 8px; color: var(--text); background: var(--field); border: 1px solid var(--line); }
+.panel .logo-slot:hover, .panel .logo-slot.populated { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.logo-preview { grid-row: 1 / span 2; width: 42px; height: 42px; border-radius: 7px; display: grid; place-items: center; color: var(--accent); background: var(--panel); font-size: 20px; overflow: hidden; }
+.logo-preview img { max-width: 86%; max-height: 86%; object-fit: contain; }
+.logo-slot-label { font-size: 11px; font-weight: 650; }
+.logo-slot-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--muted); }
 
 .panel button:disabled { opacity: .45; cursor: default; }
 .panel button.danger { color: var(--danger); }
@@ -158,7 +184,8 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
 
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 62vh 1fr; grid-template-rows: 62dvh 1fr; }
-  .panel { border-left: 0; border-top: 1px solid var(--line); }
+  .stage { grid-column: 1; grid-row: 1; }
+  .panel { grid-column: 1; grid-row: 2; border-right: 0; border-top: 1px solid var(--line); }
 }
 
 .sheet-backdrop { position: fixed; inset: 0; z-index: 10; background: var(--scrim); display: grid; place-items: end center; }
