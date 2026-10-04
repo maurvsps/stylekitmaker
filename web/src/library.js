@@ -644,7 +644,7 @@ function poly(ctx, pts) {
 // ---------------------------------------------------------------- material effects (PBR)
 // A material layer changes how its regions (its mask) catch the light: roughness, metalness and, optionally, a
 // knit relief. `relief(ctx, frame, lo)` paints in the island's local metres (frame bounds p0..p1, q0..q1) on a
-// height map where mid grey is flat; `lo` is the grey of the recesses. Nothing here touches the colour texture.
+// height map where mid grey is flat; `lo` is the grey of the recesses, `hi` of raised parts. Nothing here touches the colour texture.
 
 const grooves = (gap, width, vertical) => (ctx, f, lo) => {
   ctx.fillStyle = lo;
@@ -671,6 +671,13 @@ export const MATERIALS = [
         }
         ctx.fill();
       }
+    },
+  },
+  {
+    id: "raised", label: "Raised print", roughness: 0.78, metalness: 0,
+    relief(ctx, f, lo, hi) {
+      ctx.fillStyle = hi;
+      ctx.fillRect(f.p0, f.q0, f.p1 - f.p0, f.q1 - f.q0);
     },
   },
   { id: "ribbed", label: "Ribbed knit", roughness: 0.88, metalness: 0, relief: grooves(0.005, 0.0022, true) },

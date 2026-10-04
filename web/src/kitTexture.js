@@ -411,7 +411,7 @@ function materialEffect(h, o, layer, env, alpha) {
   h.globalAlpha = alpha;
   eachIsland(h, env, layer, all, ({ frame }) => {
     frame.local(h);
-    m.relief(h, frame, grey(FLAT - 70));
+    m.relief(h, frame, grey(FLAT - 70), grey(FLAT + 70));
   });
   h.restore();
 }

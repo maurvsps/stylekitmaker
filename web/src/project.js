@@ -208,7 +208,6 @@ export function sanitizeProject(input, templates = []) {
     if (a && typeof a.src === "string" && IMAGE_SRC.test(a.src)) p.assets[id] = { src: a.src, name: str(a.name, 80, "image") };
   }
   const ids = new Set();
-  // Material layers painted nothing before version 4: they come in hidden, so old files look the same.
   const budget = { left: MAX_LAYERS, legacy: Number(input.version) < 4 };
   for (const g of GARMENTS) {
     const layers = input.garments[g]?.layers;
@@ -297,8 +296,13 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.outline = l.outline !== false;
       break;
     case "material":
-      layer.effect = MATERIALS.some((m) => m.id === l.effect) ? l.effect : d.effect;
-      if (budget.legacy) layer.visible = false;
+      {
+        // Effects of the first material layer (main before version 4) map to their equivalents.
+        const effect = { shine: "satin", knit: "ribbed" }[l.effect] || l.effect;
+        layer.effect = MATERIALS.some((m) => m.id === effect) ? effect : d.effect;
+        // Older material layers that painted nothing come in hidden, so those files look the same.
+        if (budget.legacy && !["shine", "knit", "raised"].includes(l.effect)) layer.visible = false;
+      }
       break;
     case "group":
       layer.children = Array.isArray(l.children) ? sanitizeLayers(l.children, garment, assets, ids, budget, depth + 1) : [];

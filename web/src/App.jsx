@@ -304,6 +304,7 @@ function readPrefs() {
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
     if (typeof saved.mannequin === "boolean") prefs.mannequin = saved.mannequin;
+    else if (typeof saved.showMannequin === "boolean") prefs.mannequin = saved.showMannequin; // earlier name
     if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
   } catch {
     // defaults
