@@ -119,7 +119,8 @@ export const baseDesign = (garment, id, trim = false) =>
 
 // ---------------------------------------------------------------- patterns
 // A pattern paints its colours (`slots`) over whatever is below, on an optional background colour (null =
-// transparent), except opaque patterns (the gradient). paint(ctx, colors, { kind, name }) draws in pattern space;
+// transparent), except opaque patterns (the gradient). paint(ctx, colors, { kind, name, reach }) draws in pattern
+// space and must cover at least `reach` metres around the origin (it grows when the layer is scaled down or moved);
 // `sleeve` optionally replaces it on sleeves.
 
 export const PATTERNS = [
@@ -127,43 +128,45 @@ export const PATTERNS = [
     id: "stripes",
     label: "Stripes",
     slots: ["Stripes"],
-    paint(ctx, [a]) {
+    paint(ctx, [a], { reach: R }) {
       const w = 0.06; // a stripe on the centre line, alternating outward
-      for (let k = -10; k <= 10; k++) box(ctx, a, (2 * k - 0.5) * w, -BIG, (2 * k + 0.5) * w, BIG);
+      const n = Math.ceil(R / (2 * w));
+      for (let k = -n; k <= n; k++) box(ctx, a, (2 * k - 0.5) * w, -R, (2 * k + 0.5) * w, R);
     },
   },
   {
     id: "pinstripes",
     label: "Pinstripes",
     slots: ["Lines"],
-    paint(ctx, [a]) {
-      for (let k = -40; k <= 40; k++) box(ctx, a, k * 0.03 - 0.002, -BIG, k * 0.03 + 0.002, BIG);
+    paint(ctx, [a], { reach: R }) {
+      const n = Math.ceil(R / 0.03);
+      for (let k = -n; k <= n; k++) box(ctx, a, k * 0.03 - 0.002, -R, k * 0.03 + 0.002, R);
     },
   },
   {
     id: "hoops",
     label: "Hoops",
     slots: ["Hoops"],
-    paint(ctx, [a]) {
-      const b = 0.07;
-      for (let k = 0; k < 20; k++) box(ctx, a, -BIG, (2 * k + 1) * b, BIG, (2 * k + 2) * b);
+    paint(ctx, [a], { reach: R }) {
+      const b = 0.07; // starting one hoop above the origin (the hem, or the shoulder on sleeves)
+      for (let k = 0; (2 * k + 1) * b < R; k++) box(ctx, a, -R, (2 * k + 1) * b, R, (2 * k + 2) * b);
     },
   },
   {
     id: "halves",
     label: "Halves",
     slots: ["Half"],
-    paint: (ctx, [a]) => box(ctx, a, 0, -BIG, BIG, BIG),
+    paint: (ctx, [a], { reach: R }) => box(ctx, a, 0, -R, R, R),
     // The wearer's left sleeve takes the colour of the wearer's left half.
-    sleeve: (ctx, [a], { name }) => name === "sleeve_left" && box(ctx, a, -BIG, -BIG, BIG, BIG),
+    sleeve: (ctx, [a], { name, reach: R }) => name === "sleeve_left" && box(ctx, a, -R, -R, R, R),
   },
   {
     id: "quarters",
     label: "Quarters",
     slots: ["Quarters"],
-    paint(ctx, [a]) {
-      box(ctx, a, 0, 0.4, BIG, BIG);
-      box(ctx, a, -BIG, -BIG, 0, 0.4);
+    paint(ctx, [a], { reach: R }) {
+      box(ctx, a, 0, 0.4, R, R);
+      box(ctx, a, -R, -R, 0, 0.4);
     },
   },
   {
@@ -182,15 +185,16 @@ export const PATTERNS = [
     id: "band",
     label: "Chest band",
     slots: ["Band"],
-    paint: (ctx, [a]) => box(ctx, a, -BIG, 0.42, BIG, 0.54),
+    paint: (ctx, [a], { reach: R }) => box(ctx, a, -R, 0.42, R, 0.54),
   },
   {
     id: "checks",
     label: "Checks",
     slots: ["Checks"],
-    paint(ctx, [a]) {
+    paint(ctx, [a], { reach: R }) {
       const s = 0.08;
-      for (let i = -12; i < 12; i++) for (let j = -12; j < 12; j++) if ((i + j) % 2 === 0) box(ctx, a, i * s, j * s, (i + 1) * s, (j + 1) * s);
+      const n = Math.ceil(R / s);
+      for (let i = -n; i < n; i++) for (let j = -n; j < n; j++) if ((i + j) % 2 === 0) box(ctx, a, i * s, j * s, (i + 1) * s, (j + 1) * s);
     },
   },
   {
@@ -198,12 +202,12 @@ export const PATTERNS = [
     label: "Gradient",
     slots: ["Bottom", "Top"],
     opaque: true,
-    paint(ctx, [a, b]) {
+    paint(ctx, [a, b], { reach: R }) {
       const g = ctx.createLinearGradient(0, 0.05, 0, 0.75);
       g.addColorStop(0, a);
       g.addColorStop(1, b);
       ctx.fillStyle = g;
-      ctx.fillRect(-BIG, -BIG, 2 * BIG, 2 * BIG);
+      ctx.fillRect(-R, -R, 2 * R, 2 * R);
     },
     sleeve() {}, // sleeves keep their base colour
   },
@@ -217,12 +221,51 @@ export const patternSlots = (p) => (p.opaque ? p.slots : [...p.slots, "Backgroun
 /** Paint a pattern layer's colours (in pattern space) on one island. */
 export function paintPattern(ctx, p, colors, island) {
   const n = p.slots.length;
-  if (!p.opaque && colors[n]) box(ctx, colors[n], -BIG, -BIG, BIG, BIG);
+  const R = island.reach ?? BIG;
+  if (!p.opaque && colors[n]) box(ctx, colors[n], -R, -R, R, R);
   const ink = colors.slice(0, n);
   if (ink.some((c) => !c)) return;
   if (island.kind === "sleeve" && p.sleeve) p.sleeve(ctx, ink, island);
   else p.paint(ctx, ink, island);
 }
+
+// ---------------------------------------------------------------- garment regions
+// Named areas a layer can be masked to ("only on") or masked out of ("hide on"). A region lists the UV islands it
+// touches; null takes the whole island, a function returns rectangles [p0, q0, p1, q1] in the island's local frame
+// (metres, p across, q up). Regions may overlap: a sleeve includes its cuff.
+
+const whole = null;
+const sides = (w) => (isl, f) => [[f.p0 - 1, f.q0 - 1, -w, f.q1 + 1], [w, f.q0 - 1, f.p1 + 1, f.q1 + 1]];
+const above = (h) => (isl, f) => [[f.p0 - 1, h, f.p1 + 1, f.q1 + 1]];
+const below = (h) => (isl, f) => [[f.p0 - 1, f.q0 - 1, f.p1 + 1, h]];
+const cuff = (isl, f) => [[f.p0 - 1, f.q0 - 1, f.p1 + 1, -isl.length + cuffLength(isl)]];
+
+export const REGIONS = {
+  shirt: [
+    { id: "front", label: "Front", parts: { front: whole } },
+    { id: "back", label: "Back", parts: { back: whole } },
+    { id: "sleeve_left", label: "Left sleeve", parts: { sleeve_left: whole } },
+    { id: "sleeve_right", label: "Right sleeve", parts: { sleeve_right: whole } },
+    { id: "collar", label: "Collar", parts: { collar: whole } },
+    { id: "cuffs", label: "Cuffs", parts: { sleeve_left: cuff, sleeve_right: cuff } },
+    { id: "side_panels", label: "Side panels", parts: { front: sides(0.19), back: sides(0.19) } },
+    { id: "shoulders", label: "Shoulders", parts: { front: above(0.62), back: above(0.62) } },
+  ],
+  shorts: [
+    { id: "front", label: "Front", parts: { front: whole } },
+    { id: "back", label: "Back", parts: { back: whole } },
+    { id: "waistband", label: "Waistband", parts: { waistband: whole } },
+    { id: "hem", label: "Hem", parts: { front: below(0.018), back: below(0.018) } },
+    { id: "side_panels", label: "Side panels", parts: { front: sides(0.27), back: sides(0.27) } },
+  ],
+  socks: [
+    { id: "sock_left", label: "Left sock", parts: { sock_left: whole, sock_top_left: whole } },
+    { id: "sock_right", label: "Right sock", parts: { sock_right: whole, sock_top_right: whole } },
+    { id: "top_bands", label: "Top bands", parts: { sock_top_left: whole, sock_top_right: whole } },
+  ],
+};
+
+export const region = (garment, id) => REGIONS[garment].find((r) => r.id === id);
 
 // ---------------------------------------------------------------- graphics
 // Shapes centred on the origin, `w` x `h` metres, drawn in island-local metres (y up).

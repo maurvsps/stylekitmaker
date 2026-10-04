@@ -1,9 +1,10 @@
-// The kit project (schema version 2): a palette, project-wide text settings, uploaded images, and an ordered
+// The kit project (schema version 3): a palette, project-wide text settings, uploaded images, and an ordered
 // stack of layers per garment. kitTexture.js composites a garment's layers into its texture; the panel edits them.
-// Version 1 files (one flat design object, see design.js) are migrated on load by projectFromDesign().
+// Version 1 files (one flat design object, see design.js) are migrated on load by projectFromDesign(); version 2
+// files (patterns had `regions` instead of a mask) by sanitizeProject().
 //
 // {
-//   version: 2,
+//   version: 3,
 //   template: "shirt",                         // shirt model (kits.json); shorts and socks have one model each
 //   palette: ["#c8102e", "#ffffff", "#0b1f3a"], // primary, secondary, trim; layer colours "@0".."@2" refer to it
 //   font: "Oswald",                            // default font for text layers
@@ -13,10 +14,13 @@
 // }
 //
 // Layers are listed bottom to top. Every layer has
-//   { id, type, name, visible, locked, opacity, blend, transform: { x, y, scaleX, scaleY, rotation, flipX, flipY } }
+//   { id, type, name, visible, locked, opacity, blend, transform: { x, y, scaleX, scaleY, rotation, flipX, flipY },
+//     mask: { include: [region ids] | null, exclude: [region ids] } }
+// The mask limits the layer to the garment regions in `include` (null = no limit) and hides it on those in `exclude`
+// (library.js REGIONS); a group's mask applies to everything inside it.
 // plus its type's fields:
 //   base     { design, colors: { <slot>: colour } }          opaque ground, or the trims (library.js BASE_DESIGNS)
-//   pattern  { pattern, colors: [colour..., background|null], regions: [...] }   pattern space moved by transform
+//   pattern  { pattern, colors: [colour..., background|null] }   pattern space moved by transform
 //   graphic  { shape, color, size, surface }                  transform x/y = centre in the surface's frame (metres)
 //   image    { asset, size, surface }                         size = longer side in metres before scaling
 //   text     { text, bind, font, color, size, maxWidth, outline, surface }   size = capital height in metres
@@ -25,9 +29,9 @@
 // `role` (optional) marks the layers the panel's shortcuts edit: crest, sponsor, name, number.
 
 import { DEFAULT_DESIGN, FONTS, cleanName, cleanNumber, sanitizeDesign } from "./design.js";
-import { GRAPHICS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
+import { GRAPHICS, REGIONS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
 
-export const PROJECT_VERSION = 2;
+export const PROJECT_VERSION = 3;
 export const GARMENTS = ["shirt", "shorts", "socks"];
 export const PALETTE_LABELS = ["Primary", "Secondary", "Trim"];
 
@@ -46,13 +50,15 @@ export const BLEND_MODES = [
   "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity",
 ];
 
-// Parts a layer can be placed on (graphic, image, text), and parts a pattern can cover. Names are UV islands.
+// Parts a layer can be placed on (graphic, image, text). Names are UV islands.
 export const SURFACES = {
   shirt: [["front", "Front"], ["back", "Back"], ["sleeve_left", "Left sleeve"], ["sleeve_right", "Right sleeve"]],
   shorts: [["front", "Front"], ["back", "Back"]],
   socks: [["sock_left", "Left sock"], ["sock_right", "Right sock"]],
 };
-export const REGIONS = SURFACES;
+export { REGIONS };
+
+export const NO_MASK = { include: null, exclude: [] };
 
 export const ROLES = ["crest", "sponsor", "name", "number"];
 
@@ -82,7 +88,7 @@ const PLACE = { shirt: ["front", 0, 0.45], shorts: ["front", 0.13, 0.2], socks: 
 /** A new layer of `type` for `garment` with sensible defaults; `fields` override them. */
 export function makeLayer(type, garment, fields = {}) {
   const [surface, x, y] = PLACE[garment];
-  const base = { id: newId(), type, name: LAYER_TYPES[type], ...COMMON, transform: { ...IDENTITY } };
+  const base = { id: newId(), type, name: LAYER_TYPES[type], ...COMMON, transform: { ...IDENTITY }, mask: { ...NO_MASK, exclude: [] } };
   const placed = { surface, transform: { ...IDENTITY, x, y } };
   const typed = {
     base: () => {
@@ -91,7 +97,7 @@ export function makeLayer(type, garment, fields = {}) {
     },
     pattern: () => {
       const p = patternDef(fields.pattern);
-      return { name: p.label, pattern: p.id, colors: defaultPatternColors(p), regions: REGIONS[garment].map(([r]) => r) };
+      return { name: p.label, pattern: p.id, colors: defaultPatternColors(p) };
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
     image: () => ({ ...placed, asset: null, size: 0.085 }),
@@ -136,7 +142,7 @@ export function projectFromDesign(input, templates) {
       ...makeLayer("pattern", "shirt", { pattern: p.id }),
       id: "shirt-pattern",
       colors: LEGACY_PATTERN_COLORS[p.id] || ["@1", null],
-      regions: LEGACY_PATTERN_REGIONS[p.id] || ["front", "back"],
+      mask: { include: LEGACY_PATTERN_REGIONS[p.id] || ["front", "back"], exclude: [] },
     });
   }
   shirt.push(base("shirt", "trim", "shirt-trim", "Collar & cuffs"));
@@ -176,7 +182,7 @@ export const DEFAULT_PROJECT = projectFromDesign(DEFAULT_DESIGN);
 
 // ---------------------------------------------------------------- sanitizing (saved files, localStorage)
 
-/** Any saved design (version 1 or 2) as a valid version 2 project, keeping what is valid. */
+/** Any saved design (version 1, 2 or 3) as a valid version 3 project, keeping what is valid. */
 export function sanitizeProject(input, templates = []) {
   if (!input || typeof input !== "object") return structuredClone(DEFAULT_PROJECT);
   if (!(Number(input.version) >= 2) || !input.garments) return projectFromDesign(input, templates);
@@ -237,7 +243,10 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       flipX: t.flipX === true,
       flipY: t.flipY === true,
     },
+    mask: sanitizeMask(l.mask, garment),
   };
+  // Version 2 patterns listed the parts they covered.
+  if (l.type === "pattern" && !l.mask && Array.isArray(l.regions)) layer.mask = sanitizeMask({ include: l.regions }, garment);
   if (ROLES.includes(l.role)) layer.role = l.role;
   else delete layer.role;
   const surfaces = SURFACES[garment].map(([s]) => s);
@@ -256,7 +265,6 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       const fallback = defaultPatternColors(p);
       layer.pattern = p.id;
       layer.colors = fallback.map((def, i) => (i === p.slots.length && colors[i] === null ? null : color(colors[i], def)));
-      layer.regions = Array.isArray(l.regions) ? surfaces.filter((s) => l.regions.includes(s)) : d.regions;
       break;
     }
     case "graphic":
@@ -285,6 +293,13 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       break;
   }
   return layer;
+}
+
+function sanitizeMask(m, garment) {
+  const ids = REGIONS[garment].map((r) => r.id);
+  const pick = (list) => (Array.isArray(list) ? ids.filter((id) => list.includes(id)) : []);
+  if (!m || typeof m !== "object") return { include: null, exclude: [] };
+  return { include: Array.isArray(m.include) ? pick(m.include) : null, exclude: pick(m.exclude) };
 }
 
 const color = (v, fallback) => (typeof v === "string" && (/^@[0-2]$/.test(v) || HEX.test(v)) ? v.toLowerCase() : fallback);

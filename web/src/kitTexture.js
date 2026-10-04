@@ -1,14 +1,15 @@
 import { fontCss } from "./design.js";
-import { baseDesign, graphic, paintPattern as paintPatternColors, pattern as patternDef } from "./library.js";
+import { baseDesign, graphic, paintPattern as paintPatternColors, pattern as patternDef, region } from "./library.js";
 import { resolveColor } from "./project.js";
 
 // The layer compositor: paints one garment's texture from its ordered layers (project.js) and its UV template
 // (public/models/<name>.json, written by blender/make_kit.py). Plain canvas code, no React.
 //
-//   garment layers (bottom to top) -> per layer: region clip, transform, paint -> opacity / blend -> canvas
+//   garment layers (bottom to top) -> per layer: island + mask clip, transform, paint -> opacity / blend -> canvas
 //
 // Every UV island has a local frame in metres (p right, q up, as seen from outside) and a rectangle on the
-// texture. Layers paint island by island, clipped to the island plus a few pixels of bleed so seams never show.
+// texture. Layers paint island by island, clipped to the island plus a few pixels of bleed so seams never show,
+// and to the layer's mask (and its groups' masks): regions it is limited to, and regions it is hidden on.
 // A layer with opacity < 1 or a blend mode (and a group with either) is painted on a scratch canvas first and
 // composited as one piece; everything else paints straight onto the texture.
 
@@ -26,7 +27,7 @@ export function drawGarment(canvas, garment, template, project, images = {}) {
     garment, S, islands, project, images,
     byName: Object.fromEntries(islands.map((i) => [i.name, i])),
     color: (c) => resolveColor(c, project.palette),
-    scratch: [],
+    masks: [], // masks of the groups being painted
   };
   reset(ctx);
   ctx.fillStyle = "#ffffff"; // fabric without any layer
@@ -76,7 +77,10 @@ function scratchCanvas(env, depth) {
 function paintLayer(ctx, layer, env, depth) {
   switch (layer.type) {
     case "group":
-      return drawLayers(ctx, layer.children, env, depth);
+      env.masks.push(layer.mask);
+      drawLayers(ctx, layer.children, env, depth);
+      env.masks.pop();
+      return;
     case "base":
       return paintBase(ctx, layer, env);
     case "pattern":
@@ -90,18 +94,55 @@ function paintLayer(ctx, layer, env, depth) {
   }
 }
 
-/** Run `paint` once per island in `names` (all islands when null), clipped to the island and its bleed. */
-function eachIsland(ctx, env, names, paint) {
+/**
+ * Run `paint` once per island that `accept(island)` takes (all when null) and the masks leave visible, clipped to
+ * the island and its bleed and to the masks.
+ */
+function eachIsland(ctx, env, layer, accept, paint) {
+  const masks = [...env.masks, layer.mask].filter(active);
   for (const island of env.islands) {
-    if (names && !names.includes(island.name)) continue;
+    if (accept && !accept(island)) continue;
     const { frame } = island;
     ctx.save();
     ctx.beginPath();
     ctx.rect(frame.x - PAD, frame.y - PAD, frame.w + 2 * PAD, frame.h + 2 * PAD);
     ctx.clip();
-    paint(island);
+    if (masks.every((m) => clipMask(ctx, env, island, m))) paint(island);
     ctx.restore();
   }
+}
+
+const active = (m) => m && (m.include || m.exclude.length);
+
+/** Clip to what mask `m` leaves of `island`; false when it leaves nothing. */
+function clipMask(ctx, env, island, m) {
+  const { name, isl, frame } = island;
+  const parts = (id) => region(env.garment, id)?.parts || {};
+  if (m.include) {
+    const shapes = m.include.map((id) => parts(id)).filter((p) => name in p).map((p) => p[name]);
+    if (!shapes.length) return false;
+    if (!shapes.includes(null)) {
+      frame.local(ctx);
+      ctx.beginPath();
+      for (const shape of shapes) for (const r of shape(isl, frame)) addRect(ctx, r);
+      ctx.clip();
+    }
+  }
+  for (const id of m.exclude) {
+    const p = parts(id);
+    if (!(name in p)) continue;
+    if (p[name] === null) return false;
+    frame.local(ctx);
+    ctx.beginPath();
+    addRect(ctx, [frame.p0 - 1, frame.q0 - 1, frame.p1 + 1, frame.q1 + 1]);
+    for (const r of p[name](isl, frame)) addRect(ctx, r);
+    ctx.clip("evenodd");
+  }
+  return true;
+}
+
+function addRect(ctx, [a, b, c, d]) {
+  ctx.rect(Math.min(a, c), Math.min(b, d), Math.abs(c - a), Math.abs(d - b));
 }
 
 function islandFrame(isl, S) {
@@ -126,14 +167,14 @@ function islandFrame(isl, S) {
 function paintBase(ctx, layer, env) {
   const design = baseDesign(env.garment, layer.design);
   const colors = Object.fromEntries(design.slots.map(([k, , def]) => [k, env.color(layer.colors[k] ?? def)]));
-  if (design.ground) {
+  if (design.ground && !env.masks.some(active) && !active(layer.mask)) {
     ctx.save();
     reset(ctx);
     ctx.fillStyle = colors[design.ground]; // the texture outside the islands, so mipmaps never bleed white
     ctx.fillRect(0, 0, env.S, env.S);
     ctx.restore();
   }
-  eachIsland(ctx, env, null, (island) => design.paint(ctx, island, colors));
+  eachIsland(ctx, env, layer, null, (island) => design.paint(ctx, island, colors));
 }
 
 // ---------------------------------------------------------------- patterns
@@ -142,19 +183,22 @@ function paintPattern(ctx, layer, env) {
   const p = patternDef(layer.pattern);
   const colors = layer.colors.map((c) => c && env.color(c));
   const t = layer.transform;
-  eachIsland(ctx, env, layer.regions, (island) => {
+  // How far the pattern must reach in its own (moved, scaled) space to cover every island.
+  const reach = (1.5 + Math.hypot(t.x, t.y)) / Math.max(0.05, Math.min(Math.abs(t.scaleX), Math.abs(t.scaleY)));
+  // Unless its mask names regions to show on, a pattern covers the panels, sleeves and socks, not the bands.
+  const accept = layer.mask?.include ? null : ({ kind }) => kind === "body" || kind === "sleeve" || kind === "sock";
+  eachIsland(ctx, env, layer, accept, (island) => {
     const { name, kind, frame } = island;
-    if (kind !== "body" && kind !== "sleeve" && kind !== "sock") return;
     frame.local(ctx);
     // Pattern space: body coordinates on panels (the back's frame runs the other way), distance down the tube on
-    // sleeves and socks.
+    // sleeves and socks, the island's own frame on bands.
     if (kind === "body") {
       if (name === "back") ctx.scale(-1, 1);
-    } else {
+    } else if (kind === "sleeve" || kind === "sock") {
       ctx.scale(1, -1);
     }
     applyTransform(ctx, t);
-    paintPatternColors(ctx, p, colors, island);
+    paintPatternColors(ctx, p, colors, { ...island, reach });
   });
 }
 
@@ -171,7 +215,7 @@ function applyTransform(ctx, t) {
 function paintPlaced(ctx, layer, env) {
   const island = env.byName[layer.surface];
   if (!island) return;
-  eachIsland(ctx, env, [layer.surface], ({ frame }) => {
+  eachIsland(ctx, env, layer, (i) => i.name === layer.surface, ({ frame }) => {
     const t = layer.transform;
     // Work in pixels centred on the layer's position, y down (canvas text and images expect that).
     ctx.setTransform(1, 0, 0, 1, 0, 0);

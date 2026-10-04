@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BASE_DESIGNS, GRAPHICS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import {
-  LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
+  BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
 } from "./project.js";
 
@@ -364,19 +364,6 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
                   onChange={(c) => patch({ colors: layer.colors.map((v, k) => (k === i ? c : v)) })} />
               ))}
             </div>
-            <div className="field">
-              <span>Covers</span>
-              <div className="checks">
-                {REGIONS[garment].map(([r, label]) => (
-                  <label key={r} className="check">
-                    <input type="checkbox" checked={layer.regions.includes(r)} onChange={(e) => patch({
-                      regions: e.target.checked ? [...layer.regions, r] : layer.regions.filter((x) => x !== r),
-                    })} />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
           </>
         );
       })()}
@@ -456,10 +443,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               </>
             );
           })()}
-          {layer.type === "image" ? (
-            <Slider label="Size" unit="×" min={0.1} max={5} step={0.05} value={layer.transform.scaleX}
-              onChange={(v) => setT({ scaleX: v, scaleY: v })} />
-          ) : (
+          {layer.type !== "image" && (
             <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : 60} step={0.5}
               value={round(layer.size * 100)} onChange={(v) => patch({ size: v / 100 })} />
           )}
@@ -470,6 +454,28 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
+      {(placed || layer.type === "pattern") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern"} />}
+
+      {layer.type !== "material" && (
+        <>
+          <details className="sub">
+            <summary>
+              Blending
+              <span>{BLEND_LABELS[layer.blend]} · {Math.round(layer.opacity * 100)}%</span>
+            </summary>
+            <Slider label="Opacity" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)}
+              onChange={(v) => patch({ opacity: v / 100 })} />
+            <label className="field">
+              <span>Blend mode</span>
+              <select value={layer.blend} onChange={(e) => patch({ blend: e.target.value })}>
+                {BLEND_MODES.map((m) => <option key={m} value={m}>{BLEND_LABELS[m]}</option>)}
+              </select>
+            </label>
+          </details>
+          <MaskFields layer={layer} garment={garment} patch={patch} />
+        </>
+      )}
+
       {layer.type === "group" && <p className="hint">{layer.children.length} layer{layer.children.length === 1 ? "" : "s"}. Drag layers onto the group to put them inside.</p>}
       {layer.type === "material" && <p className="hint">Material effects (embroidery, shine, raised prints) arrive with the PBR step; this layer paints nothing yet.</p>}
     </fieldset>
@@ -477,6 +483,95 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 }
 
 const round = (v) => Math.round(v * 10) / 10;
+
+const BLEND_LABELS = Object.fromEntries(
+  BLEND_MODES.map((m) => [m, m === "normal" ? "Normal" : m[0].toUpperCase() + m.slice(1).replace("-", " ")]),
+);
+
+/** Scale, rotation and flips (and the offset of a pattern; placed layers set their position above). */
+function TransformFields({ layer, setT, pattern }) {
+  const t = layer.transform;
+  const [linked, setLinked] = useState(t.scaleX === t.scaleY);
+  const pct = (v) => Math.round(v * 100);
+  const setScale = (axis, v) => setT(linked ? { scaleX: v / 100, scaleY: v / 100 } : { [axis]: v / 100 });
+  return (
+    <div className="sub">
+      <div className="sub-head">
+        <span>Transform</span>
+        <button type="button" className="link" onClick={() => setT({ scaleX: 1, scaleY: 1, rotation: 0, flipX: false, flipY: false, ...(pattern ? { x: 0, y: 0 } : {}) })}>
+          Reset
+        </button>
+      </div>
+      {pattern && (
+        <>
+          <Slider label="Move left / right" unit="cm" min={-50} max={50} step={0.5} value={round(t.x * 100)} onChange={(v) => setT({ x: v / 100 })} />
+          <Slider label="Move up / down" unit="cm" min={-50} max={50} step={0.5} value={round(t.y * 100)} onChange={(v) => setT({ y: v / 100 })} />
+        </>
+      )}
+      <Slider label={linked ? "Scale" : "Scale X"} unit="%" min={10} max={400} step={1} value={pct(t.scaleX)} onChange={(v) => setScale("scaleX", v)} />
+      {!linked && <Slider label="Scale Y" unit="%" min={10} max={400} step={1} value={pct(t.scaleY)} onChange={(v) => setScale("scaleY", v)} />}
+      <label className="check">
+        <input type="checkbox" checked={linked} onChange={(e) => {
+          setLinked(e.target.checked);
+          if (e.target.checked) setT({ scaleY: t.scaleX });
+        }} />
+        Keep proportions
+      </label>
+      <Slider label="Rotation" unit="°" min={-180} max={180} step={1} value={Math.round(t.rotation)} onChange={(v) => setT({ rotation: v })} />
+      <div className="row toggles">
+        <button type="button" className={`quiet${t.flipX ? " on" : ""}`} aria-pressed={t.flipX} onClick={() => setT({ flipX: !t.flipX })}>
+          ⇋ Flip horizontal
+        </button>
+        <button type="button" className={`quiet${t.flipY ? " on" : ""}`} aria-pressed={t.flipY} onClick={() => setT({ flipY: !t.flipY })}>
+          ⇵ Flip vertical
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Garment regions the layer shows only on, and regions it is hidden on. */
+function MaskFields({ layer, garment, patch }) {
+  const { include, exclude } = layer.mask;
+  const regions = REGIONS[garment];
+  const label = (ids) => ids.map((id) => regions.find((r) => r.id === id)?.label).filter(Boolean).join(", ");
+  const summary = include ? `Only ${label(include)}` : exclude.length ? `Not on ${label(exclude)}` : "Everywhere";
+  const setMask = (fields) => patch({ mask: { ...layer.mask, ...fields } });
+  const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
+  return (
+    <details className="sub">
+      <summary>
+        Mask
+        <span>{include && exclude.length ? `${summary}, not on ${label(exclude)}` : summary}</span>
+      </summary>
+      <div className="field">
+        <span>Show only on {layer.type === "pattern" && !include ? "(default: body, sleeves, socks)" : ""}</span>
+        <div className="chips">
+          {regions.map((r) => (
+            <button key={r.id} type="button" className={`chip${include?.includes(r.id) ? " on" : ""}`} aria-pressed={!!include?.includes(r.id)}
+              onClick={() => {
+                const next = toggle(include || [], r.id);
+                setMask({ include: next.length ? next : null });
+              }}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="field">
+        <span>Hide on</span>
+        <div className="chips">
+          {regions.map((r) => (
+            <button key={r.id} type="button" className={`chip${exclude.includes(r.id) ? " on" : ""}`} aria-pressed={exclude.includes(r.id)}
+              onClick={() => setMask({ exclude: toggle(exclude, r.id) })}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
 
 /** An island's local extent in metres: x0..x1 (across), y0..y1 (up). */
 function islandBounds(isl) {
@@ -540,7 +635,9 @@ export function Slider({ label, unit, value, onChange, ...range }) {
       <span>
         {label}
         <output>
-          {Number(value).toFixed(unit === "×" ? 2 : 1)} {unit}
+          {Number(value).toFixed(unit === "×" ? 2 : unit === "%" || unit === "°" ? 0 : 1)}
+          {unit === "°" || unit === "%" ? "" : " "}
+          {unit}
         </output>
       </span>
       <input type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} {...range} />
