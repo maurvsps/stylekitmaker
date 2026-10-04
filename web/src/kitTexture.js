@@ -54,7 +54,9 @@ function bodySpace(ctx, name, frame) {
   if (name === "back") ctx.scale(-1, 1);
 }
 
+/** Fill the whole island (in its local frame, whatever transform is current). */
 function fill(ctx, frame, color) {
+  frame.local(ctx);
   ctx.fillStyle = color;
   ctx.fillRect(frame.p0 - 1, frame.q0 - 1, frame.p1 - frame.p0 + 2, frame.q1 - frame.q0 + 2);
 }

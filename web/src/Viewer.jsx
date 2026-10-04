@@ -17,6 +17,9 @@ const loadGlb = (name) => {
   if (!glbCache.has(name)) glbCache.set(name, loader.loadAsync(`models/${name}${MODEL_EXT}`));
   return glbCache.get(name);
 };
+// Performance mesh fabric (staggered pinholes, like a Climacool / Dri-FIT knit) as a tiling normal map.
+let mesh;
+const meshTexture = () => (mesh ??= makeMeshFabric());
 // Ambient occlusion baked by blender/make_kit.py (models/<name>_ao.png): contact shadows and fold depth.
 const aoCache = new Map();
 const loadAo = (name) => {
@@ -135,6 +138,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
               name: o.material.name, map: texture, side: THREE.DoubleSide,
               roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
               aoMap: ao, aoMapIntensity: 1,
+              normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
             });
             // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way
             // contact shadows look in a studio render.
@@ -196,6 +200,48 @@ function fitDistance(camera, controls, apply = true) {
     controls.update();
   }
   return d;
+}
+
+function makeMeshFabric() {
+  // One tile = 2 x 2 cells of a staggered grid of small holes, as a height field turned into normals.
+  const n = 64;
+  const h = new Float32Array(n * n);
+  const holes = [[0.25, 0.25], [0.75, 0.25], [0, 0.75], [0.5, 0.75], [1, 0.75]];
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      let d = 1;
+      for (const [hx, hy] of holes) {
+        for (const oy of [-1, 0, 1]) {
+          d = Math.min(d, Math.hypot(x / n - hx, y / n - hy - oy));
+        }
+      }
+      h[y * n + x] = Math.min(1, d / 0.16) ** 0.8; // 0 in a hole, rising to the knit surface
+    }
+  }
+  const c = document.createElement("canvas");
+  c.width = c.height = n;
+  const ctx = c.getContext("2d");
+  const img = ctx.createImageData(n, n);
+  const at = (x, y) => h[((y + n) % n) * n + ((x + n) % n)];
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * 2;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * 2;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * n + x) * 4;
+      img.data[i] = 128 + 127 * (-dx / len);
+      img.data[i + 1] = 128 + 127 * (dy / len);
+      img.data[i + 2] = 128 + 127 * (1 / len);
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(140, 140); // about 4 mm per cell on the shirt
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 8;
+  return t;
 }
 
 function radialShadow() {

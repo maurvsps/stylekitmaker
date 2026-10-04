@@ -5,7 +5,7 @@
     "collar": "v-neck",
     "sleeves": "short",
     "fit": "regular",
-    "sleeve_angle": 62.0
+    "sleeve_angle": 45.0
   },
   "materials": [
     "shirt_body",
@@ -21,41 +21,41 @@
       "rect": [
         0.02,
         0.02,
-        0.51775,
-        0.546733
+        0.517158,
+        0.543967
       ],
-      "pmin": -0.372603,
-      "qmax": 0.78692,
-      "scale": 0.694776
+      "pmin": -0.37392,
+      "qmax": 0.786608,
+      "scale": 0.691535
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.55775,
+        0.557158,
         0.02,
-        0.42225,
-        0.542641
+        0.422842,
+        0.539892
       ],
-      "pmin": -0.303875,
-      "qmax": 0.78103,
-      "scale": 0.694776
+      "pmin": -0.305728,
+      "qmax": 0.780716,
+      "scale": 0.691535
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.369774,
-        0.586733,
-        0.329774,
-        0.159798
+        0.406062,
+        0.583967,
+        0.366062,
+        0.172884
       ],
-      "pmin": -0.237324,
+      "pmin": -0.264673,
       "qmax": -0.0,
-      "scale": 0.694776,
-      "length": 0.23
+      "scale": 0.691535,
+      "length": 0.25
     },
     "sleeve_right": {
       "material": "shirt_sleeves",
@@ -63,14 +63,14 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.586733,
-        0.329774,
-        0.159798
+        0.583967,
+        0.366062,
+        0.172884
       ],
-      "pmin": -0.237324,
+      "pmin": -0.264673,
       "qmax": -0.0,
-      "scale": 0.694776,
-      "length": 0.23
+      "scale": 0.691535,
+      "length": 0.25
     },
     "collar": {
       "material": "shirt_collar",
@@ -78,13 +78,13 @@
       "frame": "p: metres around from the front centre (seam at the back), q: metres up the band",
       "rect": [
         0.02,
-        0.766531,
-        0.419932,
-        0.01771
+        0.776851,
+        0.427733,
+        0.017627
       ],
-      "pmin": -0.302207,
+      "pmin": -0.309264,
       "qmax": 0.02549,
-      "scale": 0.694776
+      "scale": 0.691535
     }
   }
 }

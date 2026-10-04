@@ -8,7 +8,7 @@
         "collar": "crew",
         "sleeves": "short",
         "fit": "regular",
-        "sleeve_angle": 62.0
+        "sleeve_angle": 45.0
       }
     },
     {
@@ -19,7 +19,7 @@
         "collar": "v-neck",
         "sleeves": "short",
         "fit": "regular",
-        "sleeve_angle": 62.0
+        "sleeve_angle": 45.0
       }
     },
     {
@@ -30,7 +30,7 @@
         "collar": "polo",
         "sleeves": "short",
         "fit": "regular",
-        "sleeve_angle": 62.0
+        "sleeve_angle": 45.0
       }
     },
     {
@@ -41,7 +41,7 @@
         "collar": "crew",
         "sleeves": "long",
         "fit": "regular",
-        "sleeve_angle": 62.0
+        "sleeve_angle": 45.0
       }
     },
     {

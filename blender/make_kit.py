@@ -33,7 +33,7 @@ import numpy as np
 COLLAR_TYPE = "crew"        # "crew" | "v-neck" | "polo"
 SLEEVE_LENGTH = "short"     # "short" | "long" | a length in metres, e.g. 0.4
 FIT = "regular"             # "slim" | "regular" | "loose"
-SLEEVE_ANGLE = 62.0         # degrees below horizontal (the pose the sleeves are modelled in)
+SLEEVE_ANGLE = 45.0         # degrees below horizontal (the pose the sleeves are modelled in)
 SUBDIVISION_LEVELS = 1      # Catmull-Clark levels applied before export
 FOLD_STRENGTH = 1.0         # 0 = no fold detail
 BUILD = ["shirt", "shorts", "socks"]  # templates to generate
@@ -62,7 +62,7 @@ FITS = {  # (width/depth scale, length scale)
     "regular": (1.0, 1.0),
     "loose": (1.08, 1.03),
 }
-SLEEVES = {"short": 0.23, "long": 0.58}
+SLEEVES = {"short": 0.25, "long": 0.58}
 
 # ---------------------------------------------------------------- small helpers
 
@@ -144,20 +144,20 @@ def shirt_params(collar, sleeves, fit):
     fw, fl = FITS[fit]
     sleeve_len = SLEEVES[sleeves] if isinstance(sleeves, str) else float(sleeves)
     neck = {  # front drop, front depth, back drop
-        "crew": (0.075, 0.075, 0.02),
+        "crew": (0.085, 0.08, 0.035),
         "v-neck": (0.17, 0.07, 0.02),
         "polo": (0.045, 0.07, 0.015),
     }[collar]
     return dict(
         collar=collar, fit=fit, fw=fw, length=0.74 * fl,
-        cols=24, rows=24, armpit_t=0.7, neck_s=1 / 3,
-        width=[(0, .228), (.32, .214), (.6, .236), (.72, .242), (1, .21)],
+        cols=24, rows=24, armpit_t=0.7, neck_s=0.36,
+        width=[(0, .232), (.32, .224), (.6, .24), (.72, .246), (1, .228)],
         depth_front=[(0, .116), (.32, .108), (.62, .124)],
         depth_back=[(0, .112), (.32, .102), (.62, .114)],
-        chest_t=0.62, armhole_depth=0.06, shoulder_drop=0.07,
+        chest_t=0.62, armhole_depth=0.06, shoulder_drop=0.06,
         neck_drop_front=neck[0], neck_depth_front=neck[1], neck_drop_back=neck[2], neck_depth_back=0.05,
         sleeve_len=sleeve_len * fl, sleeve_angle=math.radians(SLEEVE_ANGLE),
-        cuff_radius=(0.07 if sleeve_len < 0.35 else 0.045) * fw,
+        cuff_radius=(0.085 if sleeve_len < 0.35 else 0.045) * fw,
     )
 
 
@@ -313,7 +313,7 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
             [vid[(True, i, R)] for i in range(iL + 1, half)])
     # (height, outward offset) per row; outward is horizontal, away from the neck centre.
     profile = {
-        "crew": [(0.0, 0.0), (0.011, -0.004), (0.022, -0.006), (0.026, -0.001)],
+        "crew": [(0.0, 0.0), (0.011, 0.001), (0.021, 0.002), (0.027, 0.001)],
         "v-neck": [(0.0, 0.0), (0.01, -0.003), (0.02, -0.004), (0.023, 0.0)],
         "polo": [(0.0, 0.0), (0.015, -0.003), (0.03, -0.004), (0.035, 0.004), (0.014, 0.022), (-0.004, 0.038)],
     }[collar]
@@ -392,10 +392,10 @@ def shirt_folds(kind, p, q, island):
         a = abs(p)
         side = 1 if p >= 0 else -1
         vary = 0.75 + 0.25 * math.sin(3.1 * p + 1.7 * side + (2.3 if back else 0))
-        pit = 0.011 * fold_band(a, q, (0.215, 0.5), (0.06, 0.16), 0.055, 0.075)
-        waist = (0.008 * smoothstep(0.12, 0.2, a) * smoothstep(0.05, 0.12, q) * smoothstep(0.34, 0.22, q)
+        pit = 0.007 * fold_band(a, q, (0.215, 0.5), (0.06, 0.16), 0.055, 0.075)
+        waist = (0.004 * smoothstep(0.12, 0.2, a) * smoothstep(0.05, 0.12, q) * smoothstep(0.34, 0.22, q)
                  * ridge(2 * math.pi * (q + 0.15 * a) / 0.062))
-        hem = 0.009 * smoothstep(0.16, 0.0, q) * ridge(2 * math.pi * a / 0.13 + (1.3 if back else 0.4))
+        hem = 0.005 * smoothstep(0.16, 0.0, q) * ridge(2 * math.pi * a / 0.13 + (1.3 if back else 0.4))
         return (pit + waist + hem) * vary
     if kind == "sleeve":
         l, a = -q, abs(p)
@@ -752,7 +752,7 @@ def subdivide(obj, levels):
 # Torso rings: (z, half width, front depth, back depth), hips to the base of the neck.
 TORSO = [(-0.135, 0.14, 0.06, 0.075), (-0.1, 0.165, 0.085, 0.105), (-0.02, 0.158, 0.088, 0.1),
          (0.18, 0.146, 0.085, 0.09), (0.38, 0.166, 0.1, 0.094), (0.5, 0.172, 0.097, 0.096),
-         (0.58, 0.168, 0.085, 0.09), (0.64, 0.145, 0.066, 0.074), (0.69, 0.1, 0.055, 0.06),
+         (0.58, 0.178, 0.085, 0.09), (0.64, 0.158, 0.066, 0.074), (0.69, 0.1, 0.055, 0.06),
          (0.71, 0.06, 0.05, 0.05)]
 NECK = [(0.7, 0.056), (0.86, 0.05)]
 # Legs: (z, radius, forward offset) from the hip down; x is the sock centre line.
