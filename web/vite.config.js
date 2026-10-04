@@ -36,7 +36,7 @@ function kitModels() {
       const manifest = readFileSync(modelsDir + "kits.json");
       this.emitFile({ type: "asset", fileName: "models/kits.json", source: manifest });
       for (const { name } of JSON.parse(manifest).kits) {
-        for (const file of [`${name}.glb`, `${name}.json`, `${name}_ao.png`]) {
+        for (const file of [`${name}.glb`, `${name}.json`, `${name}_ao.png`, `${name}_uv.png`]) {
           if (!existsSync(modelsDir + file)) continue;
           this.emitFile({ type: "asset", fileName: `models/${file}`, source: readFileSync(modelsDir + file) });
         }

@@ -5,10 +5,9 @@ import { IDENTITY, PALETTE_LABELS, editLayers, findLayer, findRole, makeLayer, m
 
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
-export default function Panel({ project, setProject, templates, models, shirts, fonts, actions, onError }) {
+export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
   const crestInput = useRef(null);
-  const [garment, setGarment] = useState("shirt");
   const [selection, setSelection] = useState({}); // garment -> selected layer id
   const selected = selection[garment] && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
   const select = (id, g = garment) => setSelection((s) => ({ ...s, [g]: id }));
@@ -155,9 +154,28 @@ export default function Panel({ project, setProject, templates, models, shirts, 
       </Section>
 
       <Section title="Export">
-        <button type="button" onClick={actions.screenshot}>
-          Screenshot (PNG)
-        </button>
+        <div className="row">
+          <button type="button" onClick={() => actions.screenshot()}>
+            Screenshot (PNG)
+          </button>
+        </div>
+        <div className="row">
+          {["1:1", "16:9", "9:16"].map((a) => (
+            <button key={a} type="button" className="quiet" onClick={() => actions.screenshot(a)} title={`Framed ${a} image, 2048 px long side`}>
+              {a}
+            </button>
+          ))}
+        </div>
+        <label className="field">
+          <span>Texture resolution</span>
+          <select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
+            {actions.textureSizes.map((s) => (
+              <option key={s} value={s}>
+                {s} × {s}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="row">
           {["shirt", "shorts", "socks"].map((g) => (
             <button key={g} type="button" className="quiet" onClick={() => actions.texture(g)}>

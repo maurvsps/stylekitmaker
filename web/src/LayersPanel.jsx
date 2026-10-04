@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { BASE_DESIGNS, GRAPHICS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import {
-  BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
+  BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
 } from "./project.js";
 
@@ -10,11 +10,18 @@ const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "group"]
 const ICONS = { base: "▣", pattern: "▥", graphic: "◆", image: "▨", text: "T", material: "✦", group: "▤" };
 
 /** The layer stack of one garment: tabs, the list (top layer first), the toolbar and the selected layer's fields. */
+/** Keyboard shortcuts leave text fields alone. */
+export const isTyping = (el) =>
+  !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) && el.type !== "range" && el.type !== "checkbox";
+
+let clipboard = null; // the copied layer (kept while the page is open)
+
 export default function LayersPanel({ project, setProject, garment, setGarment, selected, select, template, fonts, uploadImage }) {
   const layers = project.garments[garment].layers;
   const layer = selected ? findLayer(layers, selected) : null;
   const imageInput = useRef(null);
   const [renaming, setRenaming] = useState(null);
+  const [clip, setClip] = useState(clipboard?.name ?? null);
 
   const edit = (fn) => setProject((p) => editLayers(p, garment, fn));
   const patch = (id, fields) => edit((ls) => mapLayer(ls, id, (l) => ({ ...l, ...fields })));
@@ -66,6 +73,37 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
     }),
   };
 
+  act.copy = () => {
+    clipboard = structuredClone(layer);
+    setClip(clipboard.name);
+  };
+  act.paste = () => {
+    if (!clipboard) return;
+    const pasted = adaptLayer(clipboard, garment, project.assets);
+    if (pasted) add(pasted);
+  };
+
+  // Ctrl/Cmd+C, V, D and Delete act on the selected layer (outside text fields).
+  const keys = useRef(act);
+  keys.current = { ...act, layer };
+  useEffect(() => {
+    const onKey = (e) => {
+      if (isTyping(e.target)) return;
+      const { layer: l, ...a } = keys.current;
+      const mod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === "v") a.paste();
+      else if (!l) return;
+      else if (mod && k === "c") a.copy();
+      else if (mod && k === "d") a.duplicate();
+      else if ((k === "delete" || k === "backspace") && !l.locked) a.remove();
+      else return;
+      e.preventDefault();
+    };
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, []);
+
   const at = layer && locate(layers, layer.id);
   return (
     <div className="layers">
@@ -85,6 +123,11 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
       </div>
 
       <div className="layer-tools">
+        {clip && (
+          <button type="button" className="quiet" onClick={act.paste} title={`Paste "${clip}" (Ctrl+V)`}>
+            Paste
+          </button>
+        )}
         <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer">
           <option value="">+ Add layer</option>
           {ADDABLE.map((t) => (
@@ -115,7 +158,8 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
           <button type="button" className="quiet" title="Move up" aria-label="Move up" disabled={layer.locked || at.index >= at.list.length - 1} onClick={act.up}>↑</button>
           <button type="button" className="quiet" title="Move down" aria-label="Move down" disabled={layer.locked || at.index === 0} onClick={act.down}>↓</button>
           <button type="button" className="quiet" disabled={layer.locked} onClick={() => setRenaming(layer.id)}>Rename</button>
-          <button type="button" className="quiet" onClick={act.duplicate}>Duplicate</button>
+          <button type="button" className="quiet" onClick={act.duplicate} title="Ctrl+D">Duplicate</button>
+          <button type="button" className="quiet" onClick={act.copy} title="Ctrl+C">Copy</button>
           <button type="button" className="quiet danger" disabled={layer.locked} onClick={act.remove}>Delete</button>
         </div>
       )}

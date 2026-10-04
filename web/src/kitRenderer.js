@@ -12,6 +12,17 @@ export class KitRenderer {
     this.painted = {}; // garment -> the inputs of its last repaint
   }
 
+  /** Change the texture resolution (1024, 2048 or 4096); the next render() repaints everything. */
+  resize(size) {
+    for (const t of Object.values(this.textures)) {
+      if (t.image.width === size) continue;
+      t.image.width = t.image.height = size;
+      t.dispose(); // the GPU copy has a fixed size
+      t.needsUpdate = true;
+    }
+    this.painted = {};
+  }
+
   /**
    * project: the kit project; templates: model name -> UV template; models: garment -> model name;
    * images: asset id -> decoded image; fontsKey: changes when a web font finishes loading.
