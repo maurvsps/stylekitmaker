@@ -1,30 +1,71 @@
-import { useRef } from "react";
-import { COLOR_LABELS, LOGO_DEFAULTS, PATTERNS, cleanName, cleanNumber } from "./design.js";
+import { useRef, useState } from "react";
+import { cleanName, cleanNumber } from "./design.js";
+import LayersPanel from "./LayersPanel.jsx";
+import { IDENTITY, PALETTE_LABELS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, removeLayer } from "./project.js";
 
-const MAX_LOGO_BYTES = 1.5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
-export default function Panel({ design, update, shirts, fonts, actions, onError }) {
-  const logoInput = useRef(null);
+export default function Panel({ project, setProject, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
+  const crestInput = useRef(null);
+  const [garment, setGarment] = useState("shirt");
+  const [selection, setSelection] = useState({}); // garment -> selected layer id
+  const selected = selection[garment] && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
+  const select = (id, g = garment) => setSelection((s) => ({ ...s, [g]: id }));
 
-  const setColor = (i, value) => update({ colors: design.colors.map((c, k) => (k === i ? value : c)) });
-  const setLogo = (patch) => update({ logo: { ...design.logo, ...patch } });
+  const set = (fields) => setProject((p) => ({ ...p, ...fields }));
+  const shirtRole = (role) => findRole(project.garments.shirt.layers, role);
 
-  const onLogoFile = (file) => {
-    if (!file) return;
-    if (!/^image\/(png|svg\+xml)$/.test(file.type)) return onError("The crest must be a PNG or SVG file.");
-    if (file.size > MAX_LOGO_BYTES) return onError("The crest file is too large (1.5 MB max).");
-    const reader = new FileReader();
-    reader.onload = () => update({ logo: { ...LOGO_DEFAULTS, ...(design.logo || {}), src: reader.result, name: file.name } });
-    reader.readAsDataURL(file);
+  /** Read an image file into the project's assets; resolves to { id, name } (or null after showing an error). */
+  const uploadImage = (file) =>
+    new Promise((resolve) => {
+      if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
+        onError("Images must be PNG, SVG, JPEG or WebP files.");
+        return resolve(null);
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        onError("That image is too large (1.5 MB max).");
+        return resolve(null);
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const id = newId("img");
+        setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: reader.result, name: file.name } } }));
+        resolve({ id, name: file.name });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+
+  // Shortcuts: the crest and sponsor are ordinary shirt layers marked with a role.
+  const setSponsor = (text) =>
+    setProject((p) =>
+      editLayers(p, "shirt", (ls) => {
+        const layer = findRole(ls, "sponsor");
+        if (layer) return mapLayer(ls, layer.id, (l) => ({ ...l, text }));
+        return [...ls, makeLayer("text", "shirt", { role: "sponsor", name: "Sponsor", text, size: 0.065, maxWidth: 0.32, transform: { ...IDENTITY, y: 0.39 } })];
+      }),
+    );
+  const onCrestFile = async (file) => {
+    const asset = await uploadImage(file);
+    if (!asset) return;
+    const fresh = makeLayer("image", "shirt", { role: "crest", name: "Crest", asset: asset.id, transform: { ...IDENTITY, x: 0.095, y: 0.555 } });
+    setProject((p) =>
+      editLayers(p, "shirt", (ls) => {
+        const layer = findRole(ls, "crest");
+        return layer ? mapLayer(ls, layer.id, (l) => ({ ...l, asset: asset.id })) : [...ls, fresh];
+      }),
+    );
   };
+  const crest = shirtRole("crest");
+  const sponsor = shirtRole("sponsor");
 
   return (
     <aside className="panel" aria-label="Kit design">
       <h1>Kit Maker</h1>
 
       <Section title="Template">
-        <select value={design.template} onChange={(e) => update({ template: e.target.value })} aria-label="Shirt template">
+        <select value={project.template} onChange={(e) => set({ template: e.target.value })} aria-label="Shirt template">
           {shirts.map((k) => (
             <option key={k.name} value={k.name}>
               {k.label}
@@ -33,49 +74,46 @@ export default function Panel({ design, update, shirts, fonts, actions, onError 
         </select>
       </Section>
 
-      <Section title="Colours">
+      <Section title="Kit colours">
         <div className="colors">
-          {design.colors.map((c, i) => (
+          {project.palette.map((c, i) => (
             <label key={i} className="color">
-              <input type="color" value={c} onChange={(e) => setColor(i, e.target.value)} />
-              <span>{COLOR_LABELS[i]}</span>
+              <input type="color" value={c} onChange={(e) => set({ palette: project.palette.map((x, k) => (k === i ? e.target.value : x)) })} />
+              <span>{PALETTE_LABELS[i]}</span>
             </label>
           ))}
         </div>
       </Section>
 
-      <Section title="Pattern">
-        <div className="patterns" role="radiogroup" aria-label="Pattern">
-          {PATTERNS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              role="radio"
-              aria-checked={design.pattern === p.id}
-              className={design.pattern === p.id ? "active" : ""}
-              onClick={() => update({ pattern: p.id })}
-            >
-              <PatternSwatch id={p.id} colors={design.colors} />
-              {p.label}
-            </button>
-          ))}
-        </div>
+      <Section title="Layers">
+        <LayersPanel
+          project={project}
+          setProject={setProject}
+          garment={garment}
+          setGarment={setGarment}
+          selected={selected}
+          select={select}
+          template={templates[models[garment]]}
+          fonts={fonts}
+          uploadImage={uploadImage}
+        />
       </Section>
 
       <Section title="Player">
         <div className="row">
           <label className="field grow">
             <span>Name</span>
-            <input value={design.name} onChange={(e) => update({ name: cleanName(e.target.value) })} />
+            <input value={project.player.name} onChange={(e) => set({ player: { ...project.player, name: cleanName(e.target.value) } })} />
           </label>
           <label className="field number">
             <span>Number</span>
-            <input inputMode="numeric" value={design.number} onChange={(e) => update({ number: cleanNumber(e.target.value) })} />
+            <input inputMode="numeric" value={project.player.number}
+              onChange={(e) => set({ player: { ...project.player, number: cleanNumber(e.target.value) } })} />
           </label>
         </div>
         <label className="field">
-          <span>Font</span>
-          <select value={design.font} onChange={(e) => update({ font: e.target.value })}>
+          <span>Kit font</span>
+          <select value={project.font} onChange={(e) => set({ font: e.target.value })}>
             {fonts.map((f) => (
               <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
                 {f.id}
@@ -85,33 +123,35 @@ export default function Panel({ design, update, shirts, fonts, actions, onError 
         </label>
         <label className="field">
           <span>Sponsor</span>
-          <input value={design.sponsor} maxLength={20} onChange={(e) => update({ sponsor: e.target.value })} />
+          <input value={sponsor?.text ?? ""} maxLength={20} disabled={sponsor?.locked} onChange={(e) => setSponsor(e.target.value)} />
         </label>
       </Section>
 
       <Section title="Crest">
-        <input ref={logoInput} type="file" accept="image/png,image/svg+xml" hidden onChange={(e) => {
-          onLogoFile(e.target.files[0]);
+        <input ref={crestInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
+          if (e.target.files[0]) onCrestFile(e.target.files[0]);
           e.target.value = "";
         }} />
         <div className="row">
-          <button type="button" onClick={() => logoInput.current.click()}>
-            {design.logo ? "Replace" : "Upload PNG/SVG"}
+          <button type="button" disabled={crest?.locked} onClick={() => crestInput.current.click()}>
+            {crest ? "Replace" : "Upload image"}
           </button>
-          {design.logo && (
-            <button type="button" className="quiet" onClick={() => update({ logo: null })}>
-              Remove
-            </button>
+          {crest && (
+            <>
+              <button type="button" className="quiet" onClick={() => {
+                setGarment("shirt");
+                select(crest.id, "shirt");
+              }}>
+                Position
+              </button>
+              <button type="button" className="quiet" disabled={crest.locked}
+                onClick={() => setProject((p) => editLayers(p, "shirt", (ls) => removeLayer(ls, crest.id)))}>
+                Remove
+              </button>
+            </>
           )}
         </div>
-        {design.logo && (
-          <>
-            <p className="file-name">{design.logo.name}</p>
-            <Slider label="Left / right" unit="cm" min={-15} max={15} step={0.5} value={design.logo.x} onChange={(x) => setLogo({ x })} />
-            <Slider label="Up / down" unit="cm" min={-15} max={15} step={0.5} value={design.logo.y} onChange={(y) => setLogo({ y })} />
-            <Slider label="Size" unit="×" min={0.3} max={3} step={0.05} value={design.logo.scale} onChange={(scale) => setLogo({ scale })} />
-          </>
-        )}
+        {crest?.asset && <p className="file-name">{project.assets[crest.asset]?.name}</p>}
       </Section>
 
       <Section title="Export">
@@ -154,45 +194,5 @@ function Section({ title, children }) {
       <h2>{title}</h2>
       {children}
     </section>
-  );
-}
-
-function Slider({ label, unit, value, onChange, ...range }) {
-  return (
-    <label className="slider">
-      <span>
-        {label}
-        <output>
-          {Number(value).toFixed(unit === "×" ? 2 : 1)} {unit}
-        </output>
-      </span>
-      <input type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} {...range} />
-    </label>
-  );
-}
-
-/** A tiny shirt-front preview of each pattern, in the current colours. */
-function PatternSwatch({ id, colors: [a, b] }) {
-  const shapes = {
-    solid: null,
-    stripes: [0, 1, 2].map((k) => <rect key={k} x={3 + k * 9} y="0" width="4.5" height="32" fill={b} />),
-    hoops: [0, 1, 2].map((k) => <rect key={k} x="0" y={4 + k * 10} width="32" height="5" fill={b} />),
-    halves: <rect x="16" y="0" width="16" height="32" fill={b} />,
-    sash: <path d="M-4 4 L4 -4 L36 28 L28 36 Z" fill={b} />,
-    chevron: <path d="M0 6 L16 18 L32 6 L32 12 L16 24 L0 12 Z" fill={b} />,
-    gradient: null,
-  };
-  const gid = `g-${id}`;
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden="true">
-      <defs>
-        <linearGradient id={gid} x1="0" y1="1" x2="0" y2="0">
-          <stop offset="0" stopColor={b} />
-          <stop offset="1" stopColor={a} />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" fill={id === "gradient" ? `url(#${gid})` : a} />
-      {shapes[id]}
-    </svg>
   );
 }

@@ -104,27 +104,33 @@ npm run build:artifact  # web/dist-artifact: self-contained copy for a claude.ai
 
 | File | Role |
 | --- | --- |
-| `src/design.js` | The design state, its defaults, patterns, fonts, and `sanitizeDesign` (used for loaded JSON and the saved draft) |
-| `src/kitTexture.js` | Paints one garment's texture from the design and its UV template (plain canvas code, no React) |
+| `src/project.js` | The project schema (version 2): palette, player, uploaded images and a layer stack per garment; `sanitizeProject` (loaded JSON and the saved draft, migrating version 1 files) and the layer-tree operations |
+| `src/design.js` | The version 1 design (one flat object, files saved before the layer editor), migrated by `project.js`; the font list |
+| `src/library.js` | Base designs, trims, patterns and graphics: metadata for the panel plus their canvas painters |
+| `src/kitTexture.js` | The layer compositor: paints one garment's texture from its ordered layers and its UV template (plain canvas code, no React) |
+| `src/kitRenderer.js` | Owns the three texture canvases and repaints only the garments whose layers (or what they use) changed |
 | `src/Viewer.jsx` | three.js scene: GLTFLoader + DRACOLoader (decoder served at `/draco/`), OrbitControls, studio lighting, contact shadow; exposes `screenshot()` and camera presets |
-| `src/App.jsx` | Holds the state, loads `kits.json` and the templates, repaints the three textures on every change (at most once per frame) |
-| `src/Panel.jsx` | The side panel |
+| `src/App.jsx` | Holds the project, loads `kits.json` and the templates, decodes uploaded images and fonts, asks the renderer to repaint (at most once per frame) |
+| `src/Panel.jsx`, `src/LayersPanel.jsx` | The side panel: kit colours, the Layers editor, and shortcuts for the player, sponsor and crest |
 
-The whole design is one object:
+The project is one object (`project.js` documents every field):
 
 ```js
-{ template: "shirt", colors: ["#c8102e", "#ffffff", "#0b1f3a"], pattern: "stripes",
-  logo: null /* or { src: data URL, name, x, y (cm), scale } */, sponsor: "SQUAREGOAL", name: "VEGA", number: "10", font: "Oswald" }
+{ version: 2, template: "shirt", palette: ["#c8102e", "#ffffff", "#0b1f3a"], font: "Oswald",
+  player: { name: "VEGA", number: "10" }, assets: { /* id: { src: data URL, name } */ },
+  garments: { shirt: { layers: [/* bottom to top */] }, shorts: { layers: [] }, socks: { layers: [] } } }
 ```
 
-- **Textures:** each garment has its own hidden 2048 px canvas, used as a `CanvasTexture` (`flipY = false`). Patterns are drawn in body coordinates (metres), so they line up across the side seams.
-- **Colours:** primary and secondary make the shirt pattern. The trim colour paints the collar, cuffs, waistband, sock tops and lettering. Shorts use the secondary colour with a primary hem; socks use the primary colour with two secondary hoops.
-- **Patterns:** solid, stripes, hoops, halves, sash, chevron, gradient. Sleeves follow the pattern where it makes sense (hoops and halves); otherwise they're the primary colour.
-- **Placement:** the crest (PNG/SVG, up to 1.5 MB) sits on the wearer's left chest, with sliders to move it ±15 cm and scale it. The small number goes opposite the crest, the sponsor across the chest, the name and big number on the back, and the number on the front left leg of the shorts.
+- **Layers:** every garment is a stack of non-destructive layers, painted bottom to top: base design, pattern, graphic, image, text, material effect (reserved for the PBR step) and group. Each layer has visibility, lock, a name, opacity, a blend mode and a transform (position, scale X/Y, rotation, flip); the compositor applies all of them, while the panel edits position and size so far. Layer colours are either a palette entry (`"@0"` to `"@2"`, so changing a kit colour recolours every layer that uses it) or a fixed `#rrggbb`.
+- **Layers panel:** Shirt / Shorts / Socks tabs, the list (top layer first) with drag-and-drop by the ⠿ handle (mouse or finger; drop onto a group to put a layer inside it), show/hide, lock, rename (double-click), duplicate, delete and move up/down, and the selected layer's settings underneath.
+- **Textures:** each garment has its own hidden 2048 px canvas, used as a `CanvasTexture` (`flipY = false`). A layer paints island by island, clipped to the island plus 6 px of bleed. Patterns are drawn in body coordinates (metres), so they line up across the side seams; placed layers (text, image, graphic) are positioned in metres in their part's frame ("Placed on": front, back, sleeves, socks). Layers with opacity below 1 or a blend mode are composited from a scratch canvas.
+- **Base designs and trims:** a base design is the opaque ground (body and sleeves, shorts, socks with or without hoops). Trims (collar and cuffs, hem and waistband, sock top band) are their own layer, normally above the patterns.
+- **Patterns:** stripes, pinstripes, hoops, halves, quarters, sash, chevron, chest band, checks and gradient, each with its colours, an optional background, and the parts it covers (front, back, each sleeve).
+- **Shortcuts:** the Player section edits the name and number shown by bound text layers, the kit font, and the sponsor layer; the Crest section uploads or replaces the crest layer's image. Images (PNG, SVG, JPEG, WebP, up to 1.5 MB each) can be added as any number of image layers.
 - **Fonts:** Oswald, Bebas Neue, Anton, Teko and Saira Condensed, loaded from Google Fonts. Text is repainted when a font arrives; without a connection it falls back to Impact or sans-serif.
 - **Export:** a PNG screenshot of the 3D view, and a flat PNG texture per garment.
 - **Mobile:** under 760 px wide, the 3D view takes the top of the screen and the panel scrolls below. Drag with one finger to rotate and pinch to zoom.
-- **Design file:** Save and Load JSON (`{ version: 1, ...design }`). Anything invalid in a loaded file falls back to the default for that field. The current design is also kept in `localStorage`.
+- **Design file:** Save and Load JSON (the version 2 project; images that no layer uses are dropped). Version 1 files (and drafts saved by older versions) are migrated into layers on load and paint exactly as before. Anything invalid in a loaded file falls back to the default for that field. The current project is also kept in `localStorage`.
 
 ### Phone link (claude.ai artifact)
 

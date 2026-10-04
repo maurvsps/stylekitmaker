@@ -1,25 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 import Viewer from "./Viewer.jsx";
 import Panel from "./Panel.jsx";
 import ExportSheet from "./ExportSheet.jsx";
-import { DEFAULT_DESIGN, FONTS, fontCss, sanitizeDesign } from "./design.js";
-import { drawGarment } from "./kitTexture.js";
+import { FONTS, fontCss } from "./design.js";
+import { DEFAULT_PROJECT, fontsInUse, sanitizeProject, serializeProject } from "./project.js";
+import { KitRenderer } from "./kitRenderer.js";
 
 const TEXTURE_SIZE = 2048;
-const GARMENTS = ["shirt", "shorts", "socks"];
-const STORAGE_KEY = "kit-maker:design";
+const STORAGE_KEY = "kit-maker:design"; // holds a version 1 design in older browsers; migrated on read
 // Pages hosted where downloads are blocked (the claude.ai artifact build) show exports in a sheet instead.
 const CAN_DOWNLOAD = !import.meta.env.VITE_NO_DOWNLOAD;
-
-function makeTexture() {
-  const canvas = document.createElement("canvas"); // hidden: only the 3D view and the downloads show it
-  canvas.width = canvas.height = TEXTURE_SIZE;
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.flipY = false; // glTF UVs: canvas top = texture v 0
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
 
 function readSaved() {
   try {
@@ -31,15 +21,16 @@ function readSaved() {
 }
 
 export default function App() {
-  const [design, setDesign] = useState(() => sanitizeDesign(readSaved() || DEFAULT_DESIGN));
+  const [project, setProject] = useState(() => sanitizeProject(readSaved() || DEFAULT_PROJECT));
   const [kits, setKits] = useState(null); // kits.json entries
   const [templates, setTemplates] = useState({}); // model name -> UV template
-  const [logoImage, setLogoImage] = useState(null);
+  const [images, setImages] = useState({}); // asset id -> decoded image
   const [fontsReady, setFontsReady] = useState(0);
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // { kind: "image" | "json", title, url | text, filename }
   const viewer = useRef(null);
-  const textures = useMemo(() => Object.fromEntries(GARMENTS.map((g) => [g, makeTexture()])), []);
+  const renderer = useMemo(() => new KitRenderer(TEXTURE_SIZE), []);
+  const textures = renderer.textures;
 
   // Templates: the manifest, then every UV template it lists.
   useEffect(() => {
@@ -51,61 +42,51 @@ export default function App() {
       setTemplates(Object.fromEntries(entries));
       setKits(kits);
       const shirts = kits.filter((k) => k.garment === "shirt").map((k) => k.name);
-      setDesign((d) => (shirts.includes(d.template) ? d : { ...d, template: shirts[0] }));
+      setProject((p) => (shirts.includes(p.template) ? p : { ...p, template: shirts[0] }));
     })().catch((err) => setError(`Could not load the kit templates (${err.message}). Run blender/make_kit.py first.`));
   }, []);
 
   const shirtNames = useMemo(() => (kits || []).filter((k) => k.garment === "shirt"), [kits]);
-  const models = useMemo(() => ({ shirt: design.template, shorts: "shorts", socks: "socks" }), [design.template]);
+  const models = useMemo(() => ({ shirt: project.template, shorts: "shorts", socks: "socks" }), [project.template]);
 
-  // Crest image, decoded once per upload.
-  const logoSrc = design.logo?.src;
+  // Uploaded images, decoded once each.
+  const assets = project.assets;
   useEffect(() => {
-    if (!logoSrc) return setLogoImage(null);
     let live = true;
-    const img = new Image();
-    img.onload = () => live && setLogoImage(img);
-    img.onerror = () => live && setLogoImage(null);
-    img.src = logoSrc;
+    Promise.all(Object.entries(assets).map(([id, { src }]) => decodeImage(src).then((img) => [id, img], () => null)))
+      .then((list) => live && setImages(Object.fromEntries(list.filter(Boolean))));
     return () => {
       live = false;
     };
-  }, [logoSrc]);
+  }, [assets]);
 
-  // Web fonts: repaint once the selected font has arrived.
+  // Web fonts: repaint once the fonts in use have arrived.
+  const fontKey = fontsInUse(project).join("|");
   useEffect(() => {
     let live = true;
-    document.fonts
-      ?.load(fontCss(design.font, 64), "AZ09")
+    Promise.all(fontKey.split("|").map((f) => document.fonts?.load(fontCss(f, 64), "AZ09")))
       .then(() => live && setFontsReady((n) => n + 1), () => {});
     return () => {
       live = false;
     };
-  }, [design.font]);
+  }, [fontKey]);
 
-  // Repaint every texture on each design change, at most once per frame (colour pickers fire continuously).
+  // Repaint the garments whose layers (or what they use) changed, at most once per frame (colour pickers fire
+  // continuously).
   useEffect(() => {
     if (!kits) return;
-    const frame = requestAnimationFrame(() => {
-      for (const garment of GARMENTS) {
-        const template = templates[models[garment]];
-        if (!template) continue;
-        drawGarment(textures[garment].image, garment, template, design, { logo: logoImage });
-        textures[garment].needsUpdate = true;
-      }
-    });
+    const frame = requestAnimationFrame(() => renderer.render(project, templates, models, images, fontsReady));
     return () => cancelAnimationFrame(frame);
-  }, [design, kits, templates, models, textures, logoImage, fontsReady]);
+  }, [project, kits, templates, models, renderer, images, fontsReady]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(design));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeProject(project)));
     } catch {
-      // storage full or blocked (large crest): the design still works, it just is not remembered
+      // storage full or blocked (large images): the project still works, it just is not remembered
     }
-  }, [design]);
+  }, [project]);
 
-  const update = useCallback((patch) => setDesign((d) => ({ ...d, ...patch })), []);
   const [loaded, setLoaded] = useState(false);
   const onLoaded = useCallback(() => {
     setLoaded(true);
@@ -122,16 +103,16 @@ export default function App() {
         filename: `${garment}-texture.png`,
       }),
     save: () =>
-      offer({ kind: "json", title: "Design file", text: JSON.stringify({ version: 1, ...design }, null, 2), filename: "kit-design.json" }),
+      offer({ kind: "json", title: "Design file", text: JSON.stringify(serializeProject(project), null, 2), filename: "kit-design.json" }),
     load: async (file) => {
       try {
         const data = JSON.parse(await file.text());
-        setDesign(sanitizeDesign(data, shirtNames.map((k) => k.name)));
+        setProject(sanitizeProject(data, shirtNames.map((k) => k.name)));
       } catch {
         setError("That file is not a kit design (JSON).");
       }
     },
-    reset: () => setDesign({ ...DEFAULT_DESIGN, template: shirtNames[0]?.name || DEFAULT_DESIGN.template }),
+    reset: () => setProject({ ...structuredClone(DEFAULT_PROJECT), template: shirtNames[0]?.name || DEFAULT_PROJECT.template }),
     view: (preset) => viewer.current?.view(preset),
   };
 
@@ -164,9 +145,31 @@ export default function App() {
         </div>
       </main>
       {sheet && <ExportSheet file={sheet} onClose={() => setSheet(null)} />}
-      <Panel design={design} update={update} shirts={shirtNames} fonts={FONTS} actions={actions} onError={setError} />
+      <Panel
+        project={project}
+        setProject={setProject}
+        templates={templates}
+        models={models}
+        shirts={shirtNames}
+        fonts={FONTS}
+        actions={actions}
+        onError={setError}
+      />
     </div>
   );
+}
+
+const decoded = new Map(); // data URL -> Promise<HTMLImageElement>
+function decodeImage(src) {
+  if (!decoded.has(src)) {
+    decoded.set(src, new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    }));
+  }
+  return decoded.get(src);
 }
 
 function download(url, filename, revoke = false) {

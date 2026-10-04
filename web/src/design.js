@@ -1,4 +1,5 @@
-// The whole kit design lives in one object; everything else (textures, 3D view, panel) is derived from it.
+// Version 1 of the saved design (one flat object, files saved before the layer editor) and the shared font list.
+// project.js migrates these designs into layer projects (projectFromDesign); fontCss is used by the compositor.
 
 export const PATTERNS = [
   { id: "solid", label: "Solid" },
@@ -19,8 +20,6 @@ export const FONTS = [
   { id: "Saira Condensed", weight: 800 },
 ];
 
-export const COLOR_LABELS = ["Primary", "Secondary", "Trim"];
-
 export const DEFAULT_DESIGN = {
   template: "shirt",
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
@@ -31,8 +30,6 @@ export const DEFAULT_DESIGN = {
   number: "10",
   font: "Oswald",
 };
-
-export const LOGO_DEFAULTS = { x: 0, y: 0, scale: 1 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 

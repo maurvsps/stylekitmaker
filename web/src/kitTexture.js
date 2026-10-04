@@ -1,32 +1,105 @@
 import { fontCss } from "./design.js";
+import { baseDesign, graphic, paintPattern as paintPatternColors, pattern as patternDef } from "./library.js";
+import { resolveColor } from "./project.js";
 
-// Paints a garment's texture from the design. The canvas follows the garment's UV template
-// (public/models/<name>.json, written by blender/make_kit.py): every island has a local frame in metres
-// (p right, q up, as seen from outside) and a rectangle on the texture.
+// The layer compositor: paints one garment's texture from its ordered layers (project.js) and its UV template
+// (public/models/<name>.json, written by blender/make_kit.py). Plain canvas code, no React.
 //
-// Body panels are painted in body coordinates: x = metres across from the centre line (+x = wearer's left,
-// which is on the viewer's right when looking at the front) and h = metres up from the hem. The back's frame
-// runs the other way (p = -x), so patterns line up across the side seams.
+//   garment layers (bottom to top) -> per layer: region clip, transform, paint -> opacity / blend -> canvas
 //
-// Colour roles: primary and secondary make the shirt pattern; the trim colour paints collar, cuffs, waistband,
-// sock tops and the lettering. Shorts are secondary, socks primary.
+// Every UV island has a local frame in metres (p right, q up, as seen from outside) and a rectangle on the
+// texture. Layers paint island by island, clipped to the island plus a few pixels of bleed so seams never show.
+// A layer with opacity < 1 or a blend mode (and a group with either) is painted on a scratch canvas first and
+// composited as one piece; everything else paints straight onto the texture.
 
-const PAD = 6; // pixels painted beyond each island so seams never show the background
+const PAD = 6; // pixels painted beyond each island
 
-export function drawGarment(canvas, garment, template, design, assets) {
+/**
+ * Paint `garment`'s texture onto `canvas`.
+ * `images` maps asset ids to decoded images (image layers whose image has not loaded yet paint nothing).
+ */
+export function drawGarment(canvas, garment, template, project, images = {}) {
   const ctx = canvas.getContext("2d");
   const S = canvas.width;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = design.colors[0];
+  const islands = Object.entries(template.islands).map(([name, isl]) => ({ name, kind: isl.kind, isl, frame: islandFrame(isl, S) }));
+  const env = {
+    garment, S, islands, project, images,
+    byName: Object.fromEntries(islands.map((i) => [i.name, i])),
+    color: (c) => resolveColor(c, project.palette),
+    scratch: [],
+  };
+  reset(ctx);
+  ctx.fillStyle = "#ffffff"; // fabric without any layer
   ctx.fillRect(0, 0, S, S);
-  for (const [name, isl] of Object.entries(template.islands)) {
-    const frame = islandFrame(isl, S);
+  drawLayers(ctx, project.garments[garment].layers, env, 0);
+}
+
+function reset(ctx) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+}
+
+function drawLayers(ctx, layers, env, depth) {
+  for (const layer of layers) {
+    if (!layer.visible || layer.opacity <= 0) continue;
+    const isolated = layer.opacity < 1 || layer.blend !== "normal";
+    if (!isolated) {
+      paintLayer(ctx, layer, env, depth);
+      continue;
+    }
+    const scratch = scratchCanvas(env, depth);
+    const sctx = scratch.getContext("2d");
+    reset(sctx);
+    sctx.clearRect(0, 0, env.S, env.S);
+    paintLayer(sctx, layer, env, depth + 1);
+    ctx.save();
+    reset(ctx);
+    ctx.globalAlpha = layer.opacity;
+    ctx.globalCompositeOperation = layer.blend === "normal" ? "source-over" : layer.blend;
+    ctx.drawImage(scratch, 0, 0);
+    ctx.restore();
+  }
+}
+
+// One scratch canvas per nesting depth, kept between repaints.
+const scratchPool = [];
+function scratchCanvas(env, depth) {
+  let c = scratchPool[depth];
+  if (!c || c.width !== env.S) {
+    c = scratchPool[depth] = document.createElement("canvas");
+    c.width = c.height = env.S;
+  }
+  return c;
+}
+
+function paintLayer(ctx, layer, env, depth) {
+  switch (layer.type) {
+    case "group":
+      return drawLayers(ctx, layer.children, env, depth);
+    case "base":
+      return paintBase(ctx, layer, env);
+    case "pattern":
+      return paintPattern(ctx, layer, env);
+    case "text":
+    case "image":
+    case "graphic":
+      return paintPlaced(ctx, layer, env);
+    default:
+      // material effects only change the material (later); they paint nothing on the colour texture
+  }
+}
+
+/** Run `paint` once per island in `names` (all islands when null), clipped to the island and its bleed. */
+function eachIsland(ctx, env, names, paint) {
+  for (const island of env.islands) {
+    if (names && !names.includes(island.name)) continue;
+    const { frame } = island;
     ctx.save();
     ctx.beginPath();
     ctx.rect(frame.x - PAD, frame.y - PAD, frame.w + 2 * PAD, frame.h + 2 * PAD);
     ctx.clip();
-    const painter = PAINTERS[garment];
-    painter(ctx, name, isl, frame, design, assets);
+    paint(island);
     ctx.restore();
   }
 }
@@ -48,180 +121,122 @@ function islandFrame(isl, S) {
   };
 }
 
-/** Draw in body coordinates (x, h) on a front or back panel. */
-function bodySpace(ctx, name, frame) {
-  frame.local(ctx);
-  if (name === "back") ctx.scale(-1, 1);
-}
+// ---------------------------------------------------------------- base design
 
-/** Fill the whole island (in its local frame, whatever transform is current). */
-function fill(ctx, frame, color) {
-  frame.local(ctx);
-  ctx.fillStyle = color;
-  ctx.fillRect(frame.p0 - 1, frame.q0 - 1, frame.p1 - frame.p0 + 2, frame.q1 - frame.q0 + 2);
-}
-
-// ---------------------------------------------------------------- patterns (body coordinates)
-
-const BIG = 2; // metres: further than any panel reaches
-
-function paintPattern(ctx, pattern, [primary, secondary]) {
-  const box = (color, x0, h0, x1, h1) => {
-    ctx.fillStyle = color;
-    ctx.fillRect(x0, h0, x1 - x0, h1 - h0);
-  };
-  switch (pattern) {
-    case "stripes": {
-      const w = 0.06; // a primary stripe on the centre line, alternating outward
-      box(secondary, -BIG, -BIG, BIG, BIG);
-      for (let k = -10; k <= 10; k++) box(primary, (2 * k - 0.5) * w, -BIG, (2 * k + 0.5) * w, BIG);
-      break;
-    }
-    case "hoops": {
-      const b = 0.07;
-      box(primary, -BIG, -BIG, BIG, BIG);
-      for (let k = 0; k < 20; k++) box(secondary, -BIG, (2 * k + 1) * b, BIG, (2 * k + 2) * b);
-      break;
-    }
-    case "halves":
-      box(primary, -BIG, -BIG, 0, BIG);
-      box(secondary, 0, -BIG, BIG, BIG);
-      break;
-    case "sash":
-      box(primary, -BIG, -BIG, BIG, BIG);
-      band(ctx, secondary, 0.12, [[-0.32, 0.9], [0.4, -0.1]]);
-      break;
-    case "chevron":
-      box(primary, -BIG, -BIG, BIG, BIG);
-      band(ctx, secondary, 0.08, [[-0.6, 0.78], [0, 0.42], [0.6, 0.78]]);
-      break;
-    case "gradient": {
-      const g = ctx.createLinearGradient(0, 0.05, 0, 0.75);
-      g.addColorStop(0, secondary);
-      g.addColorStop(1, primary);
-      ctx.fillStyle = g;
-      ctx.fillRect(-BIG, -BIG, 2 * BIG, 2 * BIG);
-      break;
-    }
-    default:
-      box(primary, -BIG, -BIG, BIG, BIG);
+function paintBase(ctx, layer, env) {
+  const design = baseDesign(env.garment, layer.design);
+  const colors = Object.fromEntries(design.slots.map(([k, , def]) => [k, env.color(layer.colors[k] ?? def)]));
+  if (design.ground) {
+    ctx.save();
+    reset(ctx);
+    ctx.fillStyle = colors[design.ground]; // the texture outside the islands, so mipmaps never bleed white
+    ctx.fillRect(0, 0, env.S, env.S);
+    ctx.restore();
   }
+  eachIsland(ctx, env, null, (island) => design.paint(ctx, island, colors));
 }
 
-function band(ctx, color, width, points) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.lineJoin = "miter";
-  ctx.lineCap = "butt";
-  ctx.beginPath();
-  points.forEach(([x, h], i) => (i ? ctx.lineTo(x, h) : ctx.moveTo(x, h)));
-  ctx.stroke();
+// ---------------------------------------------------------------- patterns
+
+function paintPattern(ctx, layer, env) {
+  const p = patternDef(layer.pattern);
+  const colors = layer.colors.map((c) => c && env.color(c));
+  const t = layer.transform;
+  eachIsland(ctx, env, layer.regions, (island) => {
+    const { name, kind, frame } = island;
+    if (kind !== "body" && kind !== "sleeve" && kind !== "sock") return;
+    frame.local(ctx);
+    // Pattern space: body coordinates on panels (the back's frame runs the other way), distance down the tube on
+    // sleeves and socks.
+    if (kind === "body") {
+      if (name === "back") ctx.scale(-1, 1);
+    } else {
+      ctx.scale(1, -1);
+    }
+    applyTransform(ctx, t);
+    paintPatternColors(ctx, p, colors, island);
+  });
 }
 
-// ---------------------------------------------------------------- text and crest
+function applyTransform(ctx, t) {
+  if (t.x || t.y) ctx.translate(t.x, t.y);
+  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180);
+  const sx = t.scaleX * (t.flipX ? -1 : 1);
+  const sy = t.scaleY * (t.flipY ? -1 : 1);
+  if (sx !== 1 || sy !== 1) ctx.scale(sx, sy);
+}
 
-/** Text centred at a local point, `height` metres tall (cap height), at most `maxWidth` metres wide. */
-function text(ctx, frame, str, p, q, height, maxWidth, design, color) {
+// ---------------------------------------------------------------- placed layers (text, image, graphic)
+
+function paintPlaced(ctx, layer, env) {
+  const island = env.byName[layer.surface];
+  if (!island) return;
+  eachIsland(ctx, env, [layer.surface], ({ frame }) => {
+    const t = layer.transform;
+    // Work in pixels centred on the layer's position, y down (canvas text and images expect that).
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const [cx, cy] = frame.toPx(t.x, t.y);
+    const turned = t.rotation || t.flipX || t.flipY;
+    if (turned) {
+      ctx.translate(cx, cy);
+      ctx.rotate((-t.rotation * Math.PI) / 180); // positive = counter-clockwise, as seen from outside
+      ctx.scale(t.flipX ? -1 : 1, t.flipY ? -1 : 1);
+    }
+    const [ox, oy] = turned ? [0, 0] : [cx, cy];
+    if (layer.type === "text") placeText(ctx, layer, env, frame, ox, oy);
+    else if (layer.type === "image") placeImage(ctx, layer, env, frame, ox, oy);
+    else placeGraphic(ctx, layer, env, frame, ox, oy);
+  });
+}
+
+function placeText(ctx, layer, env, frame, x, y) {
+  const { player, font } = env.project;
+  const str = layer.bind ? player[layer.bind] : layer.text;
   if (!str) return;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const [cx, cy] = frame.toPx(p, q);
-  let px = height * frame.s * 1.35; // font size so the capitals are about `height` tall
-  ctx.font = fontCss(design.font, px);
-  const width = ctx.measureText(str).width;
-  if (width > maxWidth * frame.s) {
-    px *= (maxWidth * frame.s) / width;
-    ctx.font = fontCss(design.font, px);
+  const t = layer.transform;
+  const fontId = layer.font || font;
+  let px = layer.size * t.scaleY * frame.s * 1.35; // font size so the capitals are about `size` tall
+  ctx.font = fontCss(fontId, px);
+  const stretch = t.scaleX / t.scaleY;
+  const maxWidth = layer.maxWidth * t.scaleX * frame.s;
+  const width = ctx.measureText(str).width * stretch;
+  if (width > maxWidth) {
+    px *= maxWidth / width;
+    ctx.font = fontCss(fontId, px);
+  }
+  if (stretch !== 1) {
+    ctx.translate(x, y);
+    ctx.scale(stretch, 1);
+    x = y = 0;
   }
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(2, px * 0.06);
-  ctx.strokeStyle = "rgba(0,0,0,.28)";
-  ctx.strokeText(str, cx, cy);
-  ctx.fillStyle = color;
-  ctx.fillText(str, cx, cy);
-  ctx.restore();
+  if (layer.outline) {
+    ctx.lineWidth = Math.max(2, px * 0.06);
+    ctx.strokeStyle = "rgba(0,0,0,.28)";
+    ctx.strokeText(str, x, y);
+  }
+  ctx.fillStyle = env.color(layer.color);
+  ctx.fillText(str, x, y);
 }
 
-function crest(ctx, frame, image, logo, p, q) {
+function placeImage(ctx, layer, env, frame, x, y) {
+  const image = env.images[layer.asset];
   if (!image) return;
-  const size = 0.085 * logo.scale; // metres, the longer side
+  const t = layer.transform;
   const iw = image.naturalWidth || image.width || 1;
   const ih = image.naturalHeight || image.height || 1;
-  const k = size / Math.max(iw, ih);
-  const w = iw * k;
-  const h = ih * k;
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const [cx, cy] = frame.toPx(p + logo.x / 100, q + logo.y / 100);
-  ctx.drawImage(image, cx - (w * frame.s) / 2, cy - (h * frame.s) / 2, w * frame.s, h * frame.s);
-  ctx.restore();
+  const k = layer.size / Math.max(iw, ih); // metres per image pixel
+  const w = iw * k * t.scaleX * frame.s;
+  const h = ih * k * t.scaleY * frame.s;
+  ctx.drawImage(image, x - w / 2, y - h / 2, w, h);
 }
 
-// ---------------------------------------------------------------- garments
-
-const [PRIMARY, SECONDARY, TRIM] = [0, 1, 2];
-
-function paintShirt(ctx, name, isl, frame, design, assets) {
-  const c = design.colors;
-  if (isl.kind === "body") {
-    bodySpace(ctx, name, frame);
-    paintPattern(ctx, design.pattern, c);
-    if (name === "front") {
-      // Crest on the wearer's left chest (viewer's right), small number opposite, sponsor across the chest.
-      crest(ctx, frame, assets.logo, design.logo, 0.095, 0.555);
-      text(ctx, frame, design.number, -0.095, 0.555, 0.055, 0.08, design, c[TRIM]);
-      text(ctx, frame, design.sponsor, 0, 0.39, 0.065, 0.32, design, c[TRIM]);
-    } else {
-      text(ctx, frame, design.name, 0, 0.6, 0.05, 0.32, design, c[TRIM]);
-      text(ctx, frame, design.number, 0, 0.37, 0.24, 0.34, design, c[TRIM]);
-    }
-    return;
-  }
-  if (isl.kind === "sleeve") {
-    frame.local(ctx);
-    const wearerLeft = name === "sleeve_left";
-    const base = design.pattern === "halves" ? c[wearerLeft ? SECONDARY : PRIMARY] : c[PRIMARY];
-    fill(ctx, frame, design.pattern === "gradient" ? c[PRIMARY] : base);
-    if (design.pattern === "hoops") {
-      for (let k = 0; k < 12; k++) {
-        ctx.fillStyle = c[SECONDARY];
-        ctx.fillRect(frame.p0 - 1, -(2 * k + 2) * 0.07, frame.p1 - frame.p0 + 2, 0.07);
-      }
-    }
-    const cuff = isl.length > 0.35 ? 0.05 : 0.025;
-    ctx.fillStyle = c[TRIM];
-    ctx.fillRect(frame.p0 - 1, frame.q0 - 1, frame.p1 - frame.p0 + 2, -isl.length + cuff - (frame.q0 - 1));
-    return;
-  }
-  fill(ctx, frame, c[TRIM]); // collar
+function placeGraphic(ctx, layer, env, frame, x, y) {
+  const t = layer.transform;
+  ctx.translate(x, y);
+  ctx.scale(frame.s, -frame.s); // metres, y up
+  ctx.fillStyle = env.color(layer.color);
+  graphic(layer.shape).paint(ctx, layer.size * t.scaleX, layer.size * t.scaleY);
 }
-
-function paintShorts(ctx, name, isl, frame, design) {
-  const c = design.colors;
-  if (isl.kind !== "body") {
-    fill(ctx, frame, c[TRIM]); // waistband
-    return;
-  }
-  bodySpace(ctx, name, frame);
-  fill(ctx, frame, c[SECONDARY]);
-  ctx.fillStyle = c[PRIMARY]; // hem trim
-  ctx.fillRect(-BIG, -BIG, 2 * BIG, BIG + 0.018);
-  if (name === "front") text(ctx, frame, design.number, 0.13, 0.085, 0.07, 0.1, design, c[PRIMARY]);
-}
-
-function paintSocks(ctx, name, isl, frame, design) {
-  const c = design.colors;
-  if (isl.kind === "sock_top") {
-    fill(ctx, frame, c[TRIM]);
-    return;
-  }
-  frame.local(ctx);
-  fill(ctx, frame, c[PRIMARY]);
-  ctx.fillStyle = c[SECONDARY]; // two thin hoops under the top band
-  ctx.fillRect(frame.p0 - 1, -0.075, frame.p1 - frame.p0 + 2, 0.012);
-  ctx.fillRect(frame.p0 - 1, -0.1, frame.p1 - frame.p0 + 2, 0.012);
-}
-
-const PAINTERS = { shirt: paintShirt, shorts: paintShorts, socks: paintSocks };
