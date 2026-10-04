@@ -1,6 +1,6 @@
 import { fontCss } from "./design.js";
-import { baseDesign, graphic, paintPattern as paintPatternColors, pattern as patternDef, region } from "./library.js";
-import { resolveColor } from "./project.js";
+import { baseDesign, graphic, material, paintPattern as paintPatternColors, pattern as patternDef, region } from "./library.js";
+import { hasFinish, resolveColor } from "./project.js";
 
 // The layer compositor: paints one garment's texture from its ordered layers (project.js) and its UV template
 // (public/models/<name>.json, written by blender/make_kit.py). Plain canvas code, no React.
@@ -21,18 +21,44 @@ const PAD = 6; // pixels painted beyond each island
  */
 export function drawGarment(canvas, garment, template, project, images = {}) {
   const ctx = canvas.getContext("2d");
-  const S = canvas.width;
-  const islands = Object.entries(template.islands).map(([name, isl]) => ({ name, kind: isl.kind, isl, frame: islandFrame(isl, S) }));
-  const env = {
-    garment, S, islands, project, images,
-    byName: Object.fromEntries(islands.map((i) => [i.name, i])),
-    color: (c) => resolveColor(c, project.palette),
-    masks: [], // masks of the groups being painted
-  };
+  const env = makeEnv(canvas, garment, template, project, images);
+  const S = env.S;
   reset(ctx);
   ctx.fillStyle = "#ffffff"; // fabric without any layer
   ctx.fillRect(0, 0, S, S);
   drawLayers(ctx, project.garments[garment].layers, env, 0);
+}
+
+function makeEnv(canvas, garment, template, project, images) {
+  const S = canvas.width; // islands are placed in fractions of the width on both axes (the collar canvas is wide)
+  const islands = Object.entries(template.islands).map(([name, isl]) => ({ name, kind: isl.kind, isl, frame: islandFrame(isl, S) }));
+  return {
+    garment, S, H: canvas.height, islands, project, images,
+    byName: Object.fromEntries(islands.map((i) => [i.name, i])),
+    color: (c) => resolveColor(c, project.palette),
+    masks: [], // masks of the groups being painted
+  };
+}
+
+/**
+ * The collar alone, scaled to fill a canvas `width` wide: the collar island is only a few dozen pixels tall on the
+ * garment texture, so the 3D view gives the collar mesh its own texture painted from this template.
+ * Returns { template, height, repeat: [x, y], offset: [x, y] } (the texture transform from mesh UVs to this canvas).
+ */
+export function collarTemplate(template, width) {
+  const isl = template.islands.collar;
+  if (!isl) return null;
+  const pad = 8 / width; // keeps the bleed
+  const k = (1 - 2 * pad) / isl.rect[2];
+  const h = isl.rect[3] * k;
+  const height = Math.ceil((h + 2 * pad) * width);
+  const yScale = width / height; // canvas y fractions per width fraction
+  return {
+    template: { ...template, islands: { collar: { ...isl, rect: [pad, pad, 1 - 2 * pad, h], scale: isl.scale * k } } },
+    height,
+    repeat: [k, k * yScale],
+    offset: [pad - isl.rect[0] * k, (pad - isl.rect[1] * k) * yScale],
+  };
 }
 
 function reset(ctx) {
@@ -63,13 +89,16 @@ function drawLayers(ctx, layers, env, depth) {
   }
 }
 
-// One scratch canvas per nesting depth, kept between repaints.
-const scratchPool = [];
+// One scratch canvas per nesting depth and size, kept between repaints.
+const scratchPool = new Map();
 function scratchCanvas(env, depth) {
-  let c = scratchPool[depth];
-  if (!c || c.width !== env.S) {
-    c = scratchPool[depth] = document.createElement("canvas");
-    c.width = c.height = env.S;
+  const key = `${env.S}x${env.H}:${depth}`;
+  let c = scratchPool.get(key);
+  if (!c) {
+    c = document.createElement("canvas");
+    c.width = env.S;
+    c.height = env.H;
+    scratchPool.set(key, c);
   }
   return c;
 }
@@ -283,4 +312,189 @@ function placeGraphic(ctx, layer, env, frame, x, y) {
   ctx.scale(frame.s, -frame.s); // metres, y up
   ctx.fillStyle = env.color(layer.color);
   graphic(layer.shape).paint(ctx, layer.size * t.scaleX, layer.size * t.scaleY);
+}
+
+// ---------------------------------------------------------------- material maps (PBR)
+//
+// Two more canvases per garment, painted only when some layer has a finish or is a material effect:
+//   height: grey, 128 = the fabric's surface; raised prints are lighter, pressed ones darker. KitRenderer turns it
+//           into a normal map (heightToNormal).
+//   orm:    glTF occlusion / roughness / metalness: G = roughness (fabric 0.8), B = metalness (0).
+// A layer's shape is its painted alpha: the layer is painted on a scratch canvas exactly as on the colour texture
+// (islands, masks, transform), then filled with its grey / roughness / metalness and laid onto the maps.
+
+export const FABRIC_ROUGHNESS = 0.8;
+const FLAT = 128;
+
+export function drawMaterial(height, orm, garment, template, project, images = {}) {
+  const env = makeEnv(height, garment, template, project, images);
+  const h = height.getContext("2d");
+  const o = orm.getContext("2d");
+  for (const ctx of [h, o]) reset(ctx);
+  h.fillStyle = grey(FLAT);
+  h.fillRect(0, 0, env.S, env.S);
+  o.fillStyle = ormColor(FABRIC_ROUGHNESS, 0);
+  o.fillRect(0, 0, env.S, env.S);
+  finishLayers(h, o, project.garments[garment].layers, env, 1);
+}
+
+function finishLayers(h, o, layers, env, alpha) {
+  for (const layer of layers) {
+    if (!layer.visible || layer.opacity <= 0) continue;
+    const a = alpha * layer.opacity;
+    if (layer.type === "material") {
+      materialEffect(h, o, layer, env, a);
+      continue;
+    }
+    if (hasFinish(layer)) finishLayer(h, o, layer, env, a);
+    if (layer.type === "group") {
+      env.masks.push(layer.mask);
+      finishLayers(h, o, layer.children, env, a);
+      env.masks.pop();
+    }
+  }
+}
+
+function finishLayer(h, o, layer, env, alpha) {
+  const f = layer.finish;
+  const scratch = scratchCanvas(env, 90);
+  const sctx = scratch.getContext("2d");
+  const silhouette = () => {
+    reset(sctx);
+    sctx.clearRect(0, 0, env.S, env.S);
+    if (layer.type === "group") {
+      env.masks.push(layer.mask);
+      drawLayers(sctx, layer.children, env, 91);
+      env.masks.pop();
+    } else {
+      paintLayer(sctx, layer, env, 91);
+    }
+    reset(sctx);
+    sctx.globalCompositeOperation = "source-in";
+  };
+  const lay = (ctx) => {
+    ctx.save();
+    reset(ctx);
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(scratch, 0, 0);
+    ctx.restore();
+  };
+  if (f.relief || f.stitch) {
+    silhouette();
+    const g = FLAT + Math.round((f.relief || (f.stitch ? 0.35 : 0)) * 110);
+    sctx.fillStyle = f.stitch ? stitchPattern(sctx, env.S, g) : grey(g);
+    sctx.fillRect(0, 0, env.S, env.S);
+    lay(h);
+  }
+  if (f.roughness !== null || f.metalness !== null || f.stitch) {
+    silhouette();
+    sctx.fillStyle = ormColor(f.roughness ?? (f.stitch ? 0.6 : FABRIC_ROUGHNESS), f.metalness ?? 0);
+    sctx.fillRect(0, 0, env.S, env.S);
+    lay(o);
+  }
+}
+
+function materialEffect(h, o, layer, env, alpha) {
+  const m = material(layer.effect);
+  const all = () => true; // every island the mask leaves, bands included
+  o.save();
+  o.globalAlpha = alpha;
+  eachIsland(o, env, layer, all, ({ frame }) => {
+    reset(o);
+    o.globalAlpha = alpha;
+    o.fillStyle = ormColor(m.roughness, m.metalness);
+    o.fillRect(frame.x - PAD, frame.y - PAD, frame.w + 2 * PAD, frame.h + 2 * PAD);
+  });
+  o.restore();
+  if (!m.relief) return;
+  h.save();
+  h.globalAlpha = alpha;
+  eachIsland(h, env, layer, all, ({ frame }) => {
+    frame.local(h);
+    m.relief(h, frame, grey(FLAT - 70));
+  });
+  h.restore();
+}
+
+const grey = (v) => `rgb(${v},${v},${v})`;
+const ormColor = (r, m) => `rgb(255,${Math.round(r * 255)},${Math.round(m * 255)})`;
+
+// Embroidery: rows of slanted stitches, about 1.5 mm apart on a 2048 texture.
+const stitches = new Map();
+function stitchPattern(ctx, S, g) {
+  const n = Math.max(4, Math.round(S / 400));
+  const key = `${n}:${g}`;
+  if (!stitches.has(key)) {
+    const c = document.createElement("canvas");
+    c.width = c.height = n;
+    const x = c.getContext("2d");
+    x.fillStyle = grey(Math.max(0, g - 40));
+    x.fillRect(0, 0, n, n);
+    x.strokeStyle = grey(Math.min(255, g + 25));
+    x.lineWidth = n * 0.45;
+    x.beginPath();
+    for (const d of [-n, 0, n]) {
+      x.moveTo(d, n);
+      x.lineTo(d + n, 0);
+    }
+    x.stroke();
+    stitches.set(key, c);
+  }
+  return ctx.createPattern(stitches.get(key), "repeat");
+}
+
+/**
+ * Turn a height canvas into a tangent-space normal map on `out` (same size). x follows texture u, y texture v
+ * (the canvas is not flipped: its rows run down v). The heights are softened first so raised edges read as a bevel.
+ */
+export function heightToNormal(height, out, strength = 1) {
+  const S = height.width;
+  const src = height.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, S, S).data;
+  let a = new Float32Array(S * S);
+  for (let i = 0; i < a.length; i++) a[i] = src[i * 4] / 255;
+  const r = Math.max(1, Math.round(S / 1024));
+  a = boxBlur(a, S, r);
+  const k = strength * (S / 1024) * 1.6; // the slope a full step makes, independent of the resolution
+  const img = out.getContext("2d").createImageData(S, S);
+  const d = img.data;
+  for (let y = 0; y < S; y++) {
+    const y0 = y > 0 ? y - 1 : y;
+    const y1 = y < S - 1 ? y + 1 : y;
+    for (let x = 0; x < S; x++) {
+      const x0 = x > 0 ? x - 1 : x;
+      const x1 = x < S - 1 ? x + 1 : x;
+      const dx = (a[y * S + x1] - a[y * S + x0]) * k;
+      const dy = (a[y1 * S + x] - a[y0 * S + x]) * k;
+      const inv = 1 / Math.hypot(dx, dy, 1);
+      const i = (y * S + x) * 4;
+      d[i] = 128 + 127 * -dx * inv;
+      d[i + 1] = 128 + 127 * -dy * inv;
+      d[i + 2] = 128 + 127 * inv;
+      d[i + 3] = 255;
+    }
+  }
+  out.getContext("2d").putImageData(img, 0, 0);
+}
+
+function boxBlur(a, S, r) {
+  const tmp = new Float32Array(a.length);
+  const out = new Float32Array(a.length);
+  const n = 2 * r + 1;
+  for (let y = 0; y < S; y++) {
+    let sum = 0;
+    for (let x = -r; x <= r; x++) sum += a[y * S + Math.min(S - 1, Math.max(0, x))];
+    for (let x = 0; x < S; x++) {
+      tmp[y * S + x] = sum / n;
+      sum += a[y * S + Math.min(S - 1, x + r + 1)] - a[y * S + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < S; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) sum += tmp[Math.min(S - 1, Math.max(0, y)) * S + x];
+    for (let y = 0; y < S; y++) {
+      out[y * S + x] = sum / n;
+      sum += tmp[Math.min(S - 1, y + r + 1) * S + x] - tmp[Math.max(0, y - r) * S + x];
+    }
+  }
+  return out;
 }

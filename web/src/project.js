@@ -1,10 +1,10 @@
-// The kit project (schema version 3): a palette, project-wide text settings, uploaded images, and an ordered
+// The kit project (schema version 4): a palette, project-wide text settings, uploaded images, and an ordered
 // stack of layers per garment. kitTexture.js composites a garment's layers into its texture; the panel edits them.
 // Version 1 files (one flat design object, see design.js) are migrated on load by projectFromDesign(); version 2
-// files (patterns had `regions` instead of a mask) by sanitizeProject().
+// files (patterns had `regions` instead of a mask) and version 3 files (no `finish`) by sanitizeProject().
 //
 // {
-//   version: 3,
+//   version: 4,
 //   template: "shirt",                         // shirt model (kits.json); shorts and socks have one model each
 //   palette: ["#c8102e", "#ffffff", "#0b1f3a"], // primary, secondary, trim; layer colours "@0".."@2" refer to it
 //   font: "Oswald",                            // default font for text layers
@@ -15,23 +15,26 @@
 //
 // Layers are listed bottom to top. Every layer has
 //   { id, type, name, visible, locked, opacity, blend, transform: { x, y, scaleX, scaleY, rotation, flipX, flipY },
-//     mask: { include: [region ids] | null, exclude: [region ids] } }
+//     mask: { include: [region ids] | null, exclude: [region ids] },
+//     finish: { relief: -1..1, stitch: bool, roughness: 0..1 | null, metalness: 0..1 | null } }
 // The mask limits the layer to the garment regions in `include` (null = no limit) and hides it on those in `exclude`
 // (library.js REGIONS); a group's mask applies to everything inside it.
+// The finish changes how the layer's shape catches the light (kitTexture.js drawMaterial): raised (relief > 0) or
+// pressed in (< 0), stitched like embroidery, and its own roughness / metalness (null = the fabric's).
 // plus its type's fields:
 //   base     { design, colors: { <slot>: colour } }          opaque ground, or the trims (library.js BASE_DESIGNS)
 //   pattern  { pattern, colors: [colour..., background|null] }   pattern space moved by transform
 //   graphic  { shape, color, size, surface }                  transform x/y = centre in the surface's frame (metres)
 //   image    { asset, size, surface }                         size = longer side in metres before scaling
 //   text     { text, bind, font, color, size, maxWidth, outline, surface }   size = capital height in metres
-//   material { effect }                                       reserved for fabric/PBR effects (not painted yet)
+//   material { effect }                                       fabric finish over its mask (library.js MATERIALS)
 //   group    { children: [layers...] }
 // `role` (optional) marks the layers the panel's shortcuts edit: crest, sponsor, name, number.
 
 import { DEFAULT_DESIGN, FONTS, cleanName, cleanNumber, sanitizeDesign } from "./design.js";
-import { GRAPHICS, REGIONS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
+import { GRAPHICS, MATERIALS, REGIONS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
 
-export const PROJECT_VERSION = 3;
+export const PROJECT_VERSION = 4;
 export const GARMENTS = ["shirt", "shorts", "socks"];
 export const PALETTE_LABELS = ["Primary", "Secondary", "Trim"];
 
@@ -52,13 +55,18 @@ export const BLEND_MODES = [
 
 // Parts a layer can be placed on (graphic, image, text). Names are UV islands.
 export const SURFACES = {
-  shirt: [["front", "Front"], ["back", "Back"], ["sleeve_left", "Left sleeve"], ["sleeve_right", "Right sleeve"]],
+  shirt: [["front", "Front"], ["back", "Back"], ["sleeve_left", "Left sleeve"], ["sleeve_right", "Right sleeve"], ["collar", "Collar"]],
   shorts: [["front", "Front"], ["back", "Back"]],
   socks: [["sock_left", "Left sock"], ["sock_right", "Right sock"]],
 };
 export { REGIONS };
 
 export const NO_MASK = { include: null, exclude: [] };
+export const NO_FINISH = { relief: 0, stitch: false, roughness: null, metalness: null };
+
+/** Whether a layer changes the material maps (relief, roughness, metalness). */
+export const hasFinish = (l) =>
+  l.type === "material" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null));
 
 export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
@@ -88,7 +96,7 @@ const PLACE = { shirt: ["front", 0, 0.45], shorts: ["front", 0.13, 0.2], socks: 
 /** A new layer of `type` for `garment` with sensible defaults; `fields` override them. */
 export function makeLayer(type, garment, fields = {}) {
   const [surface, x, y] = PLACE[garment];
-  const base = { id: newId(), type, name: LAYER_TYPES[type], ...COMMON, transform: { ...IDENTITY }, mask: { ...NO_MASK, exclude: [] } };
+  const base = { id: newId(), type, name: LAYER_TYPES[type], ...COMMON, transform: { ...IDENTITY }, mask: { ...NO_MASK, exclude: [] }, finish: { ...NO_FINISH } };
   const placed = { surface, transform: { ...IDENTITY, x, y } };
   const typed = {
     base: () => {
@@ -102,7 +110,7 @@ export function makeLayer(type, garment, fields = {}) {
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
     image: () => ({ ...placed, asset: null, size: 0.085 }),
     text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true }),
-    material: () => ({ effect: "embroidery" }),
+    material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
   }[type]();
   return { ...base, ...typed, ...fields, transform: { ...(typed.transform || base.transform), ...(fields.transform || {}) } };
@@ -183,7 +191,7 @@ export const DEFAULT_PROJECT = projectFromDesign(DEFAULT_DESIGN);
 
 // ---------------------------------------------------------------- sanitizing (saved files, localStorage)
 
-/** Any saved design (version 1, 2 or 3) as a valid version 3 project, keeping what is valid. */
+/** Any saved design (version 1 to 4) as a valid version 4 project, keeping what is valid. */
 export function sanitizeProject(input, templates = []) {
   if (!input || typeof input !== "object") return structuredClone(DEFAULT_PROJECT);
   if (!(Number(input.version) >= 2) || !input.garments) return projectFromDesign(input, templates);
@@ -200,7 +208,8 @@ export function sanitizeProject(input, templates = []) {
     if (a && typeof a.src === "string" && IMAGE_SRC.test(a.src)) p.assets[id] = { src: a.src, name: str(a.name, 80, "image") };
   }
   const ids = new Set();
-  const budget = { left: MAX_LAYERS };
+  // Material layers painted nothing before version 4: they come in hidden, so old files look the same.
+  const budget = { left: MAX_LAYERS, legacy: Number(input.version) < 4 };
   for (const g of GARMENTS) {
     const layers = input.garments[g]?.layers;
     if (Array.isArray(layers)) p.garments[g] = { layers: sanitizeLayers(layers, g, p.assets, ids, budget, 0) };
@@ -245,6 +254,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       flipY: t.flipY === true,
     },
     mask: sanitizeMask(l.mask, garment),
+    finish: sanitizeFinish(l.finish),
   };
   // Version 2 patterns listed the parts they covered.
   if (l.type === "pattern" && !l.mask && Array.isArray(l.regions)) layer.mask = sanitizeMask({ include: l.regions }, garment);
@@ -287,7 +297,8 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.outline = l.outline !== false;
       break;
     case "material":
-      layer.effect = str(l.effect, 30, d.effect);
+      layer.effect = MATERIALS.some((m) => m.id === l.effect) ? l.effect : d.effect;
+      if (budget.legacy) layer.visible = false;
       break;
     case "group":
       layer.children = Array.isArray(l.children) ? sanitizeLayers(l.children, garment, assets, ids, budget, depth + 1) : [];
@@ -301,6 +312,12 @@ function sanitizeMask(m, garment) {
   const pick = (list) => (Array.isArray(list) ? ids.filter((id) => list.includes(id)) : []);
   if (!m || typeof m !== "object") return { include: null, exclude: [] };
   return { include: Array.isArray(m.include) ? pick(m.include) : null, exclude: pick(m.exclude) };
+}
+
+function sanitizeFinish(f) {
+  if (!f || typeof f !== "object") return { ...NO_FINISH };
+  const opt = (v) => (v === null || v === undefined ? null : num(v, 0, 1, null));
+  return { relief: num(f.relief, -1, 1, 0), stitch: f.stitch === true, roughness: opt(f.roughness), metalness: opt(f.metalness) };
 }
 
 const color = (v, fallback) => (typeof v === "string" && (/^@[0-2]$/.test(v) || HEX.test(v)) ? v.toLowerCase() : fallback);

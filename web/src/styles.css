@@ -230,6 +230,8 @@ details.sub:not([open]) { gap: 0; }
 .seg button { border: 0; background: none; font: inherit; color: var(--chip-text); padding: 4px 12px; border-radius: 999px; cursor: pointer; }
 .seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
 .seg button:disabled { opacity: .35; cursor: default; }
+.pill { border: 0; font: inherit; border-radius: 999px; padding: 6px 12px; background: var(--chip); color: var(--chip-text); cursor: pointer; opacity: .6; }
+.pill.on { opacity: 1; }
 .texture-view { position: absolute; inset: 0; z-index: 1; background: var(--bg); display: grid; place-items: center; padding: 56px 16px 56px; }
 .texture-frame { position: relative; height: min(100%, calc(100vw - 32px)); aspect-ratio: 1; max-width: 100%; }
 .texture-frame canvas, .texture-frame img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 4px; }

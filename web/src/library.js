@@ -640,3 +640,58 @@ function poly(ctx, pts) {
   ctx.closePath();
   ctx.fill();
 }
+
+// ---------------------------------------------------------------- material effects (PBR)
+// A material layer changes how its regions (its mask) catch the light: roughness, metalness and, optionally, a
+// knit relief. `relief(ctx, frame, lo)` paints in the island's local metres (frame bounds p0..p1, q0..q1) on a
+// height map where mid grey is flat; `lo` is the grey of the recesses. Nothing here touches the colour texture.
+
+const grooves = (gap, width, vertical) => (ctx, f, lo) => {
+  ctx.fillStyle = lo;
+  if (vertical) for (let p = Math.floor(f.p0 / gap) * gap; p < f.p1; p += gap) ctx.fillRect(p, f.q0, width, f.q1 - f.q0);
+  else for (let q = Math.floor(f.q0 / gap) * gap; q < f.q1; q += gap) ctx.fillRect(f.p0, q, f.p1 - f.p0, width);
+};
+
+export const MATERIALS = [
+  { id: "satin", label: "Satin", roughness: 0.42, metalness: 0 },
+  { id: "gloss", label: "Gloss", roughness: 0.22, metalness: 0 },
+  { id: "matte", label: "Matte cotton", roughness: 0.97, metalness: 0 },
+  { id: "metallic", label: "Metallic", roughness: 0.32, metalness: 0.85 },
+  {
+    id: "mesh", label: "Perforated mesh", roughness: 0.85, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.fillStyle = lo;
+      const g = 0.006;
+      let row = 0;
+      for (let q = Math.floor(f.q0 / g) * g; q < f.q1; q += g, row++) {
+        ctx.beginPath();
+        for (let p = Math.floor(f.p0 / g) * g + (row % 2) * (g / 2); p < f.p1; p += g) {
+          ctx.moveTo(p + g * 0.28, q);
+          ctx.arc(p, q, g * 0.28, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+    },
+  },
+  { id: "ribbed", label: "Ribbed knit", roughness: 0.88, metalness: 0, relief: grooves(0.005, 0.0022, true) },
+  { id: "embossed-stripes", label: "Embossed pinstripes", roughness: 0.75, metalness: 0, relief: grooves(0.03, 0.004, true) },
+  {
+    id: "quilted", label: "Quilted diamonds", roughness: 0.8, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.strokeStyle = lo;
+      ctx.lineWidth = 0.003;
+      const g = 0.05;
+      ctx.beginPath();
+      for (let k = Math.floor((f.p0 - f.q1) / g) * g; k < f.p1 - f.q0; k += g) { // lines p = q + k
+        ctx.moveTo(f.q0 + k, f.q0);
+        ctx.lineTo(f.q1 + k, f.q1);
+      }
+      for (let k = Math.floor((f.p0 + f.q0) / g) * g; k < f.p1 + f.q1; k += g) { // lines p = k - q
+        ctx.moveTo(k - f.q0, f.q0);
+        ctx.lineTo(k - f.q1, f.q1);
+      }
+      ctx.stroke();
+    },
+  },
+];
+export const material = (id) => MATERIALS.find((m) => m.id === id) || MATERIALS[0];

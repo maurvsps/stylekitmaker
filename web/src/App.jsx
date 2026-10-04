@@ -14,6 +14,8 @@ const CAMERAS = [["front", "Front"], ["three-quarter", "3/4"], ["side", "Side"],
 const STORAGE_KEY = "kit-maker:design"; // holds a version 1 design in older browsers; migrated on read
 // Pages hosted where downloads are blocked (the claude.ai artifact build) show exports in a sheet instead.
 const CAN_DOWNLOAD = !import.meta.env.VITE_NO_DOWNLOAD;
+// Phones and tablets: a lighter default texture, material maps at half resolution, fewer pixels per frame.
+const MOBILE = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 
 function readSaved() {
   try {
@@ -89,8 +91,9 @@ export default function App() {
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // { kind: "image" | "json", title, url | text, filename }
   const viewer = useRef(null);
-  const renderer = useMemo(() => new KitRenderer(prefs.textureSize), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const renderer = useMemo(() => new KitRenderer(prefs.textureSize, MOBILE ? 0.5 : 1), []); // eslint-disable-line react-hooks/exhaustive-deps
   const textures = renderer.textures;
+  const [maps, setMaps] = useState(renderer.maps); // garment -> material maps, replaced when one appears or goes
 
   // Templates: the manifest, then every UV template it lists.
   useEffect(() => {
@@ -150,7 +153,9 @@ export default function App() {
   // continuously).
   useEffect(() => {
     if (!kits) return;
-    const frame = requestAnimationFrame(() => renderer.render(project, templates, models, images, fontsReady));
+    const frame = requestAnimationFrame(() => {
+      if (renderer.render(project, templates, models, images, fontsReady).mapsChanged) setMaps({ ...renderer.maps });
+    });
     return () => cancelAnimationFrame(frame);
   }, [project, kits, templates, models, renderer, images, fontsReady, sizeKey]);
 
@@ -178,16 +183,24 @@ export default function App() {
       offer({
         kind: "image",
         title: aspect ? `Screenshot ${aspect}` : "Screenshot",
-        url: viewer.current.screenshot(aspect),
-        filename: aspect ? `kit-${aspect.replace(":", "x")}.png` : "kit.png",
+        url: viewer.current.screenshot(aspect, { transparent: prefs.transparent }),
+        filename: `kit${aspect ? `-${aspect.replace(":", "x")}` : ""}${prefs.transparent ? "-transparent" : ""}.png`,
       }),
-    texture: (garment) =>
+    /** kind: "color" (the texture), "normal" or "orm" (material maps, when the garment has them). */
+    texture: (garment, kind = "color") => {
+      const canvas = kind === "color" ? textures[garment].image : renderer.maps[garment]?.[kind]?.image;
+      if (!canvas) return setError(`The ${garment} has no material map yet: give a layer a finish or add a material effect.`);
+      const label = { color: "texture", normal: "normal map", orm: "roughness-metalness map" }[kind];
       offer({
         kind: "image",
-        title: `${garment[0].toUpperCase() + garment.slice(1)} texture`,
-        url: textures[garment].image.toDataURL("image/png"),
-        filename: `${garment}-texture.png`,
-      }),
+        title: `${garment[0].toUpperCase() + garment.slice(1)} ${label}`,
+        url: canvas.toDataURL("image/png"),
+        filename: `${garment}-${kind === "color" ? "texture" : kind}.png`,
+      });
+    },
+    hasMaps: garmentsWithMaps(maps),
+    transparent: prefs.transparent,
+    setTransparent: (v) => setPref("transparent", v),
     save: () =>
       offer({ kind: "json", title: "Design file", text: JSON.stringify(serializeProject(project), null, 2), filename: "kit-design.json" }),
     load: async (file) => {
@@ -225,7 +238,10 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        {kits && <Viewer ref={viewer} models={models} textures={textures} onLoading={onLoading} onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} />}
+        {kits && (
+          <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} onLoading={onLoading}
+            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} mannequin={prefs.mannequin} pixelRatio={MOBILE ? 1.5 : 2} />
+        )}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
           <div className="seg" role="group" aria-label="History">
@@ -238,6 +254,10 @@ export default function App() {
               Texture
             </button>
           </div>
+          <button type="button" className={`pill${prefs.mannequin ? " on" : ""}`} aria-pressed={prefs.mannequin} hidden={view === "texture"}
+            onClick={() => setPref("mannequin", !prefs.mannequin)} title="Show or hide the mannequin">
+            Mannequin
+          </button>
           <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting">
             {LIGHTING_PRESETS.map((l) => (
               <option key={l} value={l}>
@@ -278,16 +298,20 @@ export default function App() {
 }
 
 function readPrefs() {
-  const prefs = { textureSize: 2048, lighting: "studio" };
+  const prefs = { textureSize: MOBILE && Math.min(screen.width, screen.height) < 500 ? 1024 : 2048, lighting: "studio", mannequin: true, transparent: false };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
+    if (typeof saved.mannequin === "boolean") prefs.mannequin = saved.mannequin;
+    if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
   } catch {
     // defaults
   }
   return prefs;
 }
+
+const garmentsWithMaps = (maps) => Object.keys(maps).filter((g) => maps[g]);
 
 const decoded = new Map(); // data URL -> Promise<HTMLImageElement>
 function decodeImage(src) {

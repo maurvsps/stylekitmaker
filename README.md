@@ -104,11 +104,11 @@ npm run build:artifact  # web/dist-artifact: self-contained copy for a claude.ai
 
 | File | Role |
 | --- | --- |
-| `src/project.js` | The project schema (version 3): palette, player, uploaded images and a layer stack per garment; `sanitizeProject` (loaded JSON and the saved draft, migrating version 1 and 2 files) and the layer-tree operations |
+| `src/project.js` | The project schema (version 4): palette, player, uploaded images and a layer stack per garment; `sanitizeProject` (loaded JSON and the saved draft, migrating version 1 to 3 files) and the layer-tree operations |
 | `src/design.js` | The version 1 design (one flat object, files saved before the layer editor), migrated by `project.js`; the font list |
 | `src/library.js` | Base designs, trims, patterns, graphics and garment regions (for masks): metadata for the panel plus their canvas painters and shapes |
-| `src/kitTexture.js` | The layer compositor: paints one garment's texture from its ordered layers and its UV template (plain canvas code, no React) |
-| `src/kitRenderer.js` | Owns the three texture canvases and repaints only the garments whose layers (or what they use) changed |
+| `src/kitTexture.js` | The layer compositor: paints one garment's texture from its ordered layers and its UV template, and its material maps (height → normal, roughness / metalness) from the layers' finishes (plain canvas code, no React) |
+| `src/kitRenderer.js` | Owns the texture canvases (colour, the collar's own texture, material maps when used) and repaints only what changed |
 | `src/Viewer.jsx` | three.js scene: GLTFLoader + DRACOLoader (decoder served at `/draco/`), OrbitControls, studio lighting, contact shadow; exposes `screenshot()` and camera presets |
 | `src/App.jsx` | Holds the project, loads `kits.json` and the templates, decodes uploaded images and fonts, asks the renderer to repaint (at most once per frame) |
 | `src/Panel.jsx`, `src/LayersPanel.jsx` | The side panel: kit colours, the Layers editor, and shortcuts for the player, sponsor and crest |
@@ -116,25 +116,27 @@ npm run build:artifact  # web/dist-artifact: self-contained copy for a claude.ai
 The project is one object (`project.js` documents every field):
 
 ```js
-{ version: 3, template: "shirt", palette: ["#c8102e", "#ffffff", "#0b1f3a"], font: "Oswald",
+{ version: 4, template: "shirt", palette: ["#c8102e", "#ffffff", "#0b1f3a"], font: "Oswald",
   player: { name: "VEGA", number: "10" }, assets: { /* id: { src: data URL, name } */ },
   garments: { shirt: { layers: [/* bottom to top */] }, shorts: { layers: [] }, socks: { layers: [] } } }
 ```
 
-- **Layers:** every garment is a stack of non-destructive layers, painted bottom to top: base design, pattern, graphic, image, text, material effect (reserved for the PBR step) and group. Each layer has visibility, lock, a name, opacity, a blend mode (16 canvas modes), a transform (position, scale X/Y, rotation, horizontal and vertical flip) and a mask. Patterns move, scale and rotate in body coordinates, so they stay continuous across the side seams. Layer colours are either a palette entry (`"@0"` to `"@2"`, so changing a kit colour recolours every layer that uses it) or a fixed `#rrggbb`.
+- **Layers:** every garment is a stack of non-destructive layers, painted bottom to top: base design, pattern, graphic, image, text, material effect and group. Each layer has visibility, lock, a name, opacity, a blend mode (16 canvas modes), a transform (position, scale X/Y, rotation, horizontal and vertical flip) and a mask. Patterns move, scale and rotate in body coordinates, so they stay continuous across the side seams. Layer colours are either a palette entry (`"@0"` to `"@2"`, so changing a kit colour recolours every layer that uses it) or a fixed `#rrggbb`.
 - **Layers panel:** Shirt / Shorts / Socks tabs, the list (top layer first) with drag-and-drop by the ⠿ handle (mouse or finger; drop onto a group to put a layer inside it), show/hide, lock, rename (double-click), duplicate, delete and move up/down, and the selected layer's settings underneath.
 - **Textures:** each garment has its own hidden 2048 px canvas, used as a `CanvasTexture` (`flipY = false`). A layer paints island by island, clipped to the island plus 6 px of bleed. Patterns are drawn in body coordinates (metres), so they line up across the side seams; placed layers (text, image, graphic) are positioned in metres in their part's frame ("Placed on": front, back, sleeves, socks). Layers with opacity below 1 or a blend mode are composited from a scratch canvas.
 - **Masks and garment regions:** a mask limits a layer to some regions ("Show only on") and hides it on others ("Hide on"). Regions are whole parts (front, back, each sleeve, collar; shorts front, back, waistband; each sock, top bands) and zones inside them (cuffs, side panels, shoulders; shorts hem and side panels), defined in the UV frames in metres. A group's mask applies to every layer inside it. Without a mask, a pattern covers the panels, sleeves and socks.
 - **Base designs and trims:** a base design is the opaque ground (body and sleeves, shorts, socks with or without hoops). Trims (collar and cuffs, hem and waistband, sock top band) are their own layer, normally above the patterns.
 - **Patterns:** stripes, pinstripes, hoops, halves, quarters, sash, chevron, chest band, checks and gradient, each with its colours and an optional background.
 - **Libraries:** 28 patterns (stripes, hoops, diagonals, zigzag, waves, dots, diamonds, argyle, hexagons, camo, gradients and more), base designs per garment (shirt: classic, contrast back, split sleeves, raglan; shorts: plain, side panels; socks: two hoops, calf band, plain) and 15 graphics.
+- **Materials (PBR):** every layer has a Finish: relief (raised or pressed in), stitched (embroidery), its own roughness and metalness, with presets (flat print, embroidered, raised, glossy vinyl, debossed, metallic foil). Material effect layers change the fabric over their mask: satin, gloss, matte cotton, metallic, perforated mesh, ribbed knit, embossed pinstripes, quilted diamonds. They paint two extra maps per garment, only while something uses them: a height map turned into a normal map (added on top of the knit in the shader) and a glTF roughness / metalness map. Colour changes never repaint them. Without finishes the kit renders exactly as before.
+- **Collar:** the collar mesh gets its own texture (twice the garment width, so about five times the pixels on the thin band), painted from the same layers. Text, images and graphics can be placed on the collar.
 - **Editing:** undo / redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; quick changes such as dragging a slider merge into one step), copy / paste layers between garments (Ctrl+C, Ctrl+V), duplicate (Ctrl+D) and Delete.
-- **Stage:** 3D view or Texture view (the flat texture of the garment in the Layers tab, with the UV guide), camera presets (front, 3/4, side, back, chest close-up) and lighting presets (studio, daylight, dramatic, flat). The texture resolution (1024, 2048, 4096) and lighting are remembered by the browser, not saved in the design.
+- **Stage:** 3D view or Texture view (the flat texture of the garment in the Layers tab, with the UV guide), camera presets (front, 3/4, side, back, chest close-up), lighting presets (studio, daylight, dramatic, flat) and a mannequin on/off switch. The texture resolution (1024, 2048, 4096), lighting, mannequin and transparent-export setting are remembered by the browser, not saved in the design.
 - **Shortcuts:** the Player section edits the name and number shown by bound text layers, the kit font, and the sponsor layer; the Crest section uploads or replaces the crest layer's image. Images (PNG, SVG, JPEG, WebP, up to 1.5 MB each) can be added as any number of image layers.
 - **Fonts:** Oswald, Bebas Neue, Anton, Teko and Saira Condensed, loaded from Google Fonts. Text is repainted when a font arrives; without a connection it falls back to Impact or sans-serif.
-- **Export:** a PNG screenshot of the 3D view, framed 1:1, 16:9 or 9:16 images (2048 px long side), and a flat PNG texture per garment.
-- **Mobile:** under 760 px wide, the 3D view takes the top of the screen and the panel scrolls below. Drag with one finger to rotate and pinch to zoom.
-- **Design file:** Save and Load JSON (the version 2 project; images that no layer uses are dropped). Version 1 and 2 files (and drafts saved by older versions) are migrated on load and paint exactly as before. Anything invalid in a loaded file falls back to the default for that field. The current project is also kept in `localStorage`.
+- **Export:** a PNG screenshot of the 3D view, framed 1:1, 16:9 or 9:16 images (2048 px long side), optionally with a transparent background, a flat PNG texture per garment and, when a garment has finishes, its normal map and roughness / metalness map.
+- **Mobile:** under 760 px wide, the 3D view takes the top of the screen and the panel scrolls below. Drag with one finger to rotate and pinch to zoom. On touch devices the material maps are painted at half resolution and the 3D view renders at most 1.5 pixels per CSS pixel; small phones start at 1024 px textures.
+- **Design file:** Save and Load JSON (the version 4 project; images that no layer uses are dropped). Version 1 to 3 files (and drafts saved by older versions) are migrated on load and paint exactly as before. Anything invalid in a loaded file falls back to the default for that field. The current project is also kept in `localStorage`.
 
 ### Phone link (claude.ai artifact)
 

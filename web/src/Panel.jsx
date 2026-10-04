@@ -181,6 +181,10 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </button>
           ))}
         </div>
+        <label className="check">
+          <input type="checkbox" checked={actions.transparent} onChange={(e) => actions.setTransparent(e.target.checked)} />
+          Transparent background
+        </label>
         <label className="field">
           <span>Texture resolution</span>
           <select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
@@ -198,6 +202,18 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </button>
           ))}
         </div>
+        {actions.hasMaps.length > 0 && (
+          <div className="row">
+            {actions.hasMaps.flatMap((g) => [
+              <button key={`${g}-n`} type="button" className="quiet" onClick={() => actions.texture(g, "normal")}>
+                {g[0].toUpperCase() + g.slice(1)} normal
+              </button>,
+              <button key={`${g}-o`} type="button" className="quiet" onClick={() => actions.texture(g, "orm")} title="Green: roughness, blue: metalness (glTF)">
+                {g[0].toUpperCase() + g.slice(1)} rough/metal
+              </button>,
+            ])}
+          </div>
+        )}
       </Section>
 
       <Section title="Save & load" eyebrow="06">
