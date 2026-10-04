@@ -115,7 +115,8 @@ export function makeLayer(type, garment, fields = {}) {
 export function defaultPatternColors(p, old = [], from = null) {
   const ink = from ? old.slice(0, from.slots.length) : [];
   const ground = from && !from.opaque ? old[from.slots.length] ?? null : null;
-  const colors = p.slots.map((_, i) => ink[i] || (i ? "@0" : "@1"));
+  const colors = [];
+  p.slots.forEach((_, i) => colors.push(ink[i] || (i === 0 ? "@1" : colors[0] === "@0" ? "@1" : "@0")));
   return p.opaque ? colors : [...colors, ground];
 }
 
@@ -386,6 +387,12 @@ export function moveLayer(layers, id, parentId, index) {
   if (parentId !== null && (parentId === id || (layer.type === "group" && findLayer(layer.children, parentId)))) return layers;
   if (from.parentId === parentId && from.index < index) index--;
   return insertLayer(removeLayer(layers, id), layer, parentId, index);
+}
+
+/** A copy of `layer` (from any garment) made valid for `garment`, with fresh ids: for pasting. */
+export function adaptLayer(layer, garment, assets) {
+  const fresh = (l) => ({ ...l, id: newId(), role: undefined, children: l.children?.map(fresh) });
+  return sanitizeLayer(fresh(structuredClone(layer)), garment, assets, new Set(), { left: MAX_LAYERS }, 0);
 }
 
 /** A deep copy with fresh ids. */

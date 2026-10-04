@@ -37,7 +37,7 @@ const loadAo = (name) => {
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
  * `textures` maps garment -> THREE.CanvasTexture (painted by the parent). The ref exposes screenshot() and view().
  */
-const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
+const Viewer = forwardRef(function Viewer({ models, textures, onLoaded, lighting = "studio" }, ref) {
   const host = useRef(null);
   const three = useRef(null);
 
@@ -66,6 +66,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
     const rim = new THREE.DirectionalLight(0xffffff, 0.9);
     rim.position.set(1.5, 1.8, -2.5);
     scene.add(key, fill, rim);
+    const hemi = scene.children.find((o) => o.isHemisphereLight);
 
     // Soft contact shadow under the feet.
     const shadowTex = new THREE.CanvasTexture(radialShadow());
@@ -108,7 +109,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
       renderer.render(scene, camera);
     });
 
-    three.current = { renderer, scene, camera, controls, kit, garments: {} };
+    three.current = { renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi } };
     return () => {
       observer.disconnect();
       renderer.setAnimationLoop(null);
@@ -162,21 +163,63 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
     };
   }, [models, textures, onLoaded]);
 
+  // Lighting presets: the same rig, re-balanced.
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    const preset = LIGHTING[lighting] || LIGHTING.studio;
+    for (const [name, [intensity, x, y, z]] of Object.entries(preset.lights)) {
+      t.lights[name].intensity = intensity;
+      if (x !== undefined) t.lights[name].position.set(x, y, z);
+    }
+    t.scene.environmentIntensity = preset.env;
+    t.scene.background = new THREE.Color(preset.background);
+  }, [lighting]);
+
   useImperativeHandle(ref, () => ({
-    /** PNG data URL of the current 3D view. */
-    screenshot() {
+    /**
+     * PNG data URL of the 3D view. With `aspect` ("1:1", "16:9", "9:16") it renders a fresh image at that shape
+     * (long side 2048 px), framing the whole kit from the current camera direction.
+     */
+    screenshot(aspect) {
       const t = three.current;
-      t.renderer.render(t.scene, t.camera);
-      return t.renderer.domElement.toDataURL("image/png");
+      if (!aspect) {
+        t.renderer.render(t.scene, t.camera);
+        return t.renderer.domElement.toDataURL("image/png");
+      }
+      const [aw, ah] = aspect.split(":").map(Number);
+      const long = 2048;
+      const w = aw >= ah ? long : Math.round((long * aw) / ah);
+      const h = aw >= ah ? Math.round((long * ah) / aw) : long;
+      const { renderer, camera, controls } = t;
+      const cam = camera.clone();
+      cam.aspect = w / h;
+      cam.updateProjectionMatrix();
+      const centre = new THREE.Vector3(0, -0.12, 0); // the whole kit, even after a close-up
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
+      cam.lookAt(centre);
+      const ratio = renderer.getPixelRatio();
+      const size = renderer.getSize(new THREE.Vector2());
+      renderer.setPixelRatio(1);
+      renderer.setSize(w, h, false);
+      renderer.render(t.scene, cam);
+      const url = renderer.domElement.toDataURL("image/png");
+      renderer.setPixelRatio(ratio);
+      renderer.setSize(size.x, size.y, false);
+      renderer.render(t.scene, camera);
+      return url;
     },
-    /** Turn the camera to a preset: "front", "back" or "three-quarter". */
+    /** Turn the camera to a preset: "front", "three-quarter", "side", "back" or "close-up" (the chest). */
     view(preset) {
       const { camera, controls } = three.current;
-      const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45 }[preset] ?? 0;
-      const d = fitDistance(camera, controls, false);
+      const close = preset === "close-up";
+      controls.target.set(0, close ? 0.45 : -0.12, 0);
+      const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45, side: Math.PI / 2, "close-up": 0.15 }[preset] ?? 0;
+      const d = close ? 0.95 : fitDistance(camera, controls, false);
       camera.position.set(
         controls.target.x + Math.sin(yaw) * d,
-        controls.target.y + 0.25,
+        controls.target.y + (close ? 0.08 : 0.25),
         controls.target.z + Math.cos(yaw) * d,
       );
       controls.update();
@@ -185,6 +228,15 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
 
   return <div className="viewer" ref={host} />;
 });
+
+// [intensity, x, y, z] per light; studio is the original rig.
+const LIGHTING = {
+  studio: { env: 0.45, background: BACKGROUND, lights: { key: [2.0, -2.2, 2.4, 1.6], fill: [0.4, 2.5, 0.6, 2], rim: [0.9, 1.5, 1.8, -2.5], hemi: [0.2] } },
+  daylight: { env: 0.8, background: 0xe6edf3, lights: { key: [1.6, 1.2, 3, 2], fill: [0.6, -2, 1, 2], rim: [0.4, 0, 2, -2.5], hemi: [0.6] } },
+  dramatic: { env: 0.15, background: 0x2b2e33, lights: { key: [2.8, -2.6, 1.8, 1.2], fill: [0.1, 2.5, 0.6, 2], rim: [1.8, 1.8, 1.5, -2.2], hemi: [0.05] } },
+  flat: { env: 1.0, background: 0xeeeeee, lights: { key: [0.6, 0, 1, 3], fill: [0.4, 0, 0, 3], rim: [0.1, 0, 2, -2.5], hemi: [0.8] } },
+};
+export const LIGHTING_PRESETS = Object.keys(LIGHTING);
 
 // The kit (shirt top to sock soles) is about 1.85 m tall and 0.95 m wide, centred on the orbit target.
 const KIT_HEIGHT = 1.85;

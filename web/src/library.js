@@ -48,6 +48,37 @@ export const BASE_DESIGNS = {
       paint: (ctx, { kind, frame }, c) => fillIsland(ctx, frame, kind === "sleeve" ? c.sleeves : c.body),
     },
     {
+      id: "contrast-back",
+      label: "Contrast back",
+      ground: "front",
+      slots: [["front", "Front", "@0"], ["back", "Back", "@1"], ["sleeves", "Sleeves", "@0"]],
+      paint: (ctx, { kind, name, frame }, c) => fillIsland(ctx, frame, kind === "sleeve" ? c.sleeves : name === "back" ? c.back : c.front),
+    },
+    {
+      id: "split-sleeves",
+      label: "Split sleeves",
+      ground: "body",
+      slots: [["body", "Body", "@0"], ["left", "Left sleeve", "@1"], ["right", "Right sleeve", "@2"]],
+      paint: (ctx, { kind, name, frame }, c) =>
+        fillIsland(ctx, frame, kind !== "sleeve" ? c.body : name === "sleeve_left" ? c.left : c.right),
+    },
+    {
+      id: "raglan",
+      label: "Raglan",
+      ground: "body",
+      slots: [["body", "Body", "@0"], ["raglan", "Shoulders & sleeves", "@1"]],
+      paint(ctx, { kind, frame }, c) {
+        if (kind === "sleeve") return fillIsland(ctx, frame, c.raglan);
+        fillIsland(ctx, frame, c.body);
+        if (kind !== "body") return;
+        ctx.fillStyle = c.raglan; // shoulder wedges running from the armpits to the neckline
+        ctx.beginPath();
+        ctx.moveTo(-1, 0.5); ctx.lineTo(-0.34, 0.5); ctx.lineTo(-0.1, 0.8); ctx.lineTo(-1, 0.8); ctx.closePath();
+        ctx.moveTo(1, 0.5); ctx.lineTo(0.34, 0.5); ctx.lineTo(0.1, 0.8); ctx.lineTo(1, 0.8); ctx.closePath();
+        ctx.fill();
+      },
+    },
+    {
       id: "trim",
       trim: true,
       label: "Collar & cuffs",
@@ -68,6 +99,19 @@ export const BASE_DESIGNS = {
       ground: "body",
       slots: [["body", "Body", "@1"]],
       paint: (ctx, { frame }, c) => fillIsland(ctx, frame, c.body),
+    },
+    {
+      id: "side-panels",
+      label: "Side panels",
+      ground: "body",
+      slots: [["body", "Body", "@1"], ["sides", "Side panels", "@0"]],
+      paint(ctx, { kind, frame }, c) {
+        fillIsland(ctx, frame, c.body);
+        if (kind !== "body") return;
+        ctx.fillStyle = c.sides;
+        ctx.fillRect(-1, -1, 0.73, 2);
+        ctx.fillRect(0.27, -1, 0.73, 2);
+      },
     },
     {
       id: "trim",
@@ -94,6 +138,18 @@ export const BASE_DESIGNS = {
         ctx.fillStyle = c.hoops; // two thin hoops under the top band
         ctx.fillRect(frame.p0 - 1, -0.075, frame.p1 - frame.p0 + 2, 0.012);
         ctx.fillRect(frame.p0 - 1, -0.1, frame.p1 - frame.p0 + 2, 0.012);
+      },
+    },
+    {
+      id: "calf-band",
+      label: "Calf band",
+      ground: "body",
+      slots: [["body", "Sock", "@0"], ["band", "Band", "@1"]],
+      paint(ctx, { kind, frame }, c) {
+        fillIsland(ctx, frame, c.body);
+        if (kind === "sock_top") return;
+        ctx.fillStyle = c.band;
+        ctx.fillRect(frame.p0 - 1, -0.2, frame.p1 - frame.p0 + 2, 0.1);
       },
     },
     {
@@ -198,6 +254,211 @@ export const PATTERNS = [
     },
   },
   {
+    id: "wide-stripes",
+    label: "Wide stripes",
+    slots: ["Stripes"],
+    paint(ctx, [a], { reach: R }) {
+      const w = 0.12;
+      const n = Math.ceil(R / (2 * w));
+      for (let k = -n; k <= n; k++) box(ctx, a, (2 * k - 0.5) * w, -R, (2 * k + 0.5) * w, R);
+    },
+  },
+  {
+    id: "centre-stripe",
+    label: "Centre stripe",
+    slots: ["Stripe"],
+    paint: (ctx, [a], { reach: R }) => box(ctx, a, -0.07, -R, 0.07, R),
+  },
+  {
+    id: "twin-stripes",
+    label: "Twin stripes",
+    slots: ["Stripes"],
+    paint(ctx, [a], { reach: R }) {
+      box(ctx, a, -0.1, -R, -0.06, R);
+      box(ctx, a, 0.06, -R, 0.1, R);
+    },
+  },
+  {
+    id: "side-stripes",
+    label: "Side stripes",
+    slots: ["Stripes"],
+    paint(ctx, [a], { reach: R }) {
+      box(ctx, a, -R, -R, -0.24, R);
+      box(ctx, a, 0.24, -R, R, R);
+    },
+  },
+  {
+    id: "thin-hoops",
+    label: "Thin hoops",
+    slots: ["Hoops"],
+    paint(ctx, [a], { reach: R }) {
+      for (let k = 1; k * 0.05 < R; k++) box(ctx, a, -R, k * 0.05 - 0.008, R, k * 0.05 + 0.008);
+    },
+  },
+  {
+    id: "diagonal",
+    label: "Diagonal stripes",
+    slots: ["Stripes"],
+    paint(ctx, [a], { reach: R }) {
+      ctx.save();
+      ctx.rotate(Math.PI / 4);
+      const n = Math.ceil((R * 1.5) / 0.12);
+      for (let k = -n; k <= n; k++) box(ctx, a, k * 0.12 - 0.03, -R * 1.5, k * 0.12 + 0.03, R * 1.5);
+      ctx.restore();
+    },
+  },
+  {
+    id: "yoke",
+    label: "Yoke",
+    slots: ["Yoke"],
+    paint: (ctx, [a], { reach: R }) => box(ctx, a, -R, 0.6, R, R),
+    sleeve: (ctx, [a]) => box(ctx, a, -2, -2, 2, 0.1),
+  },
+  {
+    id: "v-band",
+    label: "V band",
+    slots: ["Band"],
+    paint: (ctx, [a]) => band(ctx, a, 0.06, [[-0.4, 0.9], [0, 0.45], [0.4, 0.9]]),
+  },
+  {
+    id: "double-sash",
+    label: "Double sash",
+    slots: ["Sash"],
+    paint(ctx, [a]) {
+      band(ctx, a, 0.05, [[-0.4, 0.95], [0.45, -0.05]]);
+      band(ctx, a, 0.05, [[-0.4, 0.8], [0.45, -0.2]]);
+    },
+  },
+  {
+    id: "zigzag",
+    label: "Zigzag",
+    slots: ["Zigzag"],
+    paint(ctx, [a], { reach: R }) {
+      for (let row = 1; row * 0.16 < R; row++) {
+        const pts = [];
+        for (let x = -R; x <= R + 0.06; x += 0.06) pts.push([x, row * 0.16 + (Math.round(x / 0.06) % 2 ? 0.03 : -0.03)]);
+        band(ctx, a, 0.025, pts);
+      }
+    },
+  },
+  {
+    id: "waves",
+    label: "Waves",
+    slots: ["Waves"],
+    paint(ctx, [a], { reach: R }) {
+      for (let row = 1; row * 0.14 < R; row++) {
+        const pts = [];
+        for (let x = -R; x <= R; x += 0.01) pts.push([x, row * 0.14 + 0.025 * Math.sin(x * 40)]);
+        band(ctx, a, 0.03, pts);
+      }
+    },
+  },
+  {
+    id: "dots",
+    label: "Dots",
+    slots: ["Dots"],
+    paint(ctx, [a], { reach: R }) {
+      ctx.fillStyle = a;
+      const s = 0.06;
+      const n = Math.ceil(R / s);
+      ctx.beginPath();
+      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+        const x = i * s + (j % 2 ? s / 2 : 0);
+        ctx.moveTo(x + 0.012, j * s);
+        ctx.arc(x, j * s, 0.012, 0, 2 * Math.PI);
+      }
+      ctx.fill();
+    },
+  },
+  {
+    id: "diamonds",
+    label: "Diamonds",
+    slots: ["Diamonds"],
+    paint(ctx, [a], { reach: R }) {
+      ctx.fillStyle = a;
+      const s = 0.1;
+      const n = Math.ceil(R / s);
+      ctx.beginPath();
+      for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) {
+        const x = i * s, y = j * s;
+        ctx.moveTo(x, y + s / 2); ctx.lineTo(x + s / 2, y); ctx.lineTo(x, y - s / 2); ctx.lineTo(x - s / 2, y); ctx.closePath();
+      }
+      ctx.fill();
+    },
+  },
+  {
+    id: "argyle",
+    label: "Argyle",
+    slots: ["Diamonds", "Lines"],
+    paint(ctx, [a, b], { reach: R }) {
+      const s = 0.16;
+      const n = Math.ceil(R / s);
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      for (let i = -n; i <= n; i += 2) for (let j = -n; j <= n; j += 2) {
+        const x = i * s, y = j * s; // a diamond on every other lattice point: a checkerboard turned 45°
+        ctx.moveTo(x, y + s); ctx.lineTo(x + s, y); ctx.lineTo(x, y - s); ctx.lineTo(x - s, y); ctx.closePath();
+      }
+      ctx.fill();
+      ctx.save();
+      ctx.rotate(Math.PI / 4);
+      const d = s * Math.SQRT2;
+      for (let k = -n * 2; k <= n * 2; k++) {
+        box(ctx, b, k * d - 0.002, -R * 2, k * d + 0.002, R * 2);
+        box(ctx, b, -R * 2, k * d - 0.002, R * 2, k * d + 0.002);
+      }
+      ctx.restore();
+    },
+  },
+  {
+    id: "hexagons",
+    label: "Hexagons",
+    slots: ["Lines"],
+    paint(ctx, [a], { reach: R }) {
+      const r = 0.05, h = r * Math.sqrt(3);
+      ctx.strokeStyle = a;
+      ctx.lineWidth = 0.008;
+      ctx.beginPath();
+      for (let i = -Math.ceil(R / (1.5 * r)); i * 1.5 * r <= R; i++) {
+        for (let j = -Math.ceil(R / h); j * h <= R; j++) {
+          const cx = i * 1.5 * r, cy = j * h + (i % 2 ? h / 2 : 0);
+          for (let k = 0; k <= 6; k++) {
+            const t = (k * Math.PI) / 3;
+            k ? ctx.lineTo(cx + r * Math.cos(t), cy + r * Math.sin(t)) : ctx.moveTo(cx + r, cy);
+          }
+        }
+      }
+      ctx.stroke();
+    },
+  },
+  {
+    id: "camo",
+    label: "Camo",
+    slots: ["Shade 1", "Shade 2"],
+    paint(ctx, [a, b], { reach: R }) {
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const blobs = Math.min(4000, Math.ceil((R * R) / 0.004));
+      for (let i = 0; i < blobs; i++) {
+        ctx.fillStyle = i % 2 ? a : b;
+        ctx.beginPath();
+        ctx.ellipse((rnd() * 2 - 1) * R, (rnd() * 2 - 1) * R, 0.03 + rnd() * 0.05, 0.02 + rnd() * 0.03, rnd() * Math.PI, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    },
+  },
+  {
+    id: "fade-stripes",
+    label: "Fading hoops",
+    slots: ["Hoops"],
+    paint(ctx, [a], { reach: R }) {
+      for (let k = 0; k * 0.06 < Math.min(R, 0.9); k++) {
+        const t = 0.045 * (1 - k / 15);
+        if (t > 0) box(ctx, a, -R, k * 0.06, R, k * 0.06 + t);
+      }
+    },
+  },
+  {
     id: "gradient",
     label: "Gradient",
     slots: ["Bottom", "Top"],
@@ -210,6 +471,23 @@ export const PATTERNS = [
       ctx.fillRect(-R, -R, 2 * R, 2 * R);
     },
     sleeve() {}, // sleeves keep their base colour
+  },
+  {
+    id: "gradient-side",
+    label: "Side gradient",
+    slots: ["Left", "Right"],
+    opaque: true,
+    paint(ctx, [a, b], { reach: R }) {
+      const g = ctx.createLinearGradient(-0.35, 0, 0.35, 0);
+      g.addColorStop(0, a);
+      g.addColorStop(1, b);
+      ctx.fillStyle = g;
+      ctx.fillRect(-R, -R, 2 * R, 2 * R);
+    },
+    sleeve(ctx, [a, b], { name, reach: R }) {
+      ctx.fillStyle = name === "sleeve_left" ? b : a;
+      ctx.fillRect(-R, -R, 2 * R, 2 * R);
+    },
   },
 ];
 
@@ -297,6 +575,61 @@ export const GRAPHICS = [
     },
   },
   { id: "chevron", label: "Chevron", paint: (ctx, w, h) => poly(ctx, [[-w / 2, h / 2], [0, -h / 6], [w / 2, h / 2], [w / 2, h / 6], [0, -h / 2], [-w / 2, h / 6]]) },
+  {
+    id: "hexagon",
+    label: "Hexagon",
+    paint: (ctx, w, h) => poly(ctx, [0, 1, 2, 3, 4, 5].map((k) => [(Math.cos((k * Math.PI) / 3) * w) / 2, (Math.sin((k * Math.PI) / 3) * h) / 2])),
+  },
+  {
+    id: "shield",
+    label: "Shield",
+    paint(ctx, w, h) {
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, h / 2); ctx.lineTo(w / 2, h / 2); ctx.lineTo(w / 2, 0);
+      ctx.quadraticCurveTo(w / 2, -h / 3, 0, -h / 2);
+      ctx.quadraticCurveTo(-w / 2, -h / 3, -w / 2, 0);
+      ctx.closePath();
+      ctx.fill();
+    },
+  },
+  {
+    id: "ring",
+    label: "Ring",
+    paint(ctx, w, h) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, 2 * Math.PI);
+      ctx.ellipse(0, 0, w * 0.36, h * 0.36, 0, 0, 2 * Math.PI);
+      ctx.fill("evenodd");
+    },
+  },
+  {
+    id: "cross",
+    label: "Cross",
+    paint(ctx, w, h) {
+      ctx.fillRect(-w / 2, -h / 8, w, h / 4);
+      ctx.fillRect(-w / 8, -h / 2, w / 4, h);
+    },
+  },
+  { id: "bolt", label: "Lightning", paint: (ctx, w, h) => poly(ctx, [[0.1 * w, h / 2], [-0.35 * w, -0.05 * h], [0, -0.05 * h], [-0.1 * w, -h / 2], [0.35 * w, 0.08 * h], [0, 0.08 * h]]) },
+  {
+    id: "heart",
+    label: "Heart",
+    paint(ctx, w, h) {
+      ctx.beginPath();
+      ctx.moveTo(0, -h / 2);
+      ctx.bezierCurveTo(-w * 0.7, -h * 0.05, -w * 0.4, h * 0.55, 0, h * 0.2);
+      ctx.bezierCurveTo(w * 0.4, h * 0.55, w * 0.7, -h * 0.05, 0, -h / 2);
+      ctx.fill();
+    },
+  },
+  { id: "arrow", label: "Arrow", paint: (ctx, w, h) => poly(ctx, [[0, h / 2], [w / 2, 0], [w / 6, 0], [w / 6, -h / 2], [-w / 6, -h / 2], [-w / 6, 0], [-w / 2, 0]]) },
+  {
+    id: "stripe-band",
+    label: "Band (3 stripes)",
+    paint(ctx, w, h) {
+      for (const y of [-h / 2, -h / 10, (3 * h) / 10]) ctx.fillRect(-w / 2, y, w, h / 5);
+    },
+  },
 ];
 
 export const graphic = (id) => GRAPHICS.find((g) => g.id === id) || GRAPHICS[0];
