@@ -176,3 +176,15 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
 }
 .sheet button { font: inherit; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; background: var(--accent); color: var(--accent-text); }
 .sheet button.quiet { background: var(--field); color: var(--text); border: 1px solid var(--line); }
+
+/* inspector sub-sections: transform, blending, mask */
+.sub { display: grid; gap: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.sub > summary { cursor: pointer; font-size: 13px; font-weight: 600; display: flex; gap: 8px; justify-content: space-between; list-style-position: inside; }
+.sub > summary > span { font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+details.sub:not([open]) { gap: 0; }
+.sub-head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
+.panel button.link { background: none; color: var(--accent); padding: 2px 4px; font-size: 13px; }
+.panel .toggles button { flex: 1 1 0; font-size: 13px; padding: 6px 4px; }
+.panel button.quiet.on, .panel button.chip.on { background: color-mix(in srgb, var(--accent) 16%, var(--field)); border-color: var(--accent); color: var(--text); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.panel button.chip { padding: 4px 10px; border-radius: 999px; font-size: 13px; background: var(--field); color: var(--text); border: 1px solid var(--line); }
