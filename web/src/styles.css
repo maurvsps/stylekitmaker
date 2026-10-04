@@ -29,11 +29,11 @@
 }
 
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; }
+html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); background: var(--bg); }
 
-.app { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
-.stage { position: relative; min-height: 0; background: var(--bg); grid-column: 2; grid-row: 1; }
+.app { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); height: 100%; min-width: 0; overflow: hidden; }
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); grid-column: 2; grid-row: 1; }
 .viewer { position: absolute; inset: 0; }
 .viewer canvas { display: block; touch-action: none; }
 .stage-note {
@@ -48,7 +48,7 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
 }
 .view-buttons button:hover { background: var(--chip-hover); }
 
-.panel { grid-column: 1; grid-row: 1; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); padding: 16px 18px 32px; }
+.panel { grid-column: 1; grid-row: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-gutter: stable; background: var(--panel); border-right: 1px solid var(--line); padding: 16px 18px 32px; }
 .panel-header { display: flex; align-items: center; gap: 11px; padding: 0 0 18px; }
 .panel-header h1 { font-size: 17px; line-height: 1.15; margin: 0; letter-spacing: -.02em; }
 .panel-header p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
@@ -186,6 +186,10 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
   .app { grid-template-columns: 1fr; grid-template-rows: 62vh 1fr; grid-template-rows: 62dvh 1fr; }
   .stage { grid-column: 1; grid-row: 1; }
   .panel { grid-column: 1; grid-row: 2; border-right: 0; border-top: 1px solid var(--line); }
+}
+@media (min-width: 761px) and (max-width: 1050px) {
+  .app { grid-template-columns: 300px minmax(0, 1fr); }
+  .panel { padding-right: 14px; padding-left: 14px; }
 }
 
 .sheet-backdrop { position: fixed; inset: 0; z-index: 10; background: var(--scrim); display: grid; place-items: end center; }

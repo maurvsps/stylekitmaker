@@ -163,8 +163,13 @@ export default function App() {
   }, [project]);
 
   const [loaded, setLoaded] = useState(false);
+  const onLoading = useCallback(() => {
+    setLoaded(false);
+    setError(null);
+  }, []);
   const onLoaded = useCallback(() => {
     setLoaded(true);
+    setError(null);
     window.__kitReady = true; // for automated screenshots
   }, []);
 
@@ -220,7 +225,7 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        {kits && <Viewer ref={viewer} models={models} textures={textures} onLoaded={onLoaded} lighting={prefs.lighting} />}
+        {kits && <Viewer ref={viewer} models={models} textures={textures} onLoading={onLoading} onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} />}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
           <div className="seg" role="group" aria-label="History">

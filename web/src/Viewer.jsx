@@ -37,7 +37,7 @@ const loadAo = (name) => {
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
  * `textures` maps garment -> THREE.CanvasTexture (painted by the parent). The ref exposes screenshot() and view().
  */
-const Viewer = forwardRef(function Viewer({ models, textures, onLoaded, lighting = "studio" }, ref) {
+const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoaded, onError, lighting = "studio" }, ref) {
   const host = useRef(null);
   const three = useRef(null);
 
@@ -84,6 +84,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded, lighting
     const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enablePan = false; // keep the kit in frame; orbit and zoom still work
     controls.minDistance = 0.6;
     controls.maxDistance = 8;
     controls.target.set(0, -0.12, 0);
@@ -125,6 +126,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded, lighting
   useEffect(() => {
     let cancelled = false;
     const t = three.current;
+    onLoading?.();
     Promise.all(
       Object.entries(models).map(async ([garment, name]) => {
         if (t.garments[garment]?.name === name) return;
@@ -157,11 +159,15 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded, lighting
         t.garments[garment] = { name, object };
         t.kit.add(object);
       }),
-    ).then(() => !cancelled && onLoaded?.(), (err) => console.error(err));
+    ).then(() => !cancelled && onLoaded?.(), (err) => {
+      if (cancelled) return;
+      console.error("Could not load the 3D kit", err);
+      onError?.(`The 3D model could not be loaded: ${err.message || err}. Check the model files and Draco decoder.`);
+    });
     return () => {
       cancelled = true;
     };
-  }, [models, textures, onLoaded]);
+  }, [models, textures, onLoading, onLoaded, onError]);
 
   // Lighting presets: the same rig, re-balanced.
   useEffect(() => {
