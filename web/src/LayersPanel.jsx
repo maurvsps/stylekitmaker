@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { BASE_DESIGNS, GRAPHICS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
+import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import {
-  BLEND_MODES, LAYER_TYPES, MATERIAL_EFFECTS, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
+  BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
 } from "./project.js";
 
@@ -469,20 +469,6 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
-      {layer.type === "material" && (
-        <>
-          <label className="field">
-            <span>Effect</span>
-            <select value={layer.effect} onChange={(e) => patch({ effect: e.target.value })}>
-              {MATERIAL_EFFECTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-            </select>
-          </label>
-          <Slider label="Effect strength" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)}
-            onChange={(v) => patch({ opacity: v / 100 })} />
-          <p className="hint">Choose the garment areas below. The effect changes only the 3D material map.</p>
-        </>
-      )}
-
       {placed && (
         <>
           <label className="field">
@@ -522,6 +508,25 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {(placed || layer.type === "pattern") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern"} />}
 
+      {layer.type === "material" && (
+        <>
+          <label className="field">
+            <span>Effect</span>
+            <select value={layer.effect} onChange={(e) => {
+              const next = MATERIALS.find((m) => m.id === e.target.value);
+              const old = MATERIALS.find((m) => m.id === layer.effect);
+              patch({ effect: next.id, name: layer.name === old?.label ? next.label : layer.name });
+            }}>
+              {MATERIALS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </select>
+          </label>
+          <Slider label="Strength" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)}
+            onChange={(v) => patch({ opacity: v / 100 })} />
+          <p className="hint">Changes how the fabric catches the light where the mask allows (no colour). Limit it with the mask below.</p>
+          <MaskFields layer={layer} garment={garment} patch={patch} />
+        </>
+      )}
+
       {layer.type !== "material" && (
         <>
           <details className="sub">
@@ -538,10 +543,10 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               </select>
             </label>
           </details>
+          <MaskFields layer={layer} garment={garment} patch={patch} />
+          <FinishFields layer={layer} patch={patch} />
         </>
       )}
-
-      <MaskFields layer={layer} garment={garment} patch={patch} />
 
       {layer.type === "group" && <p className="hint">{layer.children.length} layer{layer.children.length === 1 ? "" : "s"}. Drag layers onto the group to put them inside.</p>}
     </fieldset>
@@ -601,8 +606,7 @@ function MaskFields({ layer, garment, patch }) {
   const { include, exclude } = layer.mask;
   const regions = REGIONS[garment];
   const label = (ids) => ids.map((id) => regions.find((r) => r.id === id)?.label).filter(Boolean).join(", ");
-  const summary = include ? (include.length ? `Only ${label(include)}` : layer.type === "material" ? "Choose areas" : "No areas")
-    : exclude.length ? `Not on ${label(exclude)}` : "Everywhere";
+  const summary = include ? `Only ${label(include)}` : exclude.length ? `Not on ${label(exclude)}` : "Everywhere";
   const setMask = (fields) => patch({ mask: { ...layer.mask, ...fields } });
   const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   return (
@@ -618,7 +622,7 @@ function MaskFields({ layer, garment, patch }) {
             <button key={r.id} type="button" className={`chip${include?.includes(r.id) ? " on" : ""}`} aria-pressed={!!include?.includes(r.id)}
               onClick={() => {
                 const next = toggle(include || [], r.id);
-                setMask({ include: next.length ? next : layer.type === "material" ? [] : null });
+                setMask({ include: next.length ? next : null });
               }}>
               {r.label}
             </button>
@@ -636,6 +640,53 @@ function MaskFields({ layer, garment, patch }) {
           ))}
         </div>
       </div>
+    </details>
+  );
+}
+
+/** Relief, stitching and shine of the layer's shape (material maps; no colour change). */
+const FINISHES = {
+  flat: ["Flat print", { relief: 0, stitch: false, roughness: null, metalness: null }],
+  embroidered: ["Embroidered", { relief: 0.45, stitch: true, roughness: 0.6, metalness: null }],
+  raised: ["Raised (heat-pressed)", { relief: 0.5, stitch: false, roughness: 0.5, metalness: null }],
+  vinyl: ["Glossy vinyl", { relief: 0.2, stitch: false, roughness: 0.2, metalness: null }],
+  debossed: ["Debossed", { relief: -0.5, stitch: false, roughness: null, metalness: null }],
+  foil: ["Metallic foil", { relief: 0.1, stitch: false, roughness: 0.3, metalness: 0.9 }],
+};
+
+function FinishFields({ layer, patch }) {
+  const f = layer.finish;
+  const preset = Object.keys(FINISHES).find((k) => JSON.stringify(FINISHES[k][1]) === JSON.stringify(f));
+  const set = (fields) => patch({ finish: { ...f, ...fields } });
+  return (
+    <details className="sub">
+      <summary>
+        Finish
+        <span>{preset ? FINISHES[preset][0] : "Custom"}</span>
+      </summary>
+      <div className="chips">
+        {Object.entries(FINISHES).map(([k, [label, value]]) => (
+          <button key={k} type="button" className={`chip${preset === k ? " on" : ""}`} aria-pressed={preset === k} onClick={() => patch({ finish: { ...value } })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <Slider label="Relief (pressed in … raised)" unit="%" min={-100} max={100} step={5} value={Math.round(f.relief * 100)}
+        onChange={(v) => set({ relief: v / 100 })} />
+      <label className="check">
+        <input type="checkbox" checked={f.stitch} onChange={(e) => set({ stitch: e.target.checked })} />
+        Stitched (embroidery)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={f.roughness !== null} onChange={(e) => set({ roughness: e.target.checked ? 0.4 : null })} />
+        Own shine
+      </label>
+      {f.roughness !== null && (
+        <Slider label="Roughness (glossy … matte)" unit="%" min={0} max={100} step={1} value={Math.round(f.roughness * 100)}
+          onChange={(v) => set({ roughness: v / 100 })} />
+      )}
+      <Slider label="Metallic" unit="%" min={0} max={100} step={1} value={Math.round((f.metalness ?? 0) * 100)}
+        onChange={(v) => set({ metalness: v ? v / 100 : null })} />
     </details>
   );
 }

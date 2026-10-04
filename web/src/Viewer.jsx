@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import * as THREE from "three";
+import { ShaderChunk } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -35,17 +36,22 @@ const loadAo = (name) => {
 
 /**
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
- * `textures` maps garment -> THREE.CanvasTexture (painted by the parent). The ref exposes screenshot() and view().
+ * `textures` maps garment -> THREE.CanvasTexture (painted by the parent), `collar` is the shirt collar's own texture
+ * and `maps` maps garment -> { normal, orm } material maps or null (kitRenderer.js). The ref exposes screenshot()
+ * and view().
  */
-const Viewer = forwardRef(function Viewer({ models, textures, materials, showMannequin = true, onLoading, onLoaded, onError, lighting = "studio" }, ref) {
+const Viewer = forwardRef(function Viewer(
+  { models, textures, collar, maps, onLoading, onLoaded, onError, lighting = "studio", mannequin = true, pixelRatio = 2 },
+  ref,
+) {
   const host = useRef(null);
   const three = useRef(null);
 
   // Scene, renderer, lights and controls: created once.
   useEffect(() => {
     const el = host.current;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, pixelRatio));
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 0.9;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -110,7 +116,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
       renderer.render(scene, camera);
     });
 
-    three.current = { renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi } };
+    three.current = { renderer, scene, camera, controls, kit, shadow, garments: {}, lights: { key, fill, rim, hemi } };
     return () => {
       observer.disconnect();
       renderer.setAnimationLoop(null);
@@ -120,7 +126,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
       el.removeChild(renderer.domElement);
       three.current = null;
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Garment models: (re)load whichever changed and paint them with their texture.
   useEffect(() => {
@@ -136,33 +142,26 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
         const object = gltf.scene.clone(true);
         if (isMannequin) {
           if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
-          object.visible = showMannequin;
+          object.visible = t.showMannequin ?? true;
           t.garments[garment] = { name, object };
           t.kit.add(object);
           return;
         }
-        const texture = textures[garment];
-        texture.anisotropy = t.renderer.capabilities.getMaxAnisotropy();
+        const anisotropy = t.renderer.capabilities.getMaxAnisotropy();
         object.traverse((o) => {
           if (o.isMesh) {
-            o.material = new THREE.MeshPhysicalMaterial({
-              name: o.material.name, map: texture, side: THREE.DoubleSide,
-              roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
-              aoMap: ao, aoMapIntensity: 1,
-              roughnessMap: materials?.[garment]?.roughness || null,
-              bumpMap: materials?.[garment]?.bump || null, bumpScale: 0.0012,
-              normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
-            });
-            // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way
-            // contact shadows look in a studio render.
-            if (ao) {
-              o.material.onBeforeCompile = (shader) => {
-                shader.fragmentShader = shader.fragmentShader.replace(
-                  "#include <aomap_fragment>",
-                  "#include <aomap_fragment>\n\treflectedLight.directDiffuse *= mix(1.0, ambientOcclusion, 0.8);",
-                );
-              };
+            // The collar mesh shows the collar's own, sharper texture (same design, see collarTemplate).
+            const ownCollar = garment === "shirt" && o.material.name === "shirt_collar" && collar;
+            const map = ownCollar ? collar : textures[garment];
+            map.anisotropy = anisotropy;
+            o.material = makeFabric(o.material.name, map, ao);
+            o.userData.garment = garment;
+            if (ownCollar) {
+              // The material maps cover the whole garment: undo the collar texture's UV transform for them.
+              const back = o.material.userData.reliefUv.value;
+              o.onBeforeRender = () => back.copy(map.matrix).invert();
             }
+            applyMaps(o.material, t.maps?.[garment]);
           }
         });
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
@@ -177,12 +176,25 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
     return () => {
       cancelled = true;
     };
-  }, [models, textures, materials, showMannequin, onLoading, onLoaded, onError]);
+  }, [models, textures, onLoading, onLoaded, onError]);
+
+  // Material maps (relief, roughness, metalness): attach or detach them when a garment starts or stops using them.
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    t.maps = maps;
+    for (const [garment, { object }] of Object.entries(t.garments)) {
+      if (garment === "mannequin") continue;
+      object.traverse((o) => o.isMesh && applyMaps(o.material, maps?.[garment]));
+    }
+  }, [maps]);
 
   useEffect(() => {
-    const object = three.current?.garments.mannequin?.object;
-    if (object) object.visible = showMannequin;
-  }, [showMannequin]);
+    const t = three.current;
+    if (!t) return;
+    t.showMannequin = mannequin;
+    if (t.garments.mannequin) t.garments.mannequin.object.visible = mannequin;
+  }, [mannequin]);
 
   // Lighting presets: the same rig, re-balanced.
   useEffect(() => {
@@ -200,37 +212,24 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
   useImperativeHandle(ref, () => ({
     /**
      * PNG data URL of the 3D view. With `aspect` ("1:1", "16:9", "9:16") it renders a fresh image at that shape
-     * (long side 2048 px), framing the whole kit from the current camera direction.
+     * (long side 2048 px), framing the whole kit from the current camera direction. `transparent` leaves out the
+     * background and the floor shadow.
      */
-    screenshot(aspect) {
+    screenshot(aspect, { transparent = false } = {}) {
       const t = three.current;
-      if (!aspect) {
-        t.renderer.render(t.scene, t.camera);
-        return t.renderer.domElement.toDataURL("image/png");
+      const background = t.scene.background;
+      if (transparent) {
+        t.scene.background = null;
+        t.shadow.visible = false;
       }
-      const [aw, ah] = aspect.split(":").map(Number);
-      const long = 2048;
-      const w = aw >= ah ? long : Math.round((long * aw) / ah);
-      const h = aw >= ah ? Math.round((long * ah) / aw) : long;
-      const { renderer, camera, controls } = t;
-      const cam = camera.clone();
-      cam.aspect = w / h;
-      cam.updateProjectionMatrix();
-      const centre = new THREE.Vector3(0, 0, 0); // the whole kit, even after a close-up
-      const dir = camera.position.clone().sub(controls.target).normalize();
-      cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
-      cam.lookAt(centre);
-      const ratio = renderer.getPixelRatio();
-      const size = renderer.getSize(new THREE.Vector2());
-      renderer.setPixelRatio(1);
-      renderer.setSize(w, h, false);
-      renderer.render(t.scene, cam);
-      const url = renderer.domElement.toDataURL("image/png");
-      renderer.setPixelRatio(ratio);
-      renderer.setSize(size.x, size.y, false);
-      renderer.render(t.scene, camera);
-      return url;
+      try {
+        return capture(t, aspect);
+      } finally {
+        t.scene.background = background;
+        t.shadow.visible = true;
+      }
     },
+
     /** Turn the camera to a preset: "front", "three-quarter", "side", "back" or "close-up" (the chest). */
     view(preset) {
       const { camera, controls } = three.current;
@@ -249,6 +248,102 @@ const Viewer = forwardRef(function Viewer({ models, textures, materials, showMan
 
   return <div className="viewer" ref={host} />;
 });
+
+function capture(t, aspect) {
+  if (!aspect) {
+    t.renderer.render(t.scene, t.camera);
+    return t.renderer.domElement.toDataURL("image/png");
+  }
+  const [aw, ah] = aspect.split(":").map(Number);
+  const long = 2048;
+  const w = aw >= ah ? long : Math.round((long * aw) / ah);
+  const h = aw >= ah ? Math.round((long * ah) / aw) : long;
+  const { renderer, camera, controls } = t;
+  const cam = camera.clone();
+  cam.aspect = w / h;
+  cam.updateProjectionMatrix();
+  const centre = new THREE.Vector3(0, 0, 0); // the whole kit, even after a close-up
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
+  cam.lookAt(centre);
+  const ratio = renderer.getPixelRatio();
+  const size = renderer.getSize(new THREE.Vector2());
+  renderer.setPixelRatio(1);
+  renderer.setSize(w, h, false);
+  renderer.render(t.scene, cam);
+  const url = renderer.domElement.toDataURL("image/png");
+  renderer.setPixelRatio(ratio);
+  renderer.setSize(size.x, size.y, false);
+  renderer.render(t.scene, camera);
+  return url;
+}
+
+// ---------------------------------------------------------------- fabric material
+
+/**
+ * The fabric: physical material with sheen, the knit as a tiling normal map, baked occlusion. Its shader is extended
+ * (onBeforeCompile) so the occlusion also darkens the key light, and so the garment's relief map (from the layers'
+ * finishes) is added to the knit normal when present.
+ */
+function makeFabric(name, map, ao) {
+  const material = new THREE.MeshPhysicalMaterial({
+    name, map, side: THREE.DoubleSide,
+    roughness: FABRIC.roughness, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
+    aoMap: ao, aoMapIntensity: 1,
+    normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
+  });
+  const relief = { value: null };
+  const reliefUv = { value: new THREE.Matrix3() };
+  material.userData = { relief, reliefUv };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.reliefMap = relief;
+    shader.uniforms.reliefUv = reliefUv;
+    let fs = shader.fragmentShader;
+    // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way contact
+    // shadows look in a studio render.
+    if (ao) {
+      fs = fs.replace(
+        "#include <aomap_fragment>",
+        "#include <aomap_fragment>\n\treflectedLight.directDiffuse *= mix(1.0, ambientOcclusion, 0.8);",
+      );
+    }
+    fs = fs.replace(
+      "#include <normalmap_pars_fragment>",
+      "#include <normalmap_pars_fragment>\n#ifdef USE_RELIEF\nuniform sampler2D reliefMap;\nuniform mat3 reliefUv;\n#endif",
+    );
+    fs = fs.replace(
+      "#include <normal_fragment_maps>",
+      ShaderChunk.normal_fragment_maps.replace(
+        "mapN.xy *= normalScale;",
+        `mapN.xy *= normalScale;
+	#ifdef USE_RELIEF
+		vec3 reliefN = texture2D( reliefMap, ( reliefUv * vec3( vMapUv, 1.0 ) ).xy ).xyz * 2.0 - 1.0;
+		mapN = normalize( vec3( mapN.xy + reliefN.xy, mapN.z * reliefN.z ) ); // whiteout blend: knit on top of the relief
+	#endif`,
+      ),
+    );
+    shader.fragmentShader = fs;
+  };
+  return material;
+}
+
+const FABRIC = { roughness: 0.8 };
+
+/** Attach a garment's material maps ({ normal, orm } or null) to a fabric material. */
+function applyMaps(material, maps) {
+  const { relief } = material.userData;
+  const orm = maps?.orm || null;
+  const normal = maps?.normal || null;
+  if (relief.value === normal && material.roughnessMap === orm) return;
+  relief.value = normal;
+  material.roughnessMap = material.metalnessMap = orm;
+  // With the map, the values come from it (G = roughness, B = metalness); without, the plain fabric.
+  material.roughness = orm ? 1 : FABRIC.roughness;
+  material.metalness = orm ? 1 : 0;
+  if (normal) material.defines = { ...material.defines, USE_RELIEF: "" };
+  else if (material.defines) delete material.defines.USE_RELIEF;
+  material.needsUpdate = true;
+}
 
 // [intensity, x, y, z] per light; studio is the original rig.
 const LIGHTING = {
