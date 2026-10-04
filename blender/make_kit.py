@@ -33,9 +33,9 @@ import numpy as np
 COLLAR_TYPE = "crew"        # "crew" | "v-neck" | "polo"
 SLEEVE_LENGTH = "short"     # "short" | "long" | a length in metres, e.g. 0.4
 FIT = "regular"             # "slim" | "regular" | "loose"
-SLEEVE_ANGLE = 45.0         # degrees below horizontal (the pose the sleeves are modelled in)
+SLEEVE_ANGLE = 68.0         # degrees below horizontal: relaxed arms, still clear of the torso
 SUBDIVISION_LEVELS = 1      # Catmull-Clark levels applied before export
-FOLD_STRENGTH = 1.0         # 0 = no fold detail
+FOLD_STRENGTH = 0.72       # subtle sewn-fabric creases, softened by the cloth drape
 BUILD = ["shirt", "shorts", "socks"]  # templates to generate
 UV_SIZES = (1024, 2048)     # UV layout PNG sizes
 DRACO = True                # Draco mesh compression
@@ -121,6 +121,7 @@ class Part:
         self.limbs = []          # sleeve axes: [(centre, radius)] from the shoulder out, for the mannequin's arms
         self.pin = set()         # island names held in place while the cloth drapes (collar, waistband)
         self.pin_below = 0.0     # ...and the cloth up to this far (metres) below them
+        self.pin_hem = False     # keep a garment's lower edge from being pulled up by gravity
         self.drape = True        # False: keep the modelled shape (socks are knitted tubes that hug the leg)
         self.bending = 0.6       # cloth bending stiffness: higher = fewer, broader folds
 
@@ -151,11 +152,12 @@ def shirt_params(collar, sleeves, fit):
     }[collar]
     return dict(
         collar=collar, fit=fit, fw=fw, length=0.74 * fl,
-        cols=24, rows=24, armpit_t=0.7, neck_s=0.36,
-        width=[(0, .232), (.32, .224), (.6, .24), (.72, .246), (1, .228)],
-        depth_front=[(0, .116), (.32, .108), (.62, .124)],
-        depth_back=[(0, .112), (.32, .102), (.62, .114)],
-        chest_t=0.62, armhole_depth=0.06, shoulder_drop=0.06,
+        cols=32, rows=32, armpit_t=0.7, neck_s=0.36,
+        # Extra ease at the chest and a shaped waist keep the jersey fitted without looking painted on.
+        width=[(0, .224), (.32, .219), (.6, .233), (.72, .24), (1, .222)],
+        depth_front=[(0, .108), (.32, .103), (.62, .116)],
+        depth_back=[(0, .105), (.32, .099), (.62, .108)],
+        chest_t=0.62, armhole_depth=0.075, shoulder_drop=0.075,
         neck_drop_front=neck[0], neck_depth_front=neck[1], neck_drop_back=neck[2], neck_depth_back=0.05,
         sleeve_len=sleeve_len * fl, sleeve_angle=math.radians(SLEEVE_ANGLE),
         cuff_radius=(0.085 if sleeve_len < 0.35 else 0.045) * fw,
@@ -323,7 +325,7 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
     band(part, loop, loop.index(vid[(False, half, R)]), profile, "collar",
          gap=0.03 if collar == "polo" else 0.0)  # the polo opening at the front
 
-    part.pin, part.pin_below = {"collar"}, 0.035
+    part.pin, part.pin_below, part.pin_hem = {"collar"}, 0.035, True
     part.params = dict(collar=collar, sleeves=sleeves, fit=fit, sleeve_angle=SLEEVE_ANGLE)
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
     return part
@@ -761,9 +763,9 @@ def subdivide(obj, levels):
 # shades them when the ambient occlusion is baked (the inside of the collar, under the arms, between the legs).
 
 # Torso rings: (z, half width, front depth, back depth), hips to the base of the neck.
-TORSO = [(-0.135, 0.14, 0.06, 0.075), (-0.1, 0.165, 0.085, 0.105), (-0.02, 0.158, 0.088, 0.1),
-         (0.18, 0.146, 0.085, 0.09), (0.38, 0.166, 0.1, 0.094), (0.5, 0.172, 0.097, 0.096),
-         (0.58, 0.178, 0.085, 0.09), (0.64, 0.158, 0.066, 0.074), (0.69, 0.1, 0.055, 0.06),
+TORSO = [(-0.135, 0.155, 0.067, 0.08), (-0.1, 0.178, 0.087, 0.105), (-0.02, 0.18, 0.091, 0.104),
+         (0.18, 0.17, 0.088, 0.097), (0.38, 0.194, 0.104, 0.102), (0.5, 0.207, 0.101, 0.1),
+         (0.58, 0.216, 0.086, 0.09), (0.64, 0.19, 0.067, 0.074), (0.69, 0.105, 0.055, 0.06),
          (0.71, 0.06, 0.05, 0.05)]
 NECK = [(0.7, 0.056), (0.86, 0.05)]
 # Legs: (z, radius, forward offset) from the hip down; x is the sock centre line.
@@ -796,12 +798,12 @@ def ring_tube(name, rings, segs=32, cap=True):
 
 
 def mannequin(part, fw):
-    """Body parts as closed tubes: torso, neck, the arms along the sleeve axes, and the legs."""
+    """A proportioned base body, fused into a continuous smooth collision/display mesh."""
     X, Y, Z = Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
     objs = []
     rings = []
-    # Under the shirt hem the shorts are worn over the body: the shirt drapes over them, not the skin.
-    under = 0.014 if part.name == "Shirt" else 0.0
+    # Keep the body just inside the shorts at the waist so the fused skin surface cannot poke through the gap.
+    under = -0.008 if part.name == "Shirt" else 0.0
     for z, w, df, db in TORSO:
         g = under * smoothstep(0.16, 0.08, z)
         w, df, db = w + g, df + g, db + g
@@ -838,10 +840,31 @@ def mannequin(part, fw):
         x = sg * 0.105 * fw
         objs.append(ring_tube(f"Body_leg_{sg}", [(Vector((x + sg * 0.012 * max(0, (z + 0.47) / 0.31), y, z)),
                                                   X, Y, r * fw, r * fw * 1.05) for z, r, y in LEG]))
-    # A smooth, bald display head meets the neck while keeping attention on the kit.
+    # A smooth display head meets the neck; the fused surface removes the ball-and-socket look at the joints.
     objs.append(shoulder_ball(Vector((0, 0.005, 0.975)), 0.105, "Body_head",
                               shape=(0.76, 0.88, 1.08)))
-    return objs
+
+    # Fuse overlapping body forms so the exported mannequin has natural shoulder/neck transitions and no visible
+    # seams. Use the same continuous surface for cloth collisions and ambient occlusion.
+    bpy.ops.object.select_all(action="DESELECT")
+    for item in objs:
+        item.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    body = bpy.context.object
+    body.name = "Mannequin"
+    remesh = body.modifiers.new("Continuous body", "REMESH")
+    remesh.mode = "VOXEL"
+    remesh.voxel_size = 0.009
+    bpy.context.view_layer.objects.active = body
+    bpy.ops.object.modifier_apply(modifier=remesh.name)
+    smooth = body.modifiers.new("Soften anatomy", "SMOOTH")
+    smooth.factor = 0.55
+    smooth.iterations = 3
+    bpy.ops.object.modifier_apply(modifier=smooth.name)
+    for poly in body.data.polygons:
+        poly.use_smooth = True
+    return [body]
 
 
 def shoulder_ball(c, r, name, shape=(1.0, 1.0, 1.0), axis=None):
@@ -877,6 +900,11 @@ def drape(obj, part, names, body, frames):
         # pin an entire wedge of the chest because its front point sits far below the shoulders.
         floor = max(mesh.vertices[i].co.z for i in pinned) - part.pin_below
         pinned.update(v.index for v in mesh.vertices if v.co.z >= floor)
+    if part.pin_hem:
+        # Anchor the bottom edge as well as the collar. This stops gravity from shortening the shirt and shifting
+        # artwork toward the neck, especially on V-necks where the front collar has a deep centre point.
+        hem = min(v.co.z for v in mesh.vertices)
+        pinned.update(v.index for v in mesh.vertices if v.co.z <= hem + 0.009)
     group = obj.vertex_groups.new(name="pin")
     group.add(sorted(pinned), 1.0, "REPLACE")
     for b in body:

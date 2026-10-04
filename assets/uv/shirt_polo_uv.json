@@ -5,7 +5,7 @@
     "collar": "polo",
     "sleeves": "short",
     "fit": "regular",
-    "sleeve_angle": 45.0
+    "sleeve_angle": 68.0
   },
   "materials": [
     "shirt_body",
@@ -21,40 +21,40 @@
       "rect": [
         0.02,
         0.02,
-        0.482309,
-        0.590543
+        0.481027,
+        0.601903
       ],
-      "pmin": -0.32122,
-      "qmax": 0.786608,
-      "scale": 0.750746
+      "pmin": -0.312611,
+      "qmax": 0.782333,
+      "scale": 0.769369
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.522309,
+        0.521027,
         0.02,
-        0.457691,
-        0.58612
+        0.458973,
+        0.598373
       ],
-      "pmin": -0.304824,
-      "qmax": 0.780716,
-      "scale": 0.750746
+      "pmin": -0.298279,
+      "qmax": 0.777746,
+      "scale": 0.769369
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.437405,
-        0.630543,
-        0.397405,
-        0.187687
+        0.449158,
+        0.641903,
+        0.409158,
+        0.192342
       ],
-      "pmin": -0.264673,
+      "pmin": -0.265905,
       "qmax": -0.0,
-      "scale": 0.750746,
+      "scale": 0.769369,
       "length": 0.25
     },
     "sleeve_right": {
@@ -63,13 +63,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.630543,
-        0.397405,
-        0.187687
+        0.641903,
+        0.409158,
+        0.192342
       ],
-      "pmin": -0.264673,
+      "pmin": -0.265905,
       "qmax": -0.0,
-      "scale": 0.750746,
+      "scale": 0.769369,
       "length": 0.25
     },
     "collar": {
@@ -78,13 +78,13 @@
       "frame": "p: metres around from the front centre (seam at the back), q: metres up the band",
       "rect": [
         0.02,
-        0.83823,
-        0.335967,
-        0.068698
+        0.854245,
+        0.364202,
+        0.070402
       ],
-      "pmin": -0.223755,
+      "pmin": -0.236689,
       "qmax": 0.091506,
-      "scale": 0.750746
+      "scale": 0.769369
     }
   }
 }
