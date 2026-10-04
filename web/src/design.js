@@ -26,7 +26,7 @@ export const DEFAULT_DESIGN = {
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
   pattern: "stripes",
   logo: null, // { src: data URL, name, x: cm, y: cm, scale }
-  sponsor: "SQUAREGOAL",
+  sponsor: "SPONSOR",
   name: "VEGA",
   number: "10",
   font: "Oswald",

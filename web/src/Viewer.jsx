@@ -17,6 +17,18 @@ const loadGlb = (name) => {
   if (!glbCache.has(name)) glbCache.set(name, loader.loadAsync(`models/${name}${MODEL_EXT}`));
   return glbCache.get(name);
 };
+// Ambient occlusion baked by blender/make_kit.py (models/<name>_ao.png): contact shadows and fold depth.
+const aoCache = new Map();
+const loadAo = (name) => {
+  if (!aoCache.has(name)) {
+    aoCache.set(name, new THREE.TextureLoader().loadAsync(`models/${name}_ao.png`).then((t) => {
+      t.flipY = false;
+      return t;
+    }, () => null));
+  }
+  return aoCache.get(name);
+};
+
 
 /**
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
@@ -31,7 +43,8 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
     const el = host.current;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 0.9;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     el.appendChild(renderer.domElement);
 
@@ -39,13 +52,17 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
     scene.background = new THREE.Color(BACKGROUND);
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.6;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xb9bcc2, 0.8));
-    const key = new THREE.DirectionalLight(0xffffff, 1.6);
-    key.position.set(1.5, 2.5, 2.5);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.8);
-    rim.position.set(-2, 1.5, -2.5);
-    scene.add(key, rim);
+    // Studio light like a product shot: soft room fill (it carries the baked occlusion), a key from the upper
+    // left that rakes across the folds, a weaker fill from the right and a rim from behind.
+    scene.environmentIntensity = 0.45;
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9fa3aa, 0.2));
+    const key = new THREE.DirectionalLight(0xffffff, 2.0);
+    key.position.set(-2.2, 2.4, 1.6);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.4);
+    fill.position.set(2.5, 0.6, 2);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.9);
+    rim.position.set(1.5, 1.8, -2.5);
+    scene.add(key, fill, rim);
 
     // Soft contact shadow under the feet.
     const shadowTex = new THREE.CanvasTexture(radialShadow());
@@ -107,16 +124,28 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoaded }, ref) {
     Promise.all(
       Object.entries(models).map(async ([garment, name]) => {
         if (t.garments[garment]?.name === name) return;
-        const gltf = await loadGlb(name);
+        const [gltf, ao] = await Promise.all([loadGlb(name), loadAo(name)]);
         if (cancelled || !three.current) return;
         const object = gltf.scene.clone(true);
         const texture = textures[garment];
         texture.anisotropy = t.renderer.capabilities.getMaxAnisotropy();
         object.traverse((o) => {
           if (o.isMesh) {
-            o.material = new THREE.MeshStandardMaterial({
-              name: o.material.name, map: texture, roughness: 0.82, side: THREE.DoubleSide,
+            o.material = new THREE.MeshPhysicalMaterial({
+              name: o.material.name, map: texture, side: THREE.DoubleSide,
+              roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
+              aoMap: ao, aoMapIntensity: 1,
             });
+            // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way
+            // contact shadows look in a studio render.
+            if (ao) {
+              o.material.onBeforeCompile = (shader) => {
+                shader.fragmentShader = shader.fragmentShader.replace(
+                  "#include <aomap_fragment>",
+                  "#include <aomap_fragment>\n\treflectedLight.directDiffuse *= mix(1.0, ambientOcclusion, 0.8);",
+                );
+              };
+            }
           }
         });
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);

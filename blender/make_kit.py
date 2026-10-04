@@ -33,12 +33,17 @@ import numpy as np
 COLLAR_TYPE = "crew"        # "crew" | "v-neck" | "polo"
 SLEEVE_LENGTH = "short"     # "short" | "long" | a length in metres, e.g. 0.4
 FIT = "regular"             # "slim" | "regular" | "loose"
-SLEEVE_ANGLE = 50.0         # degrees below horizontal (the pose the sleeves are modelled in)
+SLEEVE_ANGLE = 62.0         # degrees below horizontal (the pose the sleeves are modelled in)
 SUBDIVISION_LEVELS = 1      # Catmull-Clark levels applied before export
 FOLD_STRENGTH = 1.0         # 0 = no fold detail
 BUILD = ["shirt", "shorts", "socks"]  # templates to generate
 UV_SIZES = (1024, 2048)     # UV layout PNG sizes
 DRACO = True                # Draco mesh compression
+DRAPE_FRAMES = 20           # cloth simulation frames (0 = no drape)
+CLOTH_SHRINK = 0.0          # >0 tightens the cloth onto the body while it drapes
+AO_SIZE = 1024              # baked ambient occlusion texture, public/models/<name>_ao.png
+AO_SAMPLES = 64
+AO_FLOOR = 0.2             # darkest the baked occlusion gets
 # Shirt templates built by default (the editor's template selector): (output name, label, collar, sleeves).
 # Passing --collar or --sleeves builds a single shirt instead.
 SHIRT_VARIANTS = [
@@ -113,6 +118,11 @@ class Part:
         self.faces = []          # (vertex ids, [(p, q) per corner], island name)
         self.islands = {}        # name -> {"material": str, "kind": str, "frame": str, ...}
         self.materials = []
+        self.limbs = []          # sleeve axes: [(centre, radius)] from the shoulder out, for the mannequin's arms
+        self.pin = set()         # island names held in place while the cloth drapes (collar, waistband)
+        self.pin_below = 0.0     # ...and the cloth up to this far (metres) below them
+        self.drape = True        # False: keep the modelled shape (socks are knitted tubes that hug the leg)
+        self.bending = 0.6       # cloth bending stiffness: higher = fewer, broader folds
 
     def vert(self, co):
         self.verts.append(Vector(co))
@@ -141,10 +151,10 @@ def shirt_params(collar, sleeves, fit):
     return dict(
         collar=collar, fit=fit, fw=fw, length=0.74 * fl,
         cols=24, rows=24, armpit_t=0.7, neck_s=1 / 3,
-        width=[(0, .245), (.35, .232), (.62, .25), (.72, .25), (1, .228)],
-        depth_front=[(0, .118), (.35, .108), (.62, .115)],
-        depth_back=[(0, .112), (.35, .104), (.62, .108)],
-        chest_t=0.62, armhole_depth=0.06, shoulder_drop=0.045,
+        width=[(0, .228), (.32, .214), (.6, .236), (.72, .242), (1, .21)],
+        depth_front=[(0, .116), (.32, .108), (.62, .124)],
+        depth_back=[(0, .112), (.32, .102), (.62, .114)],
+        chest_t=0.62, armhole_depth=0.06, shoulder_drop=0.07,
         neck_drop_front=neck[0], neck_depth_front=neck[1], neck_drop_back=neck[2], neck_depth_back=0.05,
         sleeve_len=sleeve_len * fl, sleeve_angle=math.radians(SLEEVE_ANGLE),
         cuff_radius=(0.07 if sleeve_len < 0.35 else 0.045) * fw,
@@ -274,6 +284,8 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
             pos = pos + Tn * (L / steps)
             if step % 50 == 0:
                 frames.append((pos.copy(), E1.copy(), E2.copy(), l))
+        part.limbs.append([(frames[k][0].copy(), r_root * 0.97 if k == 0 else
+                            lerp(r_root * 0.97, P["cuff_radius"], frames[k][3] / L)) for k in range(K + 1)])
         rings = [ring0]
         for k in range(1, K + 1):
             center, f1, f2, l = frames[k]
@@ -310,6 +322,7 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
     band(part, loop, loop.index(vid[(False, half, R)]), profile, "collar",
          gap=0.03 if collar == "polo" else 0.0)  # the polo opening at the front
 
+    part.pin, part.pin_below = {"collar"}, 0.035
     part.params = dict(collar=collar, sleeves=sleeves, fit=fit, sleeve_angle=SLEEVE_ANGLE)
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
     return part
@@ -350,19 +363,45 @@ def band(part, loop, front_index, profile, island, gap=0.0):
             part.face(ids, uvs, island)
 
 
+def ridge(x):
+    """Fold profile with period 2*pi: rounded crests, sharp creases (cloth folds look like this, not like a sine)."""
+    return 2 * abs(math.sin(x / 2)) - 1
+
+
+def fold_band(a, q, start, end, wavelength, width):
+    """Folds running from `start` towards `end` (points in (|p|, q) metres): the crests run along that line and
+    repeat across it every `wavelength`; they fade out over `width` either side and towards `end`."""
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    length = math.hypot(dx, dy)
+    ux, uy = dx / length, dy / length
+    rx, ry = a - start[0], q - start[1]
+    along = rx * ux + ry * uy
+    across = -rx * uy + ry * ux
+    if along < 0 or along > length:
+        return 0.0
+    fade = smoothstep(0, 0.04, along) * smoothstep(length, length * 0.35, along) * smoothstep(width, 0, abs(across))
+    return fade * ridge(2 * math.pi * across / wavelength)
+
+
 def shirt_folds(kind, p, q, island):
-    """Fold displacement along the normal (metres) at local coordinates (p, q)."""
+    """Fold displacement along the normal (metres) at local coordinates (p, q): drag folds from the armpits towards
+    the waist, bunching over the hips at the sides, a soft wave at the hem and creases under the sleeves.
+    The cloth simulation then relaxes them into natural shapes."""
+    back = island == "back"
     if kind == "body":
         a = abs(p)
-        drape = 0.0042 * smoothstep(0.32, 0.02, q) * math.sin(a * 38 + 1.6 * math.sin(q * 9 + a * 4))
-        waist = (0.0022 * smoothstep(0.18, 0.27, a) * smoothstep(0.12, 0.22, q) * smoothstep(0.46, 0.36, q)
-                 * math.sin(q * 62))
-        pit = 0.0026 * math.exp(-((a - 0.29) ** 2 + (q - 0.49) ** 2) / 0.004) * math.sin((q + 0.8 * a) * 75)
-        return drape + waist + pit
+        side = 1 if p >= 0 else -1
+        vary = 0.75 + 0.25 * math.sin(3.1 * p + 1.7 * side + (2.3 if back else 0))
+        pit = 0.011 * fold_band(a, q, (0.215, 0.5), (0.06, 0.16), 0.055, 0.075)
+        waist = (0.008 * smoothstep(0.12, 0.2, a) * smoothstep(0.05, 0.12, q) * smoothstep(0.34, 0.22, q)
+                 * ridge(2 * math.pi * (q + 0.15 * a) / 0.062))
+        hem = 0.009 * smoothstep(0.16, 0.0, q) * ridge(2 * math.pi * a / 0.13 + (1.3 if back else 0.4))
+        return (pit + waist + hem) * vary
     if kind == "sleeve":
-        l = -q
-        under = 0.0026 * smoothstep(0.08, 0.2, abs(p)) * smoothstep(0.16, 0.0, l) * math.sin(l * 55 + p * 9)
-        return under
+        l, a = -q, abs(p)
+        under = 0.008 * smoothstep(0.06, 0.15, a) * smoothstep(0.16, 0.02, l) * ridge(2 * math.pi * (l + 0.6 * a) / 0.045)
+        cuff = 0.0025 * smoothstep(0.1, 0.2, l) * ridge(2 * math.pi * p / 0.07 + 0.8)
+        return under + cuff
     return 0.0
 
 
@@ -460,6 +499,7 @@ def shorts_part(fit=FIT):
     band(part, loop, loop.index(vid[key(False, half, R, 0)]),
          [(0.0, 0.0), (0.018, -0.004), (0.036, -0.006), (0.04, -0.001)], "waistband")
 
+    part.pin, part.pin_below, part.bending = {"waistband"}, 0.04, 3.0
     part.params = dict(fit=fit)
     part.layout_order = ["front", "back", "waistband"]
     return part
@@ -549,6 +589,7 @@ def socks_part(fit=FIT):
             part.face([rings[-1][m], rings[-1][(m + 1) % M], tip],
                       [last[m], last[m + 1], ((last[m][0] + last[m + 1][0]) / 2, -end)], body)
 
+    part.drape = False
     part.params = dict(fit=fit)
     part.layout_order = ["sock_left", "sock_right", "sock_top_left", "sock_top_right"]
     return part
@@ -702,6 +743,189 @@ def subdivide(obj, levels):
     mesh.name = old.name
     bpy.data.meshes.remove(old)
     return obj
+
+
+# ---------------------------------------------------------------- mannequin, cloth drape, ambient occlusion
+# An invisible body in the kit's shared frame. The garments drape onto it with Blender's cloth simulation, and it
+# shades them when the ambient occlusion is baked (the inside of the collar, under the arms, between the legs).
+
+# Torso rings: (z, half width, front depth, back depth), hips to the base of the neck.
+TORSO = [(-0.135, 0.14, 0.06, 0.075), (-0.1, 0.165, 0.085, 0.105), (-0.02, 0.158, 0.088, 0.1),
+         (0.18, 0.146, 0.085, 0.09), (0.38, 0.166, 0.1, 0.094), (0.5, 0.172, 0.097, 0.096),
+         (0.58, 0.168, 0.085, 0.09), (0.64, 0.145, 0.066, 0.074), (0.69, 0.1, 0.055, 0.06),
+         (0.71, 0.06, 0.05, 0.05)]
+NECK = [(0.7, 0.056), (0.86, 0.05)]
+# Legs: (z, radius, forward offset) from the hip down; x is the sock centre line.
+LEG = [(-0.06, 0.07, 0.0), (-0.18, 0.074, 0.0), (-0.32, 0.068, -0.003), (-0.47, 0.046, -0.004), (-0.6, 0.05, 0.004),
+       (-0.78, 0.036, 0.0), (-0.88, 0.031, 0.0)]
+
+
+def ring_tube(name, rings, segs=32, cap=True):
+    """A closed tube through rings of (centre, e1, e2, r1, r2): ellipses in the plane spanned by e1, e2."""
+    bm = bmesh.new()
+    loops = []
+    for c, e1, e2, r1, r2 in rings:
+        loops.append([bm.verts.new(c + e1 * (r1 * math.cos(2 * math.pi * m / segs)) +
+                                   e2 * (r2 * math.sin(2 * math.pi * m / segs))) for m in range(segs)])
+    for a, b in zip(loops, loops[1:]):
+        for m in range(segs):
+            bm.faces.new([a[m], a[(m + 1) % segs], b[(m + 1) % segs], b[m]])
+    if cap:
+        bm.faces.new(loops[0][::-1])
+        bm.faces.new(loops[-1])
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def mannequin(part, fw):
+    """Body parts as closed tubes: torso, neck, the arms along the sleeve axes, and the legs."""
+    X, Y, Z = Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1))
+    objs = []
+    rings = []
+    # Under the shirt hem the shorts are worn over the body: the shirt drapes over them, not the skin.
+    under = 0.014 if part.name == "Shirt" else 0.0
+    for z, w, df, db in TORSO:
+        g = under * smoothstep(0.16, 0.08, z)
+        w, df, db = w + g, df + g, db + g
+        # front and back depths differ: shift the ellipse's centre so each side reaches its own depth
+        d = (df + db) / 2
+        rings.append((Vector((0, (db - df) / 2, z)), X, Y, w * fw, d * fw))
+    objs.append(ring_tube("Body_torso", rings))
+    objs.append(ring_tube("Body_neck", [(Vector((0, 0.005, z)), X, Y, r, r * 1.05) for z, r in NECK]))
+    for limb in part.limbs:
+        pts = [c for c, _ in limb]
+        rad = [r for _, r in limb]
+        # carry on past the cuff to the wrist so short sleeves rest on a forearm
+        d = (pts[-1] - pts[-2]).normalized()
+        extra = 0.26 if (pts[-1] - pts[0]).length < 0.35 else 0.06
+        pts.append(pts[-1] + d * extra)
+        rad.append(rad[-1] * 0.6)
+        side = 1 if pts[0].x > 0 else -1
+        # start inside the torso so arm and body overlap at the shoulder
+        root = pts[0] - (pts[1] - pts[0]).normalized() * 0.06 + Vector((0, 0, 0.02))
+        pts.insert(0, root)
+        rad.insert(0, rad[0])
+        arm = []
+        for i, (c, r) in enumerate(zip(pts, rad)):
+            t = (pts[min(i + 1, len(pts) - 1)] - pts[max(i - 1, 0)]).normalized()
+            e1 = (Y - t * t.dot(Y)).normalized()
+            e2 = t.cross(e1)
+            arm.append((c, e1, e2, r * 0.66, r * 0.7))
+        objs.append(ring_tube(f"Body_arm_{side}", arm))
+        objs.append(shoulder_ball(pts[1] + Vector((0, 0, 0.005)), rad[1] * 0.75, f"Body_shoulder_{side}"))
+    for sg in (1, -1):
+        x = sg * 0.105 * fw
+        objs.append(ring_tube(f"Body_leg_{sg}", [(Vector((x + sg * 0.012 * max(0, (z + 0.47) / 0.31), y, z)),
+                                                  X, Y, r * fw, r * fw * 1.05) for z, r, y in LEG]))
+    return objs
+
+
+def shoulder_ball(c, r, name):
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=r)
+    bmesh.ops.translate(bm, verts=bm.verts, vec=c)
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def drape(obj, part, names, body, frames):
+    """Let the garment settle onto the body under gravity (cloth simulation), pinned at part.pin, then apply it."""
+    if frames <= 0 or not part.drape:
+        return
+    mesh = obj.data
+    isl = mesh.attributes["island"].data
+    pinned = set()
+    for poly in mesh.polygons:
+        if names[isl[poly.index].value] in part.pin:
+            pinned.update(poly.vertices)
+    if pinned and part.pin_below:
+        # also hold the cloth just below the pinned band, so the band doesn't drag it into creases
+        floor = min(mesh.vertices[i].co.z for i in pinned) - part.pin_below
+        pinned.update(v.index for v in mesh.vertices if v.co.z >= floor)
+    group = obj.vertex_groups.new(name="pin")
+    group.add(sorted(pinned), 1.0, "REPLACE")
+    for b in body:
+        col = b.modifiers.new("Collision", "COLLISION")
+        b.collision.thickness_outer = 0.006
+        b.collision.cloth_friction = 8.0
+    cloth = obj.modifiers.new("Cloth", "CLOTH")
+    st = cloth.settings
+    st.quality = 10
+    st.mass = 0.15
+    st.tension_stiffness = st.compression_stiffness = 20
+    st.shear_stiffness = 8
+    st.bending_stiffness = part.bending
+    st.air_damping = 2.0
+    st.pin_stiffness = 1.0
+    st.vertex_group_mass = "pin"
+    st.shrink_min = CLOTH_SHRINK
+    cs = cloth.collision_settings
+    cs.distance_min = 0.004
+    cs.collision_quality = 4
+    cs.use_self_collision = True
+    cs.self_distance_min = 0.003
+    scene = bpy.context.scene
+    scene.frame_start, scene.frame_end = 1, frames
+    cloth.point_cache.frame_start, cloth.point_cache.frame_end = 1, frames
+    for f in range(1, frames + 1):
+        scene.frame_set(f)
+    deps = bpy.context.evaluated_depsgraph_get()
+    new = bpy.data.meshes.new_from_object(obj.evaluated_get(deps), preserve_all_data_layers=True, depsgraph=deps)
+    old = obj.data
+    obj.modifiers.clear()
+    obj.vertex_groups.clear()
+    obj.data = new
+    new.name = old.name
+    bpy.data.meshes.remove(old)
+    for b in body:
+        b.modifiers.clear()
+
+
+def bake_ao(obj, body, path, size):
+    """Bake ambient occlusion (garment and body both occlude) into a greyscale PNG on the garment's UVs."""
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = AO_SAMPLES
+    scene.world = scene.world or bpy.data.worlds.new("World")
+    scene.world.light_settings.distance = 0.12
+    img = bpy.data.images.new("ao", size, size, alpha=False, float_buffer=False)
+    img.generated_color = (1, 1, 1, 1)
+    nodes = []
+    for mat in obj.data.materials:
+        node = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        node.image = img
+        mat.node_tree.nodes.active = node
+        nodes.append((mat, node))
+    for o in bpy.context.scene.objects:
+        o.select_set(False)
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.bake(type="AO", margin=8, use_clear=True)
+    # Lift the result: keep contact shadows, but never darker than AO_FLOOR.
+    px = np.array(img.pixels[:]).reshape(-1, 4)
+    v = AO_FLOOR + (1 - AO_FLOOR) * px[:, 0]
+    px[:, 0] = px[:, 1] = px[:, 2] = v
+    img.pixels = px.ravel().tolist()
+    img.filepath_raw = path
+    img.file_format = "PNG"
+    img.save()
+    for mat, node in nodes:
+        mat.node_tree.nodes.remove(node)
+    bpy.data.images.remove(img)
 
 
 def add_folds(obj, part, names, fold_fn, strength):
@@ -931,7 +1155,9 @@ def build_template(name, kwargs, out_name, draco):
     part = make(**kwargs)
     obj, layout, names = build_object(part)
     subdivide(obj, SUBDIVISION_LEVELS)
+    body = mannequin(part, FITS[part.params["fit"]][0])
     add_folds(obj, part, names, folds, FOLD_STRENGTH)
+    drape(obj, part, names, body, DRAPE_FRAMES)
     bad = check_uvs(obj, names)
 
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -963,6 +1189,8 @@ def build_template(name, kwargs, out_name, draco):
         with open(path, "w") as fh:
             json.dump(template, fh, indent=2)
 
+    if AO_SIZE:
+        bake_ao(obj, body, os.path.join(MODELS_DIR, f"{out_name}_ao.png"), AO_SIZE)
     how = export_glb(obj, os.path.join(MODELS_DIR, f"{out_name}.glb"), draco)
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"[kit] {out_name}: {len(obj.data.vertices)} verts, {tris} tris, materials {part.materials}, "

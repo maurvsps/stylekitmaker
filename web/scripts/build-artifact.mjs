@@ -22,6 +22,8 @@ const { kits } = JSON.parse(fs.readFileSync(path.join(build, "models", "kits.jso
 fs.copyFileSync(path.join(build, "models", "kits.json"), path.join(out, "models", "kits.json"));
 for (const { name } of kits) {
   fs.copyFileSync(path.join(build, "models", `${name}.json`), path.join(out, "models", `${name}.json`));
+  const ao = path.join(build, "models", `${name}_ao.png`);
+  if (fs.existsSync(ao)) fs.copyFileSync(ao, path.join(out, "models", `${name}_ao.png`));
   const glb = fs.readFileSync(path.join(build, "models", `${name}.glb`));
   const jsonLength = glb.readUInt32LE(12);
   const gltf = JSON.parse(glb.subarray(20, 20 + jsonLength).toString());

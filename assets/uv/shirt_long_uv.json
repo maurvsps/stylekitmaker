@@ -5,7 +5,7 @@
     "collar": "crew",
     "sleeves": "long",
     "fit": "regular",
-    "sleeve_angle": 50.0
+    "sleeve_angle": 62.0
   },
   "materials": [
     "shirt_body",
@@ -21,40 +21,40 @@
       "rect": [
         0.02,
         0.02,
-        0.436442,
-        0.516844
+        0.438226,
+        0.518523
       ],
-      "pmin": -0.329797,
-      "qmax": 0.781105,
-      "scale": 0.661683
+      "pmin": -0.33253,
+      "qmax": 0.78692,
+      "scale": 0.658927
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.476442,
+        0.478226,
         0.02,
-        0.401851,
-        0.514168
+        0.400463,
+        0.514642
       ],
-      "pmin": -0.303658,
-      "qmax": 0.77706,
-      "scale": 0.661683
+      "pmin": -0.303875,
+      "qmax": 0.78103,
+      "scale": 0.658927
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.360192,
-        0.556844,
-        0.320192,
-        0.383776
+        0.352759,
+        0.558523,
+        0.312759,
+        0.382178
       ],
-      "pmin": -0.241952,
+      "pmin": -0.237324,
       "qmax": -0.0,
-      "scale": 0.661683,
+      "scale": 0.658927,
       "length": 0.58
     },
     "sleeve_right": {
@@ -63,13 +63,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.556844,
-        0.320192,
-        0.383776
+        0.558523,
+        0.312759,
+        0.382178
       ],
-      "pmin": -0.241952,
+      "pmin": -0.237324,
       "qmax": -0.0,
-      "scale": 0.661683,
+      "scale": 0.658927,
       "length": 0.58
     },
     "collar": {
@@ -78,13 +78,13 @@
       "frame": "p: metres around from the front centre (seam at the back), q: metres up the band",
       "rect": [
         0.02,
-        0.96062,
-        0.322755,
-        0.01938
+        0.960701,
+        0.309544,
+        0.019299
       ],
-      "pmin": -0.243889,
+      "pmin": -0.234885,
       "qmax": 0.029288,
-      "scale": 0.661683
+      "scale": 0.658927
     }
   }
 }

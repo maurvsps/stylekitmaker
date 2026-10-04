@@ -33,13 +33,19 @@ With no `--collar`, `--sleeves` or `--name`, `shirt` builds every entry of `SHIR
 | `--name` | output basename | the template name |
 | `--no-draco` | export uncompressed | off |
 
-Other constants: `SLEEVE_ANGLE` (sleeve pose, degrees below horizontal), `SUBDIVISION_LEVELS`, `FOLD_STRENGTH`, `UV_SIZES`.
+Other constants: `SLEEVE_ANGLE` (sleeve pose, degrees below horizontal), `SUBDIVISION_LEVELS`, `FOLD_STRENGTH`, `UV_SIZES`,
+`DRAPE_FRAMES` (cloth simulation length, 0 = off), `AO_SIZE` / `AO_SAMPLES` / `AO_FLOOR` (baked shading).
 
 What it does:
 
-1. Builds each garment as connected meshes, applies a Catmull-Clark subdivision modifier, then adds small procedural folds.
+1. Builds each garment as connected meshes, applies a Catmull-Clark subdivision modifier, then adds procedural folds.
+   It then drapes the shirt and shorts with Blender's cloth simulation onto an invisible athletic mannequin
+   (`TORSO`, `NECK`, `LEG` and arms along the sleeves): the shirt hangs from the collar, the shorts from the
+   waistband, and the folds relax into natural shapes. Socks keep their modelled shape.
+   Finally Cycles bakes ambient occlusion (garment and mannequin both shade it) into `public/models/<name>_ao.png`,
+   which the editor uses for contact shadows and fold depth. A full build takes about 3 minutes.
    - **Shirt** (about 11k triangles): front and back panels, two sleeves bridged to the armholes, a collar band.
-     Folds: hem drape, waist and armpit creases, underarm sleeve wrinkles.
+     Folds: drag folds from the armpits to the waist, bunching over the hips, a hem wave, creases under the sleeves.
    - **Shorts** (about 8k): front and back panels that split into two legs at the crotch, plus a waistband.
      Folds: hem drape, crotch creases.
    - **Socks** (about 7k, both socks in one file): a tube from below the knee that bends into a foot with a heel and

@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 // The Draco decoder ships with three.js; serve it at /draco/ in dev and copy it into the build.
@@ -36,7 +36,8 @@ function kitModels() {
       const manifest = readFileSync(modelsDir + "kits.json");
       this.emitFile({ type: "asset", fileName: "models/kits.json", source: manifest });
       for (const { name } of JSON.parse(manifest).kits) {
-        for (const file of [`${name}.glb`, `${name}.json`]) {
+        for (const file of [`${name}.glb`, `${name}.json`, `${name}_ao.png`]) {
+          if (!existsSync(modelsDir + file)) continue;
           this.emitFile({ type: "asset", fileName: `models/${file}`, source: readFileSync(modelsDir + file) });
         }
       }
