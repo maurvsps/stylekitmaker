@@ -1,0 +1,567 @@
+import { useEffect, useRef, useState } from "react";
+import { BASE_DESIGNS, GRAPHICS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
+import {
+  LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
+  mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
+} from "./project.js";
+
+const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
+const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "group"];
+const ICONS = { base: "▣", pattern: "▥", graphic: "◆", image: "▨", text: "T", material: "✦", group: "▤" };
+
+/** The layer stack of one garment: tabs, the list (top layer first), the toolbar and the selected layer's fields. */
+export default function LayersPanel({ project, setProject, garment, setGarment, selected, select, template, fonts, uploadImage }) {
+  const layers = project.garments[garment].layers;
+  const layer = selected ? findLayer(layers, selected) : null;
+  const imageInput = useRef(null);
+  const [renaming, setRenaming] = useState(null);
+
+  const edit = (fn) => setProject((p) => editLayers(p, garment, fn));
+  const patch = (id, fields) => edit((ls) => mapLayer(ls, id, (l) => ({ ...l, ...fields })));
+
+  /** Put a new layer above the selection (inside it when it is a group), or on top. */
+  const add = (newLayer) => {
+    edit((ls) => {
+      const at = selected && locate(ls, selected);
+      if (!at) return [...ls, newLayer];
+      const sel = at.list[at.index];
+      if (sel.type === "group") return insertLayer(ls, newLayer, sel.id, sel.children.length);
+      return insertLayer(ls, newLayer, at.parentId, at.index + 1);
+    });
+    select(newLayer.id);
+  };
+
+  const onAdd = (type) => {
+    if (type === "image") return imageInput.current.click();
+    if (type === "trim") return add(makeLayer("base", garment, { design: "trim" }));
+    add(makeLayer(type, garment));
+  };
+
+  const onImageFile = async (file) => {
+    const asset = await uploadImage(file);
+    if (asset) add(makeLayer("image", garment, { asset: asset.id, name: asset.name.replace(/\.\w+$/, "").slice(0, 40) || "Image" }));
+  };
+
+  const act = {
+    duplicate: () => {
+      const copy = { ...cloneLayer(layer), name: `${layer.name} copy`.slice(0, 40) };
+      edit((ls) => {
+        const at = locate(ls, layer.id);
+        return at ? insertLayer(ls, copy, at.parentId, at.index + 1) : ls;
+      });
+      select(copy.id);
+    },
+    remove: () => {
+      edit((ls) => removeLayer(ls, selected));
+      select(null);
+    },
+    // Up = towards the top of the stack (later in its list).
+    up: () => edit((ls) => {
+      const at = locate(ls, selected);
+      return at && at.index < at.list.length - 1 ? moveLayer(ls, selected, at.parentId, at.index + 2) : ls;
+    }),
+    down: () => edit((ls) => {
+      const at = locate(ls, selected);
+      return at && at.index > 0 ? moveLayer(ls, selected, at.parentId, at.index - 1) : ls;
+    }),
+  };
+
+  const at = layer && locate(layers, layer.id);
+  return (
+    <div className="layers">
+      <div className="tabs" role="tablist" aria-label="Garment">
+        {Object.entries(GARMENT_LABELS).map(([g, label]) => (
+          <button
+            key={g}
+            type="button"
+            role="tab"
+            aria-selected={g === garment}
+            className={g === garment ? "active" : ""}
+            onClick={() => setGarment(g)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="layer-tools">
+        <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer">
+          <option value="">+ Add layer</option>
+          {ADDABLE.map((t) => (
+            <option key={t} value={t}>
+              {t === "trim" ? baseDesign(garment, "trim").label : LAYER_TYPES[t]}
+              {t === "image" ? "…" : ""}
+            </option>
+          ))}
+        </select>
+        <input ref={imageInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
+          if (e.target.files[0]) onImageFile(e.target.files[0]);
+          e.target.value = "";
+        }} />
+      </div>
+
+      <LayerList
+        layers={layers}
+        selected={selected}
+        select={select}
+        renaming={renaming}
+        setRenaming={setRenaming}
+        patch={patch}
+        move={(id, parentId, index) => edit((ls) => moveLayer(ls, id, parentId, index))}
+      />
+
+      {layer && (
+        <div className="row layer-actions">
+          <button type="button" className="quiet" title="Move up" aria-label="Move up" disabled={layer.locked || at.index >= at.list.length - 1} onClick={act.up}>↑</button>
+          <button type="button" className="quiet" title="Move down" aria-label="Move down" disabled={layer.locked || at.index === 0} onClick={act.down}>↓</button>
+          <button type="button" className="quiet" disabled={layer.locked} onClick={() => setRenaming(layer.id)}>Rename</button>
+          <button type="button" className="quiet" onClick={act.duplicate}>Duplicate</button>
+          <button type="button" className="quiet danger" disabled={layer.locked} onClick={act.remove}>Delete</button>
+        </div>
+      )}
+
+      {layer && (
+        <Inspector
+          key={layer.id}
+          layer={layer}
+          garment={garment}
+          project={project}
+          template={template}
+          fonts={fonts}
+          patch={(fields) => patch(layer.id, fields)}
+          uploadImage={uploadImage}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- list with drag and drop
+
+/** Rows top layer first; groups are followed by their children, indented. */
+function flatten(layers, depth = 0, parentId = null, out = []) {
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const layer = layers[i];
+    out.push({ layer, depth, parentId, index: i });
+    if (layer.type === "group") flatten(layer.children, depth + 1, layer.id, out);
+  }
+  return out;
+}
+
+function LayerList({ layers, selected, select, renaming, setRenaming, patch, move }) {
+  const rows = flatten(layers);
+  const list = useRef(null);
+  const drag = useRef(null); // { id, row }
+  const [drop, setDrop] = useState(null); // { id, where: "above" | "below" | "inside" }
+
+  // Pointer events (not HTML drag and drop) so dragging works with a finger too.
+  const onPointerDown = (e, row) => {
+    if (row.layer.locked) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = row;
+  };
+  const onPointerMove = (e) => {
+    if (!drag.current) return;
+    let target = null;
+    for (const el of list.current.querySelectorAll("[data-row]")) {
+      const r = el.getBoundingClientRect();
+      if (e.clientY >= r.top && e.clientY < r.bottom) {
+        const row = rows[Number(el.dataset.row)];
+        const f = (e.clientY - r.top) / r.height;
+        const where = row.layer.type === "group" && f > 0.3 && f < 0.7 ? "inside" : f < 0.5 ? "above" : "below";
+        target = { row, where };
+        break;
+      }
+    }
+    const id = drag.current.layer.id;
+    const inside = (r) => r && (r.layer.id === id || findLayer(drag.current.layer.children || [], r.layer.id));
+    setDrop(target && !inside(target.row) ? { id: target.row.layer.id, where: target.where, row: target.row } : null);
+  };
+  const onPointerUp = () => {
+    const from = drag.current;
+    drag.current = null;
+    if (from && drop) {
+      const { row, where } = drop;
+      if (where === "inside") move(from.layer.id, row.layer.id, row.layer.children.length);
+      else move(from.layer.id, row.parentId, where === "above" ? row.index + 1 : row.index);
+    }
+    setDrop(null);
+  };
+
+  if (!rows.length) return <p className="hint">No layers yet. Add one above.</p>;
+  return (
+    <ul className="layer-list" ref={list} role="listbox" aria-label="Layers">
+      {rows.map((row, i) => {
+        const { layer, depth } = row;
+        const cls = ["layer-row"];
+        if (layer.id === selected) cls.push("selected");
+        if (!layer.visible) cls.push("hidden");
+        if (drop?.id === layer.id) cls.push(`drop-${drop.where}`);
+        if (drag.current?.layer.id === layer.id) cls.push("dragging");
+        return (
+          <li
+            key={layer.id}
+            data-row={i}
+            className={cls.join(" ")}
+            role="option"
+            aria-selected={layer.id === selected}
+            style={{ paddingLeft: 4 + depth * 16 }}
+            onClick={() => select(layer.id)}
+            onDoubleClick={() => !layer.locked && setRenaming(layer.id)}
+          >
+            <span
+              className={`handle${layer.locked ? " off" : ""}`}
+              aria-hidden="true"
+              onPointerDown={(e) => onPointerDown(e, row)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={() => {
+                drag.current = null;
+                setDrop(null);
+              }}
+            >
+              ⠿
+            </span>
+            <button
+              type="button"
+              className="icon"
+              aria-label={layer.visible ? "Hide layer" : "Show layer"}
+              title={layer.visible ? "Hide" : "Show"}
+              onClick={(e) => {
+                e.stopPropagation();
+                patch(layer.id, { visible: !layer.visible });
+              }}
+            >
+              {layer.visible ? <EyeIcon /> : <EyeIcon off />}
+            </button>
+            <button
+              type="button"
+              className={`icon${layer.locked ? " on" : ""}`}
+              aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
+              title={layer.locked ? "Unlock" : "Lock"}
+              onClick={(e) => {
+                e.stopPropagation();
+                patch(layer.id, { locked: !layer.locked });
+              }}
+            >
+              <LockIcon open={!layer.locked} />
+            </button>
+            <span className="type" title={LAYER_TYPES[layer.type]}>
+              {ICONS[layer.type]}
+            </span>
+            {renaming === layer.id ? (
+              <RenameField
+                value={layer.name}
+                onDone={(name) => {
+                  setRenaming(null);
+                  if (name != null && name.trim()) patch(layer.id, { name: name.trim().slice(0, 40) });
+                }}
+              />
+            ) : (
+              <span className="name">{layer.name}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function RenameField({ value, onDone }) {
+  const input = useRef(null);
+  useEffect(() => input.current?.select(), []);
+  return (
+    <input
+      ref={input}
+      className="rename"
+      defaultValue={value}
+      maxLength={40}
+      aria-label="Layer name"
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => onDone(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") onDone(null);
+      }}
+    />
+  );
+}
+
+const EyeIcon = ({ off }) => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    {off ? <path d="M3 17 17 3" stroke="currentColor" strokeWidth="1.6" /> : <circle cx="10" cy="10" r="2.6" fill="currentColor" />}
+  </svg>
+);
+
+const LockIcon = ({ open }) => (
+  <svg viewBox="0 0 20 20" aria-hidden="true">
+    <rect x="4" y="9" width="12" height="8" rx="1.5" fill={open ? "none" : "currentColor"} stroke="currentColor" strokeWidth="1.6" />
+    <path d={open ? "M7 9V6.5a3 3 0 0 1 5.8-1" : "M7 9V6.5a3 3 0 0 1 6 0V9"} fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+// ---------------------------------------------------------------- inspector
+
+function Inspector({ layer, garment, project, template, fonts, patch, uploadImage }) {
+  const { palette } = project;
+  const locked = layer.locked;
+  const placed = "surface" in layer;
+  const island = placed && template?.islands[layer.surface];
+  const setT = (fields) => patch({ transform: { ...layer.transform, ...fields } });
+
+  return (
+    <fieldset className="inspector" disabled={locked}>
+      <legend>
+        {LAYER_TYPES[layer.type]}
+        {locked && <span className="badge">Locked</span>}
+      </legend>
+
+      {layer.type === "base" && (() => {
+        const design = baseDesign(garment, layer.design);
+        return (
+          <>
+            <label className="field">
+              <span>Design</span>
+              <select value={design.id} onChange={(e) => {
+                const next = baseDesign(garment, e.target.value);
+                patch({ design: next.id, colors: Object.fromEntries(next.slots.map(([k, , c]) => [k, layer.colors[k] ?? c])) });
+              }}>
+                {BASE_DESIGNS[garment].filter((b) => !!b.trim === !!design.trim).map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+              </select>
+            </label>
+            <div className="slot-colors">
+              {design.slots.map(([k, label, def]) => (
+                <ColorField key={k} label={label} value={layer.colors[k] ?? def} palette={palette}
+                  onChange={(c) => patch({ colors: { ...layer.colors, [k]: c } })} />
+              ))}
+            </div>
+          </>
+        );
+      })()}
+
+      {layer.type === "pattern" && (() => {
+        const p = patternDef(layer.pattern);
+        return (
+          <>
+            <div className="patterns" role="radiogroup" aria-label="Pattern">
+              {PATTERNS.map((def) => {
+                const colors = defaultPatternColors(def, layer.colors, p);
+                return (
+                  <button key={def.id} type="button" role="radio" aria-checked={p.id === def.id}
+                    className={p.id === def.id ? "active" : ""}
+                    onClick={() => patch({ pattern: def.id, name: layer.name === p.label ? def.label : layer.name, colors })}>
+                    <PatternSwatch def={def} colors={colors.map((c) => c && resolveColor(c, palette))} ground={palette[0]} />
+                    {def.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="slot-colors">
+              {patternSlots(p).map((label, i) => (
+                <ColorField key={i} label={label} value={layer.colors[i]} palette={palette} allowNone={i === p.slots.length}
+                  onChange={(c) => patch({ colors: layer.colors.map((v, k) => (k === i ? c : v)) })} />
+              ))}
+            </div>
+            <div className="field">
+              <span>Covers</span>
+              <div className="checks">
+                {REGIONS[garment].map(([r, label]) => (
+                  <label key={r} className="check">
+                    <input type="checkbox" checked={layer.regions.includes(r)} onChange={(e) => patch({
+                      regions: e.target.checked ? [...layer.regions, r] : layer.regions.filter((x) => x !== r),
+                    })} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </>
+        );
+      })()}
+
+      {layer.type === "text" && (
+        <>
+          <label className="field">
+            <span>Content</span>
+            <select value={layer.bind || ""} onChange={(e) => patch({ bind: e.target.value || null })}>
+              <option value="">Custom text</option>
+              <option value="name">Player name</option>
+              <option value="number">Player number</option>
+            </select>
+          </label>
+          {layer.bind ? (
+            <p className="hint">Shows the player {layer.bind} from the Player section.</p>
+          ) : (
+            <label className="field">
+              <span>Text</span>
+              <input value={layer.text} maxLength={40} onChange={(e) => patch({ text: e.target.value })} />
+            </label>
+          )}
+          <label className="field">
+            <span>Font</span>
+            <select value={layer.font || ""} onChange={(e) => patch({ font: e.target.value || null })}>
+              <option value="">Kit font ({project.font})</option>
+              {fonts.map((f) => <option key={f.id} value={f.id}>{f.id}</option>)}
+            </select>
+          </label>
+          <ColorField label="Colour" value={layer.color} palette={palette} onChange={(color) => patch({ color })} />
+          <label className="check">
+            <input type="checkbox" checked={layer.outline} onChange={(e) => patch({ outline: e.target.checked })} />
+            Soft outline
+          </label>
+        </>
+      )}
+
+      {layer.type === "image" && (
+        <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
+      )}
+
+      {layer.type === "graphic" && (
+        <>
+          <label className="field">
+            <span>Shape</span>
+            <select value={layer.shape} onChange={(e) => patch({ shape: e.target.value })}>
+              {GRAPHICS.map((g) => <option key={g.id} value={g.id}>{g.label}</option>)}
+            </select>
+          </label>
+          <ColorField label="Colour" value={layer.color} palette={palette} onChange={(color) => patch({ color })} />
+        </>
+      )}
+
+      {placed && (
+        <>
+          <label className="field">
+            <span>Placed on</span>
+            <select value={layer.surface} onChange={(e) => {
+              const isl = template?.islands[e.target.value];
+              const centre = isl ? islandBounds(isl) : null;
+              patch({
+                surface: e.target.value,
+                transform: centre ? { ...layer.transform, x: (centre.x0 + centre.x1) / 2, y: (centre.y0 + centre.y1) / 2 } : layer.transform,
+              });
+            }}>
+              {SURFACES[garment].map(([s, label]) => <option key={s} value={s}>{label}</option>)}
+            </select>
+          </label>
+          {island && (() => {
+            const b = islandBounds(island);
+            return (
+              <>
+                <Slider label="Left / right" unit="cm" min={Math.floor(b.x0 * 100)} max={Math.ceil(b.x1 * 100)} step={0.5}
+                  value={round(layer.transform.x * 100)} onChange={(v) => setT({ x: v / 100 })} />
+                <Slider label="Up / down" unit="cm" min={Math.floor(b.y0 * 100)} max={Math.ceil(b.y1 * 100)} step={0.5}
+                  value={round(layer.transform.y * 100)} onChange={(v) => setT({ y: v / 100 })} />
+              </>
+            );
+          })()}
+          {layer.type === "image" ? (
+            <Slider label="Size" unit="×" min={0.1} max={5} step={0.05} value={layer.transform.scaleX}
+              onChange={(v) => setT({ scaleX: v, scaleY: v })} />
+          ) : (
+            <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : 60} step={0.5}
+              value={round(layer.size * 100)} onChange={(v) => patch({ size: v / 100 })} />
+          )}
+          {layer.type === "text" && (
+            <Slider label="Max width" unit="cm" min={2} max={80} step={0.5} value={round(layer.maxWidth * 100)}
+              onChange={(v) => patch({ maxWidth: v / 100 })} />
+          )}
+        </>
+      )}
+
+      {layer.type === "group" && <p className="hint">{layer.children.length} layer{layer.children.length === 1 ? "" : "s"}. Drag layers onto the group to put them inside.</p>}
+      {layer.type === "material" && <p className="hint">Material effects (embroidery, shine, raised prints) arrive with the PBR step; this layer paints nothing yet.</p>}
+    </fieldset>
+  );
+}
+
+const round = (v) => Math.round(v * 10) / 10;
+
+/** An island's local extent in metres: x0..x1 (across), y0..y1 (up). */
+function islandBounds(isl) {
+  const w = isl.rect[2] / isl.scale;
+  const h = isl.rect[3] / isl.scale;
+  return { x0: isl.pmin, x1: isl.pmin + w, y0: isl.qmax - h, y1: isl.qmax };
+}
+
+/** A colour: one of the palette entries (follows palette changes), a custom colour, or none when allowed. */
+export function ColorField({ label, value, palette, onChange, allowNone = false }) {
+  const resolved = value ? resolveColor(value, palette) : "#ffffff";
+  return (
+    <div className="color-field">
+      <span>{label}</span>
+      <div className="swatches">
+        {allowNone && (
+          <button type="button" className={`swatch none${value === null ? " active" : ""}`} title="None (transparent)"
+            aria-label={`${label}: none`} aria-pressed={value === null} onClick={() => onChange(null)} />
+        )}
+        {palette.map((c, i) => (
+          <button key={i} type="button" className={`swatch${value === `@${i}` ? " active" : ""}`} style={{ background: c }}
+            title={PALETTE_LABELS[i]} aria-label={`${label}: ${PALETTE_LABELS[i]}`} aria-pressed={value === `@${i}`}
+            onClick={() => onChange(`@${i}`)} />
+        ))}
+        <label className={`swatch custom${value?.[0] === "#" ? " active" : ""}`} title="Custom colour">
+          <input type="color" value={resolved} aria-label={`${label}: custom colour`} onChange={(e) => onChange(e.target.value)} />
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function AssetPicker({ project, value, onChange, uploadImage }) {
+  const input = useRef(null);
+  const assets = Object.entries(project.assets);
+  return (
+    <div className="field">
+      <span>Image</span>
+      <div className="assets">
+        {assets.map(([id, a]) => (
+          <button key={id} type="button" className={`asset${id === value ? " active" : ""}`} title={a.name} aria-label={a.name}
+            aria-pressed={id === value} onClick={() => onChange(id)}>
+            <img src={a.src} alt="" />
+          </button>
+        ))}
+        <button type="button" className="asset add" onClick={() => input.current.click()} aria-label="Upload image">+</button>
+      </div>
+      <input ref={input} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={async (e) => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        const asset = file && (await uploadImage(file));
+        if (asset) onChange(asset.id);
+      }} />
+    </div>
+  );
+}
+
+export function Slider({ label, unit, value, onChange, ...range }) {
+  return (
+    <label className="slider">
+      <span>
+        {label}
+        <output>
+          {Number(value).toFixed(unit === "×" ? 2 : 1)} {unit}
+        </output>
+      </span>
+      <input type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} {...range} />
+    </label>
+  );
+}
+
+/** A small shirt-front preview of a pattern, painted by the same code as the texture. */
+function PatternSwatch({ def, colors, ground }) {
+  const canvas = useRef(null);
+  const key = [def.id, ground, ...colors].join();
+  useEffect(() => {
+    const c = canvas.current;
+    const ctx = c.getContext("2d");
+    const n = c.width;
+    const frame = {
+      p0: -0.4, p1: 0.4, q0: 0, q1: 0.8,
+      local: (cx) => cx.setTransform(n / 0.8, 0, 0, -n / 0.8, n / 2, n), // 80 x 80 cm of the front, hem at the bottom
+    };
+    fillIsland(ctx, frame, ground);
+    paintPattern(ctx, def, colors, { kind: "body", name: "front" });
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={canvas} width="64" height="64" aria-hidden="true" />;
+}
