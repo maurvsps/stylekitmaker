@@ -729,6 +729,16 @@ def make_material(name):
     return mat
 
 
+def make_mannequin_material():
+    mat = bpy.data.materials.get("Mannequin skin") or bpy.data.materials.new("Mannequin skin")
+    mat.use_nodes = True
+    mat.diffuse_color = (0.58, 0.43, 0.31, 1.0)
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Base Color"].default_value = mat.diffuse_color
+    bsdf.inputs["Roughness"].default_value = 0.62
+    return mat
+
+
 def subdivide(obj, levels):
     if levels <= 0:
         return obj
@@ -821,17 +831,26 @@ def mannequin(part, fw):
             arm.append((c, e1, e2, r * 0.66, r * 0.7))
         objs.append(ring_tube(f"Body_arm_{side}", arm))
         objs.append(shoulder_ball(pts[1] + Vector((0, 0, 0.005)), rad[1] * 0.75, f"Body_shoulder_{side}"))
+        # A shaped, featureless hand continues the forearm beyond the sleeve cuff.
+        objs.append(shoulder_ball(pts[-1] + d * 0.035, 0.041, f"Body_hand_{side}",
+                                  shape=(0.82, 0.72, 1.35), axis=d))
     for sg in (1, -1):
         x = sg * 0.105 * fw
         objs.append(ring_tube(f"Body_leg_{sg}", [(Vector((x + sg * 0.012 * max(0, (z + 0.47) / 0.31), y, z)),
                                                   X, Y, r * fw, r * fw * 1.05) for z, r, y in LEG]))
+    # A smooth, bald display head meets the neck while keeping attention on the kit.
+    objs.append(shoulder_ball(Vector((0, 0.005, 0.975)), 0.105, "Body_head",
+                              shape=(0.76, 0.88, 1.08)))
     return objs
 
 
-def shoulder_ball(c, r, name):
+def shoulder_ball(c, r, name, shape=(1.0, 1.0, 1.0), axis=None):
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=r)
-    bmesh.ops.translate(bm, verts=bm.verts, vec=c)
+    rotation = Vector((0, 0, 1)).rotation_difference(axis.normalized()) if axis is not None else None
+    for v in bm.verts:
+        p = Vector((v.co.x * shape[0], v.co.y * shape[1], v.co.z * shape[2]))
+        v.co = (rotation @ p if rotation else p) + c
     mesh = bpy.data.meshes.new(name)
     bm.to_mesh(mesh)
     bm.free()
@@ -1127,8 +1146,10 @@ def gltf_transform_cmd():
 
 def export_glb(obj, path, draco):
     bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
+    objects = obj if isinstance(obj, (list, tuple)) else [obj]
+    for item in objects:
+        item.select_set(True)
+    bpy.context.view_layer.objects.active = objects[0]
     native = draco and blender_draco_available()
     target = path if native or not draco else os.path.join(tempfile.mkdtemp(), "raw.glb")
     bpy.ops.export_scene.gltf(
@@ -1195,6 +1216,13 @@ def build_template(name, kwargs, out_name, draco):
     if AO_SIZE:
         bake_ao(obj, body, os.path.join(MODELS_DIR, f"{out_name}_ao.png"), AO_SIZE)
     how = export_glb(obj, os.path.join(MODELS_DIR, f"{out_name}.glb"), draco)
+    if out_name == "shirt":
+        skin = make_mannequin_material()
+        for item in body:
+            item.data.materials.clear()
+            item.data.materials.append(skin)
+        body_how = export_glb(body, os.path.join(MODELS_DIR, "mannequin.glb"), draco)
+        print(f"[kit] mannequin: {len(body)} meshes, GLB {body_how}")
     tris = sum(len(p.vertices) - 2 for p in obj.data.polygons)
     print(f"[kit] {out_name}: {len(obj.data.vertices)} verts, {tris} tris, materials {part.materials}, "
           f"islands {names}, UV faces wound wrong {bad}, GLB {how}")

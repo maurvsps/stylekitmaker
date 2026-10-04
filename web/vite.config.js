@@ -41,6 +41,8 @@ function kitModels() {
           this.emitFile({ type: "asset", fileName: `models/${file}`, source: readFileSync(modelsDir + file) });
         }
       }
+      const mannequin = modelsDir + "mannequin.glb";
+      if (existsSync(mannequin)) this.emitFile({ type: "asset", fileName: "models/mannequin.glb", source: readFileSync(mannequin) });
     },
   };
 }

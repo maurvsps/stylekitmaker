@@ -24,6 +24,11 @@ for (const { name } of kits) {
   fs.copyFileSync(path.join(build, "models", `${name}.json`), path.join(out, "models", `${name}.json`));
   const ao = path.join(build, "models", `${name}_ao.png`);
   if (fs.existsSync(ao)) fs.copyFileSync(ao, path.join(out, "models", `${name}_ao.png`));
+  embedModel(name);
+}
+embedModel("mannequin");
+
+function embedModel(name) {
   const glb = fs.readFileSync(path.join(build, "models", `${name}.glb`));
   const jsonLength = glb.readUInt32LE(12);
   const gltf = JSON.parse(glb.subarray(20, 20 + jsonLength).toString());
@@ -40,4 +45,4 @@ const js = read("index-", ".js").replaceAll("</script", "<\\/script");
 const fonts = fs.readFileSync(path.join(web, "index.html"), "utf8").match(/<link[^>]+fonts\.g[^>]+>/g).join("\n");
 fs.writeFileSync(path.join(out, "index.html"),
   `<title>Football Kit Maker</title>\n${fonts}\n<style>${css}</style>\n<div id="root"></div>\n<script type="module">${js}</script>\n`);
-console.log(`Artifact build in ${path.relative(process.cwd(), out)}: index.html + ${kits.length * 2 + 1} model files + Draco decoder`);
+console.log(`Artifact build in ${path.relative(process.cwd(), out)}: index.html + ${kits.length * 2 + 2} model files + Draco decoder`);

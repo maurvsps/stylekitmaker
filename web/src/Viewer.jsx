@@ -87,7 +87,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
     controls.enablePan = false; // keep the kit in frame; orbit and zoom still work
     controls.minDistance = 0.6;
     controls.maxDistance = 8;
-    controls.target.set(0, -0.12, 0);
+    controls.target.set(0, 0, 0);
     camera.position.set(0.26, 0.05, 1); // direction only: the distance is fitted below
 
     let fitted = false;
@@ -128,11 +128,18 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
     const t = three.current;
     onLoading?.();
     Promise.all(
-      Object.entries(models).map(async ([garment, name]) => {
+      Object.entries({ ...models, mannequin: "mannequin" }).map(async ([garment, name]) => {
         if (t.garments[garment]?.name === name) return;
-        const [gltf, ao] = await Promise.all([loadGlb(name), loadAo(name)]);
+        const isMannequin = garment === "mannequin";
+        const [gltf, ao] = await Promise.all([loadGlb(name), isMannequin ? Promise.resolve(null) : loadAo(name)]);
         if (cancelled || !three.current) return;
         const object = gltf.scene.clone(true);
+        if (isMannequin) {
+          if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
+          t.garments[garment] = { name, object };
+          t.kit.add(object);
+          return;
+        }
         const texture = textures[garment];
         texture.anisotropy = t.renderer.capabilities.getMaxAnisotropy();
         object.traverse((o) => {
@@ -201,7 +208,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
       const cam = camera.clone();
       cam.aspect = w / h;
       cam.updateProjectionMatrix();
-      const centre = new THREE.Vector3(0, -0.12, 0); // the whole kit, even after a close-up
+      const centre = new THREE.Vector3(0, 0, 0); // the whole kit, even after a close-up
       const dir = camera.position.clone().sub(controls.target).normalize();
       cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
       cam.lookAt(centre);
@@ -220,7 +227,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
     view(preset) {
       const { camera, controls } = three.current;
       const close = preset === "close-up";
-      controls.target.set(0, close ? 0.45 : -0.12, 0);
+      controls.target.set(0, close ? 0.48 : 0, 0);
       const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45, side: Math.PI / 2, "close-up": 0.15 }[preset] ?? 0;
       const d = close ? 0.95 : fitDistance(camera, controls, false);
       camera.position.set(
@@ -245,8 +252,8 @@ const LIGHTING = {
 export const LIGHTING_PRESETS = Object.keys(LIGHTING);
 
 // The kit (shirt top to sock soles) is about 1.85 m tall and 0.95 m wide, centred on the orbit target.
-const KIT_HEIGHT = 1.85;
-const KIT_WIDTH = 0.95;
+const KIT_HEIGHT = 2.08;
+const KIT_WIDTH = 1.04;
 
 /** Distance at which the whole kit fits the view, with a margin; moves the camera there unless apply is false. */
 function fitDistance(camera, controls, apply = true) {
