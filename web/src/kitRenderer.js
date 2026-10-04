@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { drawGarment } from "./kitTexture.js";
+import { drawGarment, drawMaterialMaps } from "./kitTexture.js";
 import { GARMENTS, walk } from "./project.js";
 
 // Owns one hidden canvas + CanvasTexture per garment and repaints a garment only when something it uses changed.
@@ -9,12 +9,16 @@ import { GARMENTS, walk } from "./project.js";
 export class KitRenderer {
   constructor(size = 2048) {
     this.textures = Object.fromEntries(GARMENTS.map((g) => [g, makeTexture(size)]));
+    this.materials = Object.fromEntries(GARMENTS.map((g) => [g, {
+      roughness: makeDataTexture(size),
+      bump: makeDataTexture(size),
+    }]));
     this.painted = {}; // garment -> the inputs of its last repaint
   }
 
   /** Change the texture resolution (1024, 2048 or 4096); the next render() repaints everything. */
   resize(size) {
-    for (const t of Object.values(this.textures)) {
+    for (const t of [...Object.values(this.textures), ...Object.values(this.materials).flatMap(Object.values)]) {
       if (t.image.width === size) continue;
       t.image.width = t.image.height = size;
       t.dispose(); // the GPU copy has a fixed size
@@ -46,6 +50,9 @@ export class KitRenderer {
       if (last && last.length === inputs.length && last.every((v, i) => v === inputs[i])) continue;
       drawGarment(this.textures[g].image, g, template, project, images);
       this.textures[g].needsUpdate = true;
+      drawMaterialMaps(this.materials[g].roughness.image, this.materials[g].bump.image, g, template, project);
+      this.materials[g].roughness.needsUpdate = true;
+      this.materials[g].bump.needsUpdate = true;
       this.painted[g] = inputs;
       repainted.push(g);
     }
@@ -69,5 +76,14 @@ function makeTexture(size) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.flipY = false; // glTF UVs: canvas top = texture v 0
   texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeDataTexture(size) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.flipY = false;
+  texture.colorSpace = THREE.NoColorSpace;
   return texture;
 }

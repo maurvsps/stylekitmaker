@@ -35,6 +35,53 @@ export function drawGarment(canvas, garment, template, project, images = {}) {
   drawLayers(ctx, project.garments[garment].layers, env, 0);
 }
 
+/** Paint the layer-level roughness and height maps used by the 3D preview. */
+export function drawMaterialMaps(roughnessCanvas, bumpCanvas, garment, template, project) {
+  const S = roughnessCanvas.width;
+  const islands = Object.entries(template.islands).map(([name, isl]) => ({ name, kind: isl.kind, isl, frame: islandFrame(isl, S) }));
+  const env = { garment, S, islands, byName: Object.fromEntries(islands.map((i) => [i.name, i])), masks: [] };
+  const rough = roughnessCanvas.getContext("2d");
+  const bump = bumpCanvas.getContext("2d");
+  reset(rough);
+  rough.fillStyle = "#ffffff"; // neutral multiplier: garment material roughness stays unchanged
+  rough.fillRect(0, 0, S, S);
+  reset(bump);
+  bump.fillStyle = "#808080"; // neutral height
+  bump.fillRect(0, 0, S, S);
+  paintMaterialLayers(rough, bump, project.garments[garment].layers, env);
+}
+
+function paintMaterialLayers(rough, bump, layers, env, inheritedOpacity = 1) {
+  for (const layer of layers) {
+    if (!layer.visible || layer.opacity <= 0) continue;
+    if (layer.type === "group") {
+      env.masks.push(layer.mask);
+      paintMaterialLayers(rough, bump, layer.children, env, inheritedOpacity * layer.opacity);
+      env.masks.pop();
+      continue;
+    }
+    if (layer.type !== "material") continue;
+    const opacity = inheritedOpacity * layer.opacity;
+    if (layer.effect === "shine") fillMaterialMask(rough, layer, env, opacity, "#626262");
+    if (layer.effect === "embroidery") fillMaterialMask(bump, layer, env, opacity, "#b8b8b8");
+    if (layer.effect === "raised") {
+      fillMaterialMask(rough, layer, env, opacity, "#c8c8c8");
+      fillMaterialMask(bump, layer, env, opacity, "#e8e8e8");
+    }
+  }
+}
+
+function fillMaterialMask(ctx, layer, env, opacity, color) {
+  eachIsland(ctx, env, layer, null, ({ frame }) => {
+    ctx.save();
+    frame.local(ctx);
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle = color;
+    ctx.fillRect(frame.p0, frame.q0, frame.p1 - frame.p0, frame.q1 - frame.q0);
+    ctx.restore();
+  });
+}
+
 function reset(ctx) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;

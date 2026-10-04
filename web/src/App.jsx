@@ -225,7 +225,8 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        {kits && <Viewer ref={viewer} models={models} textures={textures} onLoading={onLoading} onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} />}
+        {kits && <Viewer ref={viewer} models={models} textures={textures} materials={renderer.materials} showMannequin={prefs.showMannequin}
+          onLoading={onLoading} onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} />}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
           <div className="seg" role="group" aria-label="History">
@@ -245,6 +246,10 @@ export default function App() {
               </option>
             ))}
           </select>
+          <label className="stage-toggle" title="Show or hide the display mannequin">
+            <input type="checkbox" checked={prefs.showMannequin} onChange={(e) => setPref("showMannequin", e.target.checked)} />
+            Mannequin
+          </label>
         </div>
         {!loaded && !error && <div className="stage-note">Loading kit…</div>}
         {error && (
@@ -278,11 +283,12 @@ export default function App() {
 }
 
 function readPrefs() {
-  const prefs = { textureSize: 2048, lighting: "studio" };
+  const prefs = { textureSize: 2048, lighting: "studio", showMannequin: true };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
+    if (typeof saved.showMannequin === "boolean") prefs.showMannequin = saved.showMannequin;
   } catch {
     // defaults
   }

@@ -37,7 +37,7 @@ const loadAo = (name) => {
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
  * `textures` maps garment -> THREE.CanvasTexture (painted by the parent). The ref exposes screenshot() and view().
  */
-const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoaded, onError, lighting = "studio" }, ref) {
+const Viewer = forwardRef(function Viewer({ models, textures, materials, showMannequin = true, onLoading, onLoaded, onError, lighting = "studio" }, ref) {
   const host = useRef(null);
   const three = useRef(null);
 
@@ -136,6 +136,7 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
         const object = gltf.scene.clone(true);
         if (isMannequin) {
           if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
+          object.visible = showMannequin;
           t.garments[garment] = { name, object };
           t.kit.add(object);
           return;
@@ -148,6 +149,8 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
               name: o.material.name, map: texture, side: THREE.DoubleSide,
               roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
               aoMap: ao, aoMapIntensity: 1,
+              roughnessMap: materials?.[garment]?.roughness || null,
+              bumpMap: materials?.[garment]?.bump || null, bumpScale: 0.0012,
               normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
             });
             // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way
@@ -174,7 +177,12 @@ const Viewer = forwardRef(function Viewer({ models, textures, onLoading, onLoade
     return () => {
       cancelled = true;
     };
-  }, [models, textures, onLoading, onLoaded, onError]);
+  }, [models, textures, materials, showMannequin, onLoading, onLoaded, onError]);
+
+  useEffect(() => {
+    const object = three.current?.garments.mannequin?.object;
+    if (object) object.visible = showMannequin;
+  }, [showMannequin]);
 
   // Lighting presets: the same rig, re-balanced.
   useEffect(() => {

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { BASE_DESIGNS, GRAPHICS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import {
-  BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
+  BLEND_MODES, LAYER_TYPES, MATERIAL_EFFECTS, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
 } from "./project.js";
 
 const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
-const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "group"];
+const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "material", "group"];
 const ICONS = { base: "▣", pattern: "▥", graphic: "◆", image: "▨", text: "T", material: "✦", group: "▤" };
 
 /** The layer stack of one garment: tabs, the list (top layer first), the toolbar and the selected layer's fields. */
@@ -469,6 +469,20 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
+      {layer.type === "material" && (
+        <>
+          <label className="field">
+            <span>Effect</span>
+            <select value={layer.effect} onChange={(e) => patch({ effect: e.target.value })}>
+              {MATERIAL_EFFECTS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+            </select>
+          </label>
+          <Slider label="Effect strength" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)}
+            onChange={(v) => patch({ opacity: v / 100 })} />
+          <p className="hint">Choose the garment areas below. The effect changes only the 3D material map.</p>
+        </>
+      )}
+
       {placed && (
         <>
           <label className="field">
@@ -524,12 +538,12 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               </select>
             </label>
           </details>
-          <MaskFields layer={layer} garment={garment} patch={patch} />
         </>
       )}
 
+      <MaskFields layer={layer} garment={garment} patch={patch} />
+
       {layer.type === "group" && <p className="hint">{layer.children.length} layer{layer.children.length === 1 ? "" : "s"}. Drag layers onto the group to put them inside.</p>}
-      {layer.type === "material" && <p className="hint">Material effects (embroidery, shine, raised prints) arrive with the PBR step; this layer paints nothing yet.</p>}
     </fieldset>
   );
 }
@@ -587,7 +601,8 @@ function MaskFields({ layer, garment, patch }) {
   const { include, exclude } = layer.mask;
   const regions = REGIONS[garment];
   const label = (ids) => ids.map((id) => regions.find((r) => r.id === id)?.label).filter(Boolean).join(", ");
-  const summary = include ? `Only ${label(include)}` : exclude.length ? `Not on ${label(exclude)}` : "Everywhere";
+  const summary = include ? (include.length ? `Only ${label(include)}` : layer.type === "material" ? "Choose areas" : "No areas")
+    : exclude.length ? `Not on ${label(exclude)}` : "Everywhere";
   const setMask = (fields) => patch({ mask: { ...layer.mask, ...fields } });
   const toggle = (list, id) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   return (
@@ -603,7 +618,7 @@ function MaskFields({ layer, garment, patch }) {
             <button key={r.id} type="button" className={`chip${include?.includes(r.id) ? " on" : ""}`} aria-pressed={!!include?.includes(r.id)}
               onClick={() => {
                 const next = toggle(include || [], r.id);
-                setMask({ include: next.length ? next : null });
+                setMask({ include: next.length ? next : layer.type === "material" ? [] : null });
               }}>
               {r.label}
             </button>

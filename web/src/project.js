@@ -44,6 +44,11 @@ export const LAYER_TYPES = {
   material: "Material effect",
   group: "Group",
 };
+export const MATERIAL_EFFECTS = [
+  ["shine", "Satin shine"],
+  ["knit", "Knit weave"],
+  ["raised", "Raised print"],
+];
 
 export const BLEND_MODES = [
   "normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn",
@@ -102,7 +107,7 @@ export function makeLayer(type, garment, fields = {}) {
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
     image: () => ({ ...placed, asset: null, size: 0.085 }),
     text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true }),
-    material: () => ({ effect: "embroidery" }),
+    material: () => ({ effect: "knit", mask: { include: [], exclude: [] } }),
     group: () => ({ children: [] }),
   }[type]();
   return { ...base, ...typed, ...fields, transform: { ...(typed.transform || base.transform), ...(fields.transform || {}) } };
@@ -287,7 +292,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.outline = l.outline !== false;
       break;
     case "material":
-      layer.effect = str(l.effect, 30, d.effect);
+      layer.effect = MATERIAL_EFFECTS.some(([id]) => id === l.effect) ? l.effect : d.effect;
       break;
     case "group":
       layer.children = Array.isArray(l.children) ? sanitizeLayers(l.children, garment, assets, ids, budget, depth + 1) : [];
