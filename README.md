@@ -34,7 +34,8 @@ With no `--collar`, `--sleeves` or `--name`, `shirt` builds every entry of `SHIR
 | `--no-draco` | export uncompressed | off |
 
 Other constants: `SLEEVE_ANGLE` (sleeve pose, degrees below horizontal), `SUBDIVISION_LEVELS`, `FOLD_STRENGTH`, `UV_SIZES`,
-`DRAPE_FRAMES` (cloth simulation length, 0 = off), `AO_SIZE` / `AO_SAMPLES` / `AO_FLOOR` (baked shading).
+`DRAPE_FRAMES` (cloth simulation length, 0 = off), `AO_SIZE` / `AO_SAMPLES` / `AO_FLOOR` (baked shading),
+`THICKNESS` (fabric thickness), `JOHNNY` (the polo collar's profile).
 
 What it does:
 
@@ -43,8 +44,12 @@ What it does:
    (`TORSO`, `NECK`, `LEG` and arms along the sleeves): the shirt hangs from the collar, the shorts from the
    waistband, and the folds relax into natural shapes. Socks keep their modelled shape.
    Finally Cycles bakes ambient occlusion (garment and mannequin both shade it) into `public/models/<name>_ao.png`,
-   which the editor uses for contact shadows and fold depth. A full build takes about 3 minutes.
-   - **Shirt** (about 11k triangles): front and back panels, two sleeves bridged to the armholes, a collar band.
+   which the editor uses for contact shadows and fold depth. Last, every garment gets a fabric thickness (an inner
+   shell joined to the outside by a rim), so hems, cuffs and collar edges look like cloth rather than a sheet.
+   A full build takes about 3 minutes.
+   - **Shirt** (about 22k triangles with the thickness): front and back panels, two sleeves bridged to the armholes,
+     a collar band. The polo is a retro johnny collar: a V opening and a fold-down collar that stands about 3 cm at
+     the back and lies on the chest in two points at the front (the cloth under it is held still while it drapes).
      Folds: drag folds from the armpits to the waist, bunching over the hips, a hem wave, creases under the sleeves.
    - **Shorts** (about 8k): front and back panels that split into two legs at the crotch, plus a waistband.
      Folds: hem drape, crotch creases.
@@ -109,7 +114,7 @@ npm run build:artifact  # web/dist-artifact: self-contained copy for a claude.ai
 | `src/library.js` | Base designs, trims, patterns, graphics and garment regions (for masks): metadata for the panel plus their canvas painters and shapes |
 | `src/kitTexture.js` | The layer compositor: paints one garment's texture from its ordered layers and its UV template, and its material maps (height → normal, roughness / metalness) from the layers' finishes (plain canvas code, no React) |
 | `src/kitRenderer.js` | Owns the texture canvases (colour, the collar's own texture, material maps when used) and repaints only what changed |
-| `src/Viewer.jsx` | three.js scene: GLTFLoader + DRACOLoader (decoder served at `/draco/`), OrbitControls, studio lighting, contact shadow; exposes `screenshot()` and camera presets |
+| `src/Viewer.jsx` | three.js scene: GLTFLoader + DRACOLoader (decoder served at `/draco/`), OrbitControls, studio lighting with soft shadows from the key light, contact shadow, rib knit on the collar, cuffs and sock tops (placed from the UV templates); exposes `screenshot()` and camera presets |
 | `src/App.jsx` | Holds the project, loads `kits.json` and the templates, decodes uploaded images and fonts, asks the renderer to repaint (at most once per frame) |
 | `src/Panel.jsx`, `src/LayersPanel.jsx` | The side panel: kit colours, the Layers editor, and shortcuts for the player, sponsor and crest |
 

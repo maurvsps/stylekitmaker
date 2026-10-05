@@ -5,6 +5,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { cuffLength } from "./library.js";
 
 const BACKGROUND = 0xd9dbde;
 const draco = new DRACOLoader().setDecoderPath("draco/");
@@ -37,11 +38,11 @@ const loadAo = (name) => {
 /**
  * The 3D kit. `models` maps garment -> model name (e.g. { shirt: "shirt_polo", shorts: "shorts", socks: "socks" }),
  * `textures` maps garment -> THREE.CanvasTexture (painted by the parent), `collar` is the shirt collar's own texture
- * and `maps` maps garment -> { normal, orm } material maps or null (kitRenderer.js). The ref exposes screenshot()
- * and view().
+ * `maps` maps garment -> { normal, orm } material maps or null (kitRenderer.js) and `templates` maps model name -> UV
+ * template (where the ribbed trims are). The ref exposes screenshot() and view().
  */
 const Viewer = forwardRef(function Viewer(
-  { models, textures, collar, maps, onLoading, onLoaded, onError, lighting = "studio", mannequin = true, pixelRatio = 2 },
+  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", mannequin = true, pixelRatio = 2 },
   ref,
 ) {
   const host = useRef(null);
@@ -53,24 +54,30 @@ const Viewer = forwardRef(function Viewer(
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, pixelRatio));
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 0.9;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Soft shadows from the key light: sleeves on the torso, the collar on the chest, the shirt on the shorts.
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(BACKGROUND);
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    // Studio light like a product shot: soft room fill (it carries the baked occlusion), a key from the upper
-    // left that rakes across the folds, a weaker fill from the right and a rim from behind.
-    scene.environmentIntensity = 0.45;
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x9fa3aa, 0.2));
-    const key = new THREE.DirectionalLight(0xffffff, 2.0);
-    key.position.set(-2.2, 2.4, 1.6);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.4);
-    fill.position.set(2.5, 0.6, 2);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.9);
-    rim.position.set(1.5, 1.8, -2.5);
+    // Studio light like a product shot: soft room fill (it carries the baked occlusion), a low key from the left
+    // that rakes across the folds and lets the far side fall off, a weak fill from the right and a rim from behind.
+    // The values are set by the lighting preset (LIGHTING.studio by default).
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x9fa3aa, 0));
+    const key = new THREE.DirectionalLight(0xffffff, 0);
+    const fill = new THREE.DirectionalLight(0xffffff, 0);
+    const rim = new THREE.DirectionalLight(0xffffff, 0);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    Object.assign(key.shadow.camera, { left: -1.15, right: 1.15, top: 1.15, bottom: -1.15, near: 0.5, far: 7 });
+    key.shadow.radius = 5;
+    key.shadow.blurSamples = 12;
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = 0.006; // the cloth is thin: keep it from shadowing itself in stripes
     scene.add(key, fill, rim);
     const hemi = scene.children.find((o) => o.isHemisphereLight);
 
@@ -117,6 +124,7 @@ const Viewer = forwardRef(function Viewer(
     });
 
     three.current = { renderer, scene, camera, controls, kit, shadow, garments: {}, lights: { key, fill, rim, hemi } };
+    if (import.meta.env.DEV) window.__kit = three.current; // for screenshots and debugging in the dev server
     return () => {
       observer.disconnect();
       renderer.setAnimationLoop(null);
@@ -140,6 +148,9 @@ const Viewer = forwardRef(function Viewer(
         const [gltf, ao] = await Promise.all([loadGlb(name), isMannequin ? Promise.resolve(null) : loadAo(name)]);
         if (cancelled || !three.current) return;
         const object = gltf.scene.clone(true);
+        object.traverse((o) => {
+          if (o.isMesh) o.castShadow = o.receiveShadow = true;
+        });
         if (isMannequin) {
           if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
           object.visible = t.showMannequin ?? true;
@@ -162,6 +173,7 @@ const Viewer = forwardRef(function Viewer(
               o.onBeforeRender = () => back.copy(map.matrix).invert();
             }
             applyMaps(o.material, t.maps?.[garment]);
+            applyRibs(o.material, t.templates?.[name]);
           }
         });
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
@@ -189,6 +201,17 @@ const Viewer = forwardRef(function Viewer(
     }
   }, [maps]);
 
+  // Ribbed trims (collar, cuffs, sock tops) come from the UV templates, which may arrive after the models.
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    t.templates = templates;
+    for (const [garment, { name, object }] of Object.entries(t.garments)) {
+      if (garment === "mannequin") continue;
+      object.traverse((o) => o.isMesh && applyRibs(o.material, templates?.[name]));
+    }
+  }, [templates]);
+
   useEffect(() => {
     const t = three.current;
     if (!t) return;
@@ -207,6 +230,7 @@ const Viewer = forwardRef(function Viewer(
     }
     t.scene.environmentIntensity = preset.env;
     t.scene.background = new THREE.Color(preset.background);
+    t.renderer.toneMappingExposure = preset.exposure ?? 0.9;
   }, [lighting]);
 
   useImperativeHandle(ref, () => ({
@@ -294,10 +318,14 @@ function makeFabric(name, map, ao) {
   });
   const relief = { value: null };
   const reliefUv = { value: new THREE.Matrix3() };
-  material.userData = { relief, reliefUv };
+  const ribRects = { value: Array.from({ length: RIB_ZONES }, () => new THREE.Vector4(-1, -1, -1, -1)) };
+  const ribPeriod = { value: 1 };
+  material.userData = { relief, reliefUv, ribRects, ribPeriod };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.reliefMap = relief;
     shader.uniforms.reliefUv = reliefUv;
+    shader.uniforms.ribRects = ribRects;
+    shader.uniforms.ribPeriod = ribPeriod;
     let fs = shader.fragmentShader;
     // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way contact
     // shadows look in a studio render.
@@ -309,13 +337,37 @@ function makeFabric(name, map, ao) {
     }
     fs = fs.replace(
       "#include <normalmap_pars_fragment>",
-      "#include <normalmap_pars_fragment>\n#ifdef USE_RELIEF\nuniform sampler2D reliefMap;\nuniform mat3 reliefUv;\n#endif",
+      `#include <normalmap_pars_fragment>
+uniform mat3 reliefUv;
+#ifdef USE_RELIEF
+uniform sampler2D reliefMap;
+#endif
+#ifdef USE_RIB
+uniform vec4 ribRects[ ${RIB_ZONES} ];
+uniform float ribPeriod;
+#endif`,
     );
     fs = fs.replace(
       "#include <normal_fragment_maps>",
       ShaderChunk.normal_fragment_maps.replace(
         "mapN.xy *= normalScale;",
         `mapN.xy *= normalScale;
+	#ifdef USE_RIB
+		// Rib knit on the trims: raised cords running along the band (the island's q axis is the texture's v).
+		vec2 rawUv = ( reliefUv * vec3( vMapUv, 1.0 ) ).xy;
+		float rib = 0.0;
+		for ( int i = 0; i < ${RIB_ZONES}; i ++ ) {
+			vec4 r = ribRects[ i ];
+			rib = max( rib, step( r.x, rawUv.x ) * step( rawUv.x, r.z ) * step( r.y, rawUv.y ) * step( rawUv.y, r.w ) );
+		}
+		if ( rib > 0.5 ) {
+			float phase = rawUv.x / ribPeriod;
+			float fade = clamp( 1.5 - 2.0 * fwidth( phase ), 0.0, 1.0 ); // fade out where the cords get too small to draw
+			float slope = sin( 6.2831853 * phase );
+			slope = sign( slope ) * pow( abs( slope ), 0.6 ) * 0.85 * fade;
+			mapN = normalize( vec3( slope + mapN.x * 0.25, mapN.y * 0.25, 1.0 ) );
+		}
+	#endif
 	#ifdef USE_RELIEF
 		vec3 reliefN = texture2D( reliefMap, ( reliefUv * vec3( vMapUv, 1.0 ) ).xy ).xyz * 2.0 - 1.0;
 		mapN = normalize( vec3( mapN.xy + reliefN.xy, mapN.z * reliefN.z ) ); // whiteout blend: knit on top of the relief
@@ -345,9 +397,45 @@ function applyMaps(material, maps) {
   material.needsUpdate = true;
 }
 
-// [intensity, x, y, z] per light; studio is the original rig.
+// Ribbed trims: up to RIB_ZONES rectangles of the texture (the collar, each cuff, each sock top).
+const RIB_ZONES = 4;
+const RIB_SPACING = 0.0032; // metres from cord to cord
+
+/** Texture rectangles [u0, v0, u1, v1] of a template's ribbed trims, and the cord spacing in texture units. */
+function ribZones(template) {
+  const zones = [];
+  let scale = 1;
+  for (const isl of Object.values(template?.islands || {})) {
+    const [x, y, w, h] = isl.rect;
+    scale = isl.scale;
+    if (isl.kind === "collar" || isl.kind === "sock_top") zones.push([x, y, x + w, y + h]);
+    else if (isl.kind === "sleeve" && isl.length) {
+      // The cuff: the last cuffLength of the sleeve (q runs from 0 at the shoulder to -length at the cuff).
+      zones.push([x, y + isl.scale * (isl.qmax + isl.length - cuffLength(isl)), x + w, y + h]);
+    }
+  }
+  return { zones: zones.slice(0, RIB_ZONES), period: RIB_SPACING * scale };
+}
+
+/** Point a fabric material's rib uniforms at a template's trims (none: plain knit everywhere). */
+function applyRibs(material, template) {
+  const { ribRects, ribPeriod } = material.userData;
+  const { zones, period } = ribZones(template);
+  ribRects.value.forEach((v, i) => v.set(...(zones[i] || [-1, -1, -1, -1])));
+  ribPeriod.value = period;
+  const on = zones.length > 0;
+  if (on === "USE_RIB" in (material.defines || {})) return;
+  if (on) material.defines = { ...material.defines, USE_RIB: "" };
+  else delete material.defines.USE_RIB;
+  material.needsUpdate = true;
+}
+
+// [intensity, x, y, z] per light; the key light casts the shadows.
 const LIGHTING = {
-  studio: { env: 0.45, background: BACKGROUND, lights: { key: [2.0, -2.2, 2.4, 1.6], fill: [0.4, 2.5, 0.6, 2], rim: [0.9, 1.5, 1.8, -2.5], hemi: [0.2] } },
+  studio: {
+    env: 0.2, exposure: 1.05, background: BACKGROUND,
+    lights: { key: [3.0, -2.6, 1.6, 1.2], fill: [0.35, 2.6, 0.4, 1.4], rim: [1.6, 1.5, 1.8, -2.5], hemi: [0.04] },
+  },
   daylight: { env: 0.8, background: 0xe6edf3, lights: { key: [1.6, 1.2, 3, 2], fill: [0.6, -2, 1, 2], rim: [0.4, 0, 2, -2.5], hemi: [0.6] } },
   dramatic: { env: 0.15, background: 0x2b2e33, lights: { key: [2.8, -2.6, 1.8, 1.2], fill: [0.1, 2.5, 0.6, 2], rim: [1.8, 1.8, 1.5, -2.2], hemi: [0.05] } },
   flat: { env: 1.0, background: 0xeeeeee, lights: { key: [0.6, 0, 1, 3], fill: [0.4, 0, 0, 3], rim: [0.1, 0, 2, -2.5], hemi: [0.8] } },

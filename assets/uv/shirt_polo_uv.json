@@ -21,40 +21,40 @@
       "rect": [
         0.02,
         0.02,
-        0.481027,
-        0.601903
+        0.490781,
+        0.589111
       ],
-      "pmin": -0.312611,
+      "pmin": -0.325876,
       "qmax": 0.782333,
-      "scale": 0.769369
+      "scale": 0.753018
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.521027,
+        0.530781,
         0.02,
-        0.458973,
-        0.598373
+        0.449219,
+        0.585657
       ],
       "pmin": -0.298279,
       "qmax": 0.777746,
-      "scale": 0.769369
+      "scale": 0.753018
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.449158,
-        0.641903,
-        0.409158,
-        0.192342
+        0.440463,
+        0.629111,
+        0.400463,
+        0.188255
       ],
       "pmin": -0.265905,
       "qmax": -0.0,
-      "scale": 0.769369,
+      "scale": 0.753018,
       "length": 0.25
     },
     "sleeve_right": {
@@ -63,13 +63,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.641903,
-        0.409158,
-        0.192342
+        0.629111,
+        0.400463,
+        0.188255
       ],
       "pmin": -0.265905,
       "qmax": -0.0,
-      "scale": 0.769369,
+      "scale": 0.753018,
       "length": 0.25
     },
     "collar": {
@@ -78,13 +78,13 @@
       "frame": "p: metres around from the front centre (seam at the back), q: metres up the band",
       "rect": [
         0.02,
-        0.854245,
-        0.364202,
-        0.070402
+        0.837366,
+        0.390906,
+        0.120944
       ],
-      "pmin": -0.236689,
-      "qmax": 0.091506,
-      "scale": 0.769369
+      "pmin": -0.25956,
+      "qmax": 0.160613,
+      "scale": 0.753018
     }
   }
 }
