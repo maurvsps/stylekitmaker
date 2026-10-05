@@ -22,40 +22,40 @@
       "rect": [
         0.02,
         0.02,
-        0.400577,
-        0.583584
+        0.404926,
+        0.58992
       ],
       "pmin": -0.243237,
       "qmax": 0.708725,
-      "scale": 0.823428
+      "scale": 0.832368
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.440577,
+        0.444926,
         0.02,
-        0.400577,
-        0.676184
+        0.404926,
+        0.683525
       ],
       "pmin": -0.243237,
       "qmax": 0.821181,
-      "scale": 0.823428
+      "scale": 0.832368
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.384385,
-        0.716184,
-        0.344385,
-        0.214965
+        0.388124,
+        0.723525,
+        0.348124,
+        0.217299
       ],
       "pmin": -0.138327,
       "qmax": 0.0,
-      "scale": 0.823428,
+      "scale": 0.832368,
       "length": 0.2611
     },
     "sleeve_right": {
@@ -64,13 +64,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.716184,
-        0.344385,
-        0.214996
+        0.723525,
+        0.348124,
+        0.21733
       ],
       "pmin": -0.279906,
       "qmax": 0.0,
-      "scale": 0.823428,
+      "scale": 0.832368,
       "length": 0.2611
     },
     "collar": {
@@ -79,13 +79,13 @@
       "frame": "p: metres around from the front centre, q: metres up the band",
       "rect": [
         0.02,
-        0.95118,
-        0.48832,
-        0.02882
+        0.960856,
+        0.493622,
+        0.019144
       ],
       "pmin": -0.295693,
-      "qmax": 0.032,
-      "scale": 0.823428
+      "qmax": 0.02,
+      "scale": 0.832368
     }
   }
 }
