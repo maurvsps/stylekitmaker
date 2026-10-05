@@ -1,6 +1,18 @@
 {
   "kits": [
     {
+      "name": "shirt_clo",
+      "garment": "shirt",
+      "label": "Crew neck (realistic)",
+      "params": {
+        "collar": "crew",
+        "sleeves": "short",
+        "fit": "regular",
+        "source": "clo",
+        "sleeve_angle": 65.4
+      }
+    },
+    {
       "name": "shirt",
       "garment": "shirt",
       "label": "Crew neck",

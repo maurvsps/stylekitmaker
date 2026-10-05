@@ -21,7 +21,7 @@ export const FONTS = [
 ];
 
 export const DEFAULT_DESIGN = {
-  template: "shirt",
+  template: "shirt_clo",
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
   pattern: "stripes",
   logo: null, // { src: data URL, name, x: cm, y: cm, scale }
