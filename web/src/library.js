@@ -279,6 +279,52 @@ export const PATTERNS = [
     },
   },
   {
+    id: "triple-stripes",
+    label: "Three stripes",
+    slots: ["Stripes"],
+    paint(ctx, [a], { reach: R }) {
+      // A compact three-band identity mark; layer scale and mask control its size and placement.
+      for (const x of [-0.075, -0.025, 0.025]) box(ctx, a, x, -R, x + 0.025, R);
+    },
+    sleeve(ctx, [a], { reach: R }) {
+      for (const x of [-0.075, -0.025, 0.025]) box(ctx, a, x, -R, x + 0.025, R);
+    },
+  },
+  {
+    id: "claw-marks",
+    label: "Claw marks",
+    slots: ["Stripes"],
+    paint(ctx, [a]) {
+      // Three curved speed slashes inspired by athletic claw marks, without using a brand logo.
+      ctx.save();
+      ctx.strokeStyle = a;
+      ctx.lineWidth = 0.055;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (const y of [-0.09, 0, 0.09]) {
+        ctx.beginPath();
+        ctx.moveTo(-0.18, y - 0.12);
+        ctx.quadraticCurveTo(-0.03, y - 0.01, 0.16, y + 0.12);
+        ctx.stroke();
+      }
+      ctx.restore();
+    },
+  },
+  {
+    id: "wing-bands",
+    label: "Wing bands",
+    slots: ["Stripes"],
+    paint(ctx, [a]) {
+      // Repeated angled bands fan out from the upper chest toward each shoulder.
+      band(ctx, a, 0.022, [[-0.04, 0.72], [-0.16, 0.63], [-0.34, 0.61]]);
+      band(ctx, a, 0.022, [[-0.04, 0.67], [-0.17, 0.58], [-0.35, 0.56]]);
+      band(ctx, a, 0.022, [[-0.04, 0.62], [-0.18, 0.53], [-0.36, 0.51]]);
+      band(ctx, a, 0.022, [[0.04, 0.72], [0.16, 0.63], [0.34, 0.61]]);
+      band(ctx, a, 0.022, [[0.04, 0.67], [0.17, 0.58], [0.35, 0.56]]);
+      band(ctx, a, 0.022, [[0.04, 0.62], [0.18, 0.53], [0.36, 0.51]]);
+    },
+  },
+  {
     id: "side-stripes",
     label: "Side stripes",
     slots: ["Stripes"],
