@@ -79,6 +79,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       slot.id.includes("sponsor") ? 0.16 : slot.id.includes("sleeve") ? 0.055 : 0.085);
     const fresh = makeLayer("image", slot.garment, {
       role, name: slot.label, asset: asset.id, surface: position.surface,
+      // Crest and brand are printed on top of the fabric, not woven into it; sponsors start on the fabric.
+      texture: slot.id === "crest" || slot.id === "brand" ? "smooth" : "kit",
       size: slot.id.includes("sleeve") ? 0.055 : slot.id.includes("sponsor") ? 0.16 : 0.085,
       transform: { ...IDENTITY, x: position.x, y: position.y },
     });
