@@ -6,13 +6,11 @@ Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
 millimetres, Y up). The flat pieces are exactly what a UV frame in metres wants, so the islands come straight from
 the patterns: front, back (+ yoke), sleeves (+ cuffs) and the collar band (+ its tabs), each placed next to the piece
-it is sewn to. The draped shape is kept as the artist left it (no folds, no re-drape); it is scaled onto our
-mannequin (fitted inside the shirt; it only shades the AO bake and is not exported). Then the usual pipeline: UV pack, template JSON, UV
-PNGs, AO bake, thickness, GLB.
+it is sewn to. The draped shape is kept as the artist left it (no folds, no re-drape), scaled to our kit's size.
+Then the usual pipeline: UV pack, template JSON, UV PNGs, AO bake, thickness, GLB. The editor shows the shirt alone.
 """
 
 import io
-import math
 import os
 import re
 import struct
@@ -23,14 +21,12 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import make_kit as mk  # noqa: E402  (imports bpy, which provides mathutils)
-from mathutils import Vector  # noqa: E402
 
-SCALE = 1.1             # CLO avatar -> our mannequin: the collar top lands where make_kit's crew collar does
+SCALE = 1.1             # CLO avatar -> our kit: the collar top lands where make_kit's crew collar does
 DROP = 0.03             # metres the hem hangs below z = 0, over the top of the shorts
 NECK_Y = 0.005          # our neck's centre, front to back
 WELD = 0.0006           # metres: vertices this close (where CLO sewed two pieces) become one
 SEAM = 0.004            # metres: vertices this close across two pieces count as sewn together
-CLEARANCE = 0.014       # mannequin torso kept this far inside the shirt
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -213,6 +209,37 @@ def place(ps):
 # ---------------------------------------------------------------- the part
 
 
+def boundary(F):
+    """Edges used by one triangle only: the piece's outline."""
+    e = np.sort(np.concatenate([F[:, [0, 1]], F[:, [1, 2]], F[:, [2, 0]]]), 1)
+    u, n = np.unique(e, axis=0, return_counts=True)
+    return u[n == 1]
+
+
+def stitch(ps, reach=0.006):
+    """Close the seams. CLO sews pieces whose outlines have different vertex spacing, so neighbouring edges cross or
+    overlap by a few millimetres (dark lines in the AO bake, creases in the shading). Move every outline vertex of a
+    piece onto the outline of a piece earlier in the list when one is within reach, so the two meet edge to edge."""
+    rank = {"front": 0, "back": 1, "+": 2, "sleeve_left": 3, "sleeve_right": 3, "sleeve_left+": 4, "sleeve_right+": 4}
+    done = []
+    for p in sorted(ps, key=lambda p: rank.get(p["role"], 5)):  # body, yoke, sleeves, cuffs, collar
+        edges = boundary(p["F"])
+        ids = np.unique(edges)
+        if done:
+            A = np.concatenate([q["V"][e[:, 0]] for q, e in done])
+            B = np.concatenate([q["V"][e[:, 1]] for q, e in done])
+            AB = B - A
+            for i in ids:
+                v = p["V"][i]
+                t = np.clip(((v - A) * AB).sum(1) / np.maximum((AB * AB).sum(1), 1e-12), 0, 1)
+                foot = A + AB * t[:, None]
+                d = np.linalg.norm(foot - v, axis=1)
+                k = d.argmin()
+                if d[k] < reach:
+                    p["V"][i] = foot[k]
+        done.append((p, edges))
+
+
 def to_ours(P, hem, neck_x, neck_z):
     """CLO (mm, Y up, avatar facing +Z) -> ours (metres, Z up, facing -Y, hem at z = 0)."""
     return np.stack([(P[:, 0] - neck_x) * SCALE, -(P[:, 2] - neck_z) * SCALE + NECK_Y,
@@ -245,6 +272,8 @@ def clo_part(path):
     part.island("collar", "shirt_collar", "collar", "p: metres around from the front centre, q: metres up the band")
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
 
+    stitch(ps)
+
     # Weld what CLO sewed: one vertex where pieces meet, so the seams shade smoothly and thicken as one surface.
     allV = np.concatenate([p["V"] for p in ps])
     key = np.round(allV / WELD).astype(np.int64)
@@ -268,45 +297,8 @@ def clo_part(path):
                 seen.add(frozenset(vids))
                 part.face(vids, uv, name)
 
-    # The mannequin's arms run down the middle of the sleeves: from the armhole to the cuff.
-    bodyV = np.concatenate([p["V"] for p in ps if p["island"] in ("front", "back")])
-    angles = []
-    for name, side in (("sleeve_left", 1), ("sleeve_right", -1)):
-        sleeve = next(p for p in ps if p["role"] == name)
-        cuff = np.concatenate([p["V"] for p in ps if p["role"] == name + "+"])
-        hole = sleeve["V"][[i for i, _ in seam_pairs(sleeve["V"], bodyV, SEAM)]]
-        a, b = hole.mean(0), cuff.mean(0)
-        axis = (b - a) / np.linalg.norm(b - a)
-        V = np.concatenate([p["V"] for p in ps if p["island"] == name])
-        limb = []
-        for t in np.linspace(0.03, 1, 7):
-            centre = a + (b - a) * t
-            off = V - centre
-            along = off @ axis
-            off = off[np.abs(along) < 0.015]
-            off -= np.outer(off @ axis, axis)
-            limb.append((Vector(centre), float(np.linalg.norm(off, axis=1).mean())))
-        part.limbs.append(limb)
-        angles.append(math.degrees(math.atan2(-axis[2], abs(axis[0]))))
-    part.params["sleeve_angle"] = round(sum(angles) / 2, 1)
-
-    # ...and its torso stays inside the shirt.
-    body = np.concatenate([p["V"] for p in ps if p["island"] in ("front", "back")])
-    torso = []
-    for z, w, df, db in mk.TORSO:
-        sel = np.abs(body[:, 2] - z) < 0.015
-        if z < 0.15 or sel.sum() < 20:
-            torso.append((z, w, df, db))
-            continue
-        b = body[sel]
-        mid = b[np.abs(b[:, 0]) < 0.08]
-        w2 = np.abs(b[:, 0]).max() - CLEARANCE
-        df2 = (-mid[:, 1].min() if len(mid) else df) - CLEARANCE
-        db2 = (mid[:, 1].max() if len(mid) else db) - CLEARANCE
-        torso.append((z, w2, df2, db2) if z < 0.62 else (z, min(w, w2), min(df, df2), min(db, db2)))
-    mk.TORSO = torso
     print(f"[clo] {len(ps)} pieces -> {[p['role'] for p in ps]}, {len(part.verts)} verts, "
-          f"sleeve angle {part.params['sleeve_angle']}, collar {circ:.3f} m round")
+          f"collar {circ:.3f} m round")
     return part
 
 
@@ -318,7 +310,6 @@ def build(path, out_name, draco):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     part = clo_part(path)
     obj, layout, names = mk.build_object(part)
-    body = mk.mannequin(part, mk.FITS["regular"][0])
     mk.add_folds(obj, part, names, None, 0)  # only drops the Local UV layer: the artist's drape stays as it is
     bad = mk.check_uvs(obj, names)
 
@@ -346,8 +337,9 @@ def build(path, out_name, draco):
         with open(dest, "w") as fh:
             json.dump(template, fh, indent=2)
 
-    mk.bake_ao(obj, body, os.path.join(mk.MODELS_DIR, f"{out_name}_ao.png"), mk.AO_SIZE)
-    mk.thicken(obj, mk.THICKNESS)
+    # The shirt is shown alone: only its own folds shade it.
+    mk.bake_ao(obj, [], os.path.join(mk.MODELS_DIR, f"{out_name}_ao.png"), mk.AO_SIZE)
+    mk.thicken(obj, mk.THICKNESS, inner=True)
     how = mk.export_glb(obj, os.path.join(mk.MODELS_DIR, f"{out_name}.glb"), draco)
     mk.write_manifest()
     print(f"[clo] {out_name}: {len(obj.data.vertices)} verts, UV faces wound wrong {bad}, GLB {how}")

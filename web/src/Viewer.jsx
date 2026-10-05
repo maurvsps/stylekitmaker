@@ -279,12 +279,14 @@ function capture(t, aspect) {
  * finishes) is added to the knit normal when present.
  */
 function makeFabric(name, map, ao) {
+  const inner = name.endsWith("_inner"); // the inner shell (blender/make_kit.py thicken)
   const material = new THREE.MeshPhysicalMaterial({
     name, map, side: THREE.DoubleSide,
     roughness: FABRIC.roughness, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
     aoMap: ao, aoMapIntensity: 1,
     normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
   });
+  if (inner) material.defines = { ...material.defines, USE_INNER: "" }; // its own shader program
   const relief = { value: null };
   const reliefUv = { value: new THREE.Matrix3() };
   const ribRects = { value: Array.from({ length: RIB_ZONES }, () => new THREE.Vector4(-1, -1, -1, -1)) };
@@ -296,6 +298,16 @@ function makeFabric(name, map, ao) {
     shader.uniforms.ribRects = ribRects;
     shader.uniforms.ribPeriod = ribPeriod;
     let fs = shader.fragmentShader;
+    // The inside of the shirt (USE_INNER): plain fabric in the design's overall colour, a little darker (no mirrored
+    // stripes, names or numbers).
+    fs = fs.replace(
+      "#include <map_fragment>",
+      `#ifdef USE_INNER
+	diffuseColor *= vec4( textureLod( map, vMapUv, 10.0 ).rgb * 0.8, 1.0 );
+#else
+	#include <map_fragment>
+#endif`,
+    );
     // three.js applies the occlusion map to indirect light only; let it darken the key light too, the way contact
     // shadows look in a studio render.
     if (ao) {
