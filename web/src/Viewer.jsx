@@ -61,7 +61,7 @@ const Viewer = forwardRef(function Viewer(
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(BACKGROUND);
+    scene.background = null; // the stage's CSS backdrop shows through; set by the lighting preset
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     // Studio light like a product shot: soft room fill (it carries the baked occlusion), a low key from the left
@@ -218,7 +218,7 @@ const Viewer = forwardRef(function Viewer(
       if (x !== undefined) t.lights[name].position.set(x, y, z);
     }
     t.scene.environmentIntensity = preset.env;
-    t.scene.background = new THREE.Color(preset.background);
+    t.scene.background = preset.background == null ? null : new THREE.Color(preset.background);
     t.renderer.toneMappingExposure = preset.exposure ?? 0.9;
     t.invalidate();
   }, [lighting]);
@@ -232,7 +232,8 @@ const Viewer = forwardRef(function Viewer(
     screenshot(aspect, { transparent = false } = {}) {
       const t = three.current;
       const background = t.scene.background;
-      if (transparent) t.scene.background = null;
+      // Exports always get a solid background unless asked not to, even when the stage shows the CSS backdrop.
+      t.scene.background = transparent ? null : background || new THREE.Color(BACKGROUND);
       try {
         return capture(t, aspect);
       } finally {
@@ -448,7 +449,7 @@ function applyRibs(material, template) {
 // [intensity, x, y, z] per light; the key light casts the shadows.
 const LIGHTING = {
   studio: {
-    env: 0.2, exposure: 1.05, background: BACKGROUND,
+    env: 0.2, exposure: 1.05, background: null, // over the stage's glass backdrop; exports use BACKGROUND
     lights: { key: [3.0, -2.6, 1.6, 1.2], fill: [0.35, 2.6, 0.4, 1.4], rim: [1.6, 1.5, 1.8, -2.5], hemi: [0.04] },
   },
   daylight: { env: 0.8, background: 0xe6edf3, lights: { key: [1.6, 1.2, 3, 2], fill: [0.6, -2, 1, 2], rim: [0.4, 0, 2, -2.5], hemi: [0.6] } },
