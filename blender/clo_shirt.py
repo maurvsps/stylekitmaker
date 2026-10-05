@@ -25,6 +25,7 @@ import make_kit as mk  # noqa: E402  (imports bpy, which provides mathutils)
 SCALE = 1.1             # CLO avatar -> our kit: the collar top lands where make_kit's crew collar does
 DROP = 0.03             # metres the hem hangs below z = 0, over the top of the shorts
 NECK_Y = 0.005          # our neck's centre, front to back
+DECIMATE = 0.4          # keep this share of CLO's triangles: its sim mesh is far denser than the view needs
 WELD = 0.0006           # metres: vertices this close (where CLO sewed two pieces) become one
 SEAM = 0.004            # metres: vertices this close across two pieces count as sewn together
 
@@ -302,6 +303,19 @@ def clo_part(path):
     return part
 
 
+def decimate(obj, ratio):
+    """Fewer triangles where the cloth is flat; folds, outlines and UV island borders keep their detail."""
+    import bpy
+
+    if ratio >= 1:
+        return
+    mod = obj.modifiers.new("Lighter", "DECIMATE")
+    mod.decimate_type = "COLLAPSE"
+    mod.ratio = ratio
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
 def build(path, out_name, draco):
     import bpy
     import json
@@ -311,6 +325,7 @@ def build(path, out_name, draco):
     part = clo_part(path)
     obj, layout, names = mk.build_object(part)
     mk.add_folds(obj, part, names, None, 0)  # only drops the Local UV layer: the artist's drape stays as it is
+    decimate(obj, DECIMATE)
     bad = mk.check_uvs(obj, names)
 
     for size in mk.UV_SIZES:

@@ -51,7 +51,7 @@ const Viewer = forwardRef(function Viewer(
   // Scene, renderer, lights and controls: created once.
   useEffect(() => {
     const el = host.current;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // capture() renders before reading
     renderer.setPixelRatio(Math.min(devicePixelRatio, pixelRatio));
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -94,10 +94,15 @@ const Viewer = forwardRef(function Viewer(
     camera.position.set(0.26, CENTRE_Y + 0.05, 1); // direction only: the distance is fitted below
 
     let fitted = false;
+    // Draw only when something changed: the camera moved (or is still easing), a texture was repainted, or an
+    // effect below called invalidate(). An idle kit costs no GPU time, which keeps phones cool and the page snappy.
+    let dirty = true;
+    let stamp = -1;
     const resize = () => {
       const w = el.clientWidth || 1;
       const h = el.clientHeight || 1;
       renderer.setSize(w, h);
+      dirty = true;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       if (!fitted) {
@@ -109,11 +114,19 @@ const Viewer = forwardRef(function Viewer(
     observer.observe(el);
     resize();
     renderer.setAnimationLoop(() => {
-      controls.update();
+      const t = three.current;
+      const moved = controls.update();
+      const now = t ? textureStamp(t) : 0;
+      if (!moved && !dirty && now === stamp) return;
+      dirty = false;
+      stamp = now;
       renderer.render(scene, camera);
     });
 
-    three.current = { renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi } };
+    three.current = {
+      renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi },
+      invalidate: () => (dirty = true),
+    };
     if (import.meta.env.DEV) window.__kit = three.current; // for screenshots and debugging in the dev server
     return () => {
       observer.disconnect();
@@ -161,6 +174,7 @@ const Viewer = forwardRef(function Viewer(
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
         t.garments[garment] = { name, object };
         t.kit.add(object);
+        t.invalidate();
       }),
     ).then(() => !cancelled && onLoaded?.(), (err) => {
       if (cancelled) return;
@@ -180,6 +194,7 @@ const Viewer = forwardRef(function Viewer(
     for (const [garment, { object }] of Object.entries(t.garments)) {
       object.traverse((o) => o.isMesh && applyMaps(o.material, maps?.[garment]));
     }
+    t.invalidate();
   }, [maps]);
 
   // Ribbed trims (collar, cuffs, sock tops) come from the UV templates, which may arrive after the models.
@@ -190,6 +205,7 @@ const Viewer = forwardRef(function Viewer(
     for (const { name, object } of Object.values(t.garments)) {
       object.traverse((o) => o.isMesh && applyRibs(o.material, templates?.[name]));
     }
+    t.invalidate();
   }, [templates]);
 
   // Lighting presets: the same rig, re-balanced.
@@ -204,6 +220,7 @@ const Viewer = forwardRef(function Viewer(
     t.scene.environmentIntensity = preset.env;
     t.scene.background = new THREE.Color(preset.background);
     t.renderer.toneMappingExposure = preset.exposure ?? 0.9;
+    t.invalidate();
   }, [lighting]);
 
   useImperativeHandle(ref, () => ({
@@ -220,6 +237,7 @@ const Viewer = forwardRef(function Viewer(
         return capture(t, aspect);
       } finally {
         t.scene.background = background;
+        t.invalidate();
       }
     },
 
@@ -236,11 +254,23 @@ const Viewer = forwardRef(function Viewer(
         controls.target.z + Math.cos(yaw) * d,
       );
       controls.update();
+      three.current.invalidate();
     },
   }));
 
   return <div className="viewer" ref={host} />;
 });
+
+/** Sum of the versions of every texture the kit's materials draw: it changes whenever one is repainted. */
+function textureStamp(t) {
+  let s = 0;
+  t.kit.traverse((o) => {
+    const m = o.isMesh && o.material;
+    if (!m) return;
+    s += (m.map?.version || 0) + (m.userData.relief?.value?.version || 0) + (m.roughnessMap?.version || 0);
+  });
+  return s;
+}
 
 function capture(t, aspect) {
   if (!aspect) {
@@ -255,7 +285,7 @@ function capture(t, aspect) {
   const cam = camera.clone();
   cam.aspect = w / h;
   cam.updateProjectionMatrix();
-  const centre = new THREE.Vector3(0, 0, 0); // the whole kit, even after a close-up
+  const centre = new THREE.Vector3(0, CENTRE_Y, 0); // the whole shirt, even after a close-up
   const dir = camera.position.clone().sub(controls.target).normalize();
   cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
   cam.lookAt(centre);
