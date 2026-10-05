@@ -10,6 +10,7 @@ import {
 const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
 const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "material", "group"];
 const ICONS = { base: "▣", pattern: "▥", graphic: "◆", image: "▨", text: "T", material: "✦", group: "▤" };
+const PRINT_ROLES = /^(crest|logo-brand)$|sponsor/; // logos that can be a smooth print on top of the fabric
 
 /** The layer stack of one garment: tabs, the list (top layer first), the toolbar and the selected layer's fields. */
 /** Keyboard shortcuts leave text fields alone. */
@@ -559,14 +560,14 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             </label>
           </details>
           <MaskFields layer={layer} garment={garment} patch={patch} />
-          {(layer.role === "sponsor" || layer.role?.includes("sponsor")) && (
+          {PRINT_ROLES.test(layer.role || "") && (
             <label className="field">
               <span>Print texture</span>
               <select value={layer.texture || "kit"} onChange={(e) => patch({ texture: e.target.value })}>
                 <option value="kit">Kit fabric</option>
                 <option value="smooth">Smooth print</option>
               </select>
-              <span className="hint">Smooth print removes the knit detail from this sponsor.</span>
+              <span className="hint">Smooth print sits on top of the fabric, without the knit showing through.</span>
             </label>
           )}
           <FinishFields layer={layer} patch={patch} />
