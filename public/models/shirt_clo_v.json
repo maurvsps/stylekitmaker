@@ -1,0 +1,91 @@
+{
+  "template": "shirt",
+  "name": "shirt_clo_v",
+  "label": "V-neck (realistic)",
+  "params": {
+    "collar": "v-neck",
+    "sleeves": "short",
+    "fit": "regular",
+    "source": "clo"
+  },
+  "materials": [
+    "shirt_body",
+    "shirt_sleeves",
+    "shirt_collar"
+  ],
+  "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. A point (p, q) of an island's local frame (metres) lands at x = rect.x + scale * (p - pmin), y = rect.y + scale * (qmax - q).",
+  "islands": {
+    "front": {
+      "material": "shirt_body",
+      "kind": "body",
+      "frame": "p: metres across from the centre line, q: metres up from the hem",
+      "rect": [
+        0.02,
+        0.02,
+        0.404195,
+        0.588827
+      ],
+      "pmin": -0.243237,
+      "qmax": 0.708692,
+      "scale": 0.830865
+    },
+    "back": {
+      "material": "shirt_body",
+      "kind": "body",
+      "frame": "p: metres across from the centre line, q: metres up from the hem",
+      "rect": [
+        0.444195,
+        0.02,
+        0.404195,
+        0.682291
+      ],
+      "pmin": -0.243237,
+      "qmax": 0.821181,
+      "scale": 0.830865
+    },
+    "sleeve_left": {
+      "material": "shirt_sleeves",
+      "kind": "sleeve",
+      "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
+      "rect": [
+        0.387495,
+        0.722291,
+        0.347495,
+        0.216906
+      ],
+      "pmin": -0.138327,
+      "qmax": 0.0,
+      "scale": 0.830865,
+      "length": 0.2611
+    },
+    "sleeve_right": {
+      "material": "shirt_sleeves",
+      "kind": "sleeve",
+      "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
+      "rect": [
+        0.02,
+        0.722291,
+        0.347495,
+        0.216938
+      ],
+      "pmin": -0.279906,
+      "qmax": 0.0,
+      "scale": 0.830865,
+      "length": 0.2611
+    },
+    "collar": {
+      "material": "shirt_collar",
+      "kind": "collar",
+      "frame": "p: metres around from the front centre, q: metres up the band",
+      "rect": [
+        0.02,
+        0.959228,
+        0.612182,
+        0.020772
+      ],
+      "pmin": -0.368255,
+      "qmax": 0.022,
+      "scale": 0.830865
+    }
+  }
+}

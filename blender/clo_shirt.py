@@ -1,7 +1,10 @@
 """
 Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj).
 
-    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--name shirt_clo]
+    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|scoop|wide] [--name shirt_clo]
+
+--collar picks the neck (see COLLARS): crew keeps CLO's band; v and scoop cut a deeper neckline into the front
+panel and wide keeps CLO's; all three then sew on a new rib band. Each builds its own template (shirt_clo_v, ...).
 
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
 millimetres, Y up). The flat pieces are exactly what a UV frame in metres wants, so the islands come straight from
@@ -28,6 +31,17 @@ NECK_Y = 0.005          # our neck's centre, front to back
 DECIMATE = 0.4          # keep this share of CLO's triangles: its sim mesh is far denser than the view needs
 WELD = 0.0006           # metres: vertices this close (where CLO sewed two pieces) become one
 SEAM = 0.004            # metres: vertices this close across two pieces count as sewn together
+
+# Collar variants built from the same garment: (template suffix, label, neckline cut, band width in metres).
+# "crew" keeps CLO's own collar band; the others cut a new neckline into the front panel (or keep CLO's) and sew
+# a new rib band along it.
+COLLARS = {
+    "crew": ("", "Crew neck (realistic)", None, None),
+    "v": ("_v", "V-neck (realistic)", "v", 0.022),
+    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.02),
+    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.032),
+}
+NECK_DEPTH = {"v": 0.10, "scoop": 0.07}  # metres the new neckline drops below CLO's at the front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -267,17 +281,162 @@ def stitch(ps, reach=0.006):
         done.append((p, edges))
 
 
+def cut_neckline(front, collar, shape, depth):
+    """Cut a deeper neckline into the front panel, in its flat frame (p across, q up): a straight V or a round
+    scoop from CLO's neck corners down to `depth` below its front centre. Triangles crossing the line are clipped."""
+    P, uv = front["P"], front["uv"]
+    C = np.concatenate([c["P"] for c in collar])
+    outline = np.unique(boundary(front["F"]))
+    neck = [i for i in outline if np.linalg.norm(C - P[i], axis=1).min() < 5]  # mm: sewn to the collar
+    nb = uv[neck]
+    ps = np.abs(nb[:, 0]).max()
+    qs = nb[np.abs(nb[:, 0]) > 0.9 * ps, 1].min()
+    qv = nb[np.abs(nb[:, 0]) < 0.03, 1].min() - depth
+    a = np.clip(np.abs(uv[:, 0]) / ps, 0, 1)
+    line = qv + (qs - qv) * (a if shape == "v" else 1 - np.sqrt(1 - a * a))
+    f = np.where(np.abs(uv[:, 0]) < ps, line - uv[:, 1], 1.0)  # >= 0: keep
+    keys = ("P", "R", "uv")
+    extra = {k: [] for k in keys}
+    made = {}
+
+    def cross(i, j):
+        k = (min(i, j), max(i, j))
+        if k not in made:
+            t = f[i] / (f[i] - f[j])
+            for key in keys:
+                extra[key].append(front[key][i] + (front[key][j] - front[key][i]) * t)
+            made[k] = len(P) + len(made)
+        return made[k]
+
+    F = []
+    for tri in front["F"]:
+        keep = f[tri] >= 0
+        if keep.all():
+            F.append(list(tri))
+        elif keep.any():
+            poly = []
+            for j in range(3):
+                i0, i1 = tri[j], tri[(j + 1) % 3]
+                if f[i0] >= 0:
+                    poly.append(i0)
+                if (f[i0] >= 0) != (f[i1] >= 0):
+                    poly.append(cross(i0, i1))
+            F += [[poly[0], poly[k], poly[k + 1]] for k in range(1, len(poly) - 1)]
+    for key in keys:
+        front[key] = np.concatenate([front[key], np.array(extra[key]).reshape(-1, front[key].shape[1])])
+    F = np.array(F)
+    used = np.unique(F)
+    remap = -np.ones(len(front["P"]), int)
+    remap[used] = np.arange(len(used))
+    for key in keys:
+        front[key] = front[key][used]
+    front["F"] = remap[F]
+    front["cut"] = (np.arange(len(remap)) >= len(P))[used]
+    print(f"[clo] {shape} neckline: {depth * 100:.0f} cm deeper at the front, {len(made)} edges cut")
+
+
+def neck_marks(ps, collar):
+    """Flag, per body piece, the outline vertices that form the neck opening: those CLO sewed to its collar band,
+    plus the ones a new neckline cut made."""
+    C = np.concatenate([c["P"] for c in collar])
+    for p in ps:
+        if p["island"] not in ("front", "back"):
+            continue
+        mark = np.zeros(len(p["P"]), bool)
+        for i in np.unique(boundary(p["F"])):
+            mark[i] = np.linalg.norm(C - p["P"][i], axis=1).min() < 6  # mm
+        if "cut" in p:
+            mark |= p["cut"]
+        p["neck"] = mark
+
+
+def sew_band(part, neck_ids, width, rows=4, samples=160):
+    """A rib band along the neck opening, `width` metres wide: it carries on from the shirt's surface past the
+    neckline (standing up round the back of the neck, lying on the chest down a V) and tucks 3 mm under the
+    neckline so no gap shows. Its UVs are the collar island's frame: p around from the front centre (both ways),
+    q up the band."""
+    V = np.array([tuple(v) for v in part.verts])
+    other = {}
+    for ids, _, _ in part.faces:
+        for j in range(3):
+            a, b = ids[j], ids[(j + 1) % 3]
+            other.setdefault((min(a, b), max(a, b)), []).append(ids[(j + 2) % 3])
+    edges = [(e, c[0]) for e, c in other.items() if len(c) == 1 and e[0] in neck_ids and e[1] in neck_ids]
+    mid = np.array([(V[a] + V[b]) / 2 for (a, b), _ in edges])
+    away = []
+    for (a, b), c in edges:
+        e = V[b] - V[a]
+        m = (V[a] + V[b]) / 2 - V[c]
+        m -= e * (m @ e) / (e @ e)
+        away.append(m / np.linalg.norm(m))
+    away = np.array(away)
+    centre = mid[:, :2].mean(0)
+    # Order the neckline round the neck (top view), starting at the front centre (-y) and running towards +x.
+    ang = np.arctan2(mid[:, 0] - centre[0], -(mid[:, 1] - centre[1]))
+    order = np.argsort(ang)
+    pts, dirs, ang = mid[order], away[order], ang[order]
+    # Resample evenly by angle and smooth: the band edge stays even where the neckline's triangles are not.
+    t = np.linspace(-np.pi, np.pi, samples, endpoint=False)
+    def ring(values):
+        ext_a = np.concatenate([ang - 2 * np.pi, ang, ang + 2 * np.pi])
+        ext_v = np.concatenate([values, values, values])
+        return np.stack([np.interp(t, ext_a, ext_v[:, k]) for k in range(values.shape[1])], 1)
+    c, d = ring(pts), ring(dirs)
+    for _ in range(3):
+        c = (np.roll(c, 1, 0) + 2 * c + np.roll(c, -1, 0)) / 4
+        d = (np.roll(d, 1, 0) + 2 * d + np.roll(d, -1, 0)) / 4
+    d /= np.linalg.norm(d, axis=1)[:, None]
+    # Lift the band a millimetre off the shirt where it lies on it.
+    tangent = np.roll(c, -1, 0) - np.roll(c, 1, 0)
+    normal = np.cross(tangent, d)
+    normal /= np.linalg.norm(normal, axis=1)[:, None]
+    outwards = c - np.c_[np.tile(centre, (samples, 1)), c[:, 2]]
+    normal *= np.sign((normal * outwards).sum(1))[:, None]
+    tuck = 0.003
+    grid = []
+    for r in range(rows):
+        q = -tuck + (width + tuck) * r / (rows - 1)
+        grid.append([part.vert(c[i] + d[i] * q + normal[i] * 0.001) for i in range(samples)])
+    seg = np.linalg.norm(np.roll(c, -1, 0) - c, axis=1)
+    s = np.concatenate([[0], np.cumsum(seg)])
+    k0 = samples // 2  # t = 0: the front centre
+    s = s - s[k0]
+    circ = s[-1] - s[0]
+    # Which way round to wind: the band's face should look the same way as the shirt beside it.
+    n0 = np.cross(c[k0 + 1] - c[k0], d[k0])
+    flip = n0 @ normal[k0] < 0
+    for i in range(samples):
+        j = (i + 1) % samples
+        p0, p1 = s[i], s[i] + seg[i]
+        if (p0 + p1) / 2 > circ / 2:
+            p0, p1 = p0 - circ, p1 - circ
+        if (p0 + p1) / 2 < -circ / 2:
+            p0, p1 = p0 + circ, p1 + circ
+        for r in range(rows - 1):
+            q0 = -tuck + (width + tuck) * r / (rows - 1)
+            q1 = -tuck + (width + tuck) * (r + 1) / (rows - 1)
+            quad = [(grid[r][i], (p0, q0)), (grid[r][j], (p1, q0)), (grid[r + 1][j], (p1, q1)), (grid[r + 1][i], (p0, q1))]
+            if flip:  # reversing the winding mirrors the UVs too: p then runs the other way round
+                quad = [(v, (-p, q)) for v, (p, q) in quad[::-1]]
+            for tri in (quad[:3], [quad[0], quad[2], quad[3]]):
+                part.face([v for v, _ in tri], [uv for _, uv in tri], "collar")
+    print(f"[clo] new collar band: {width * 100:.1f} cm wide, {circ * 100:.0f} cm round, from {len(edges)} neckline edges")
+
+
 def to_ours(P, hem, neck_x, neck_z):
     """CLO (mm, Y up, avatar facing +Z) -> ours (metres, Z up, facing -Y, hem at z = 0)."""
     return np.stack([(P[:, 0] - neck_x) * SCALE, -(P[:, 2] - neck_z) * SCALE + NECK_Y,
                      (P[:, 1] - hem) * SCALE - DROP * 1000], 1) / 1000
 
 
-def clo_part(path):
+def clo_part(path, collar_kind="crew"):
+    _, _, cut, band = COLLARS[collar_kind]
     ps = place(classify(pieces(read_pac(path))))
     front = next(p for p in ps if p["role"] == "front")
     collar = [p for p in ps if p["island"] == "collar"]
     neck = np.concatenate([p["P"] for p in collar])
+    if cut:
+        cut_neckline(front, collar, cut, NECK_DEPTH[cut])
     hem = front["P"][:, 1].min()
     for p in ps:
         p["V"] = to_ours(p["P"], hem, (neck[:, 0].min() + neck[:, 0].max()) / 2,
@@ -288,7 +447,10 @@ def clo_part(path):
     circ = ring.max() - ring.min()
 
     part = mk.Part("Shirt")
-    part.params = dict(collar="crew", sleeves="short", fit="regular", source="clo")
+    part.params = dict(collar={"v": "v-neck"}.get(collar_kind, "crew"), sleeves="short", fit="regular", source="clo")
+    if band:  # CLO's band comes off; a new one is sewn on below
+        neck_marks(ps, collar)
+        ps = [p for p in ps if p["island"] != "collar"]
     part.island("front", "shirt_body", "body", "p: metres across from the centre line, q: metres up from the hem")
     part.island("back", "shirt_body", "body", "p: metres across from the centre line, q: metres up from the hem")
     for name in ("sleeve_left", "sleeve_right"):
@@ -324,6 +486,8 @@ def clo_part(path):
                 seen.add(frozenset(vids))
                 part.face(vids, uv, name)
 
+    if band:
+        sew_band(part, {p["ids"][i] for p in ps if "neck" in p for i in np.nonzero(p["neck"])[0]}, band)
     print(f"[clo] {len(ps)} pieces -> {[p['role'] for p in ps]}, {len(part.verts)} verts, "
           f"collar {circ:.3f} m round")
     return part
@@ -357,17 +521,18 @@ def decimate(obj, ratio):
     mod.vertex_group_factor = 1000
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.modifier_apply(modifier=mod.name)
-    obj.vertex_groups.remove(obj.vertex_groups[group.name])
+    if "Seams" in obj.vertex_groups:
+        obj.vertex_groups.remove(obj.vertex_groups["Seams"])
     print(f"[clo] decimate kept {len(keep)} seam vertices")
 
 
-def build(path, out_name, draco):
+def build(path, out_name, draco, collar_kind="crew"):
     import bpy
     import json
     import shutil
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    part = clo_part(path)
+    part = clo_part(path, collar_kind)
     obj, layout, names = mk.build_object(part)
     mk.add_folds(obj, part, names, None, 0)  # only drops the Local UV layer: the artist's drape stays as it is
     decimate(obj, DECIMATE)
@@ -378,7 +543,7 @@ def build(path, out_name, draco):
     shutil.copyfile(os.path.join(mk.UV_DIR, f"{out_name}_uv_{mk.UV_SIZES[0]}.png"),
                     os.path.join(mk.MODELS_DIR, f"{out_name}_uv.png"))
     template = {
-        "template": "shirt", "name": out_name, "label": "Crew neck (realistic)", "params": part.params,
+        "template": "shirt", "name": out_name, "label": COLLARS[collar_kind][1], "params": part.params,
         "materials": part.materials,
         "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. "
                    "A point (p, q) of an island's local frame (metres) lands at "
@@ -409,5 +574,6 @@ if __name__ == "__main__":
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     if not argv:
         raise SystemExit(__doc__)
-    name = argv[argv.index("--name") + 1] if "--name" in argv else "shirt_clo"
-    build(argv[0], name, "--no-draco" not in argv)
+    collar = argv[argv.index("--collar") + 1] if "--collar" in argv else "crew"
+    name = argv[argv.index("--name") + 1] if "--name" in argv else "shirt_clo" + COLLARS[collar][0]
+    build(argv[0], name, "--no-draco" not in argv, collar)
