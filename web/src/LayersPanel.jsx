@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import {
   BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
-  mapLayer, moveLayer, removeLayer, insertLayer, resolveColor,
+  mapLayer, moveLayer, removeLayer, insertLayer, resolveColor, SHOWN_GARMENTS,
 } from "./project.js";
 
 const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
@@ -108,7 +108,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
   return (
     <div className="layers">
       <div className="tabs" role="tablist" aria-label="Garment">
-        {Object.entries(GARMENT_LABELS).map(([g, label]) => (
+        {Object.entries(GARMENT_LABELS).filter(([g]) => SHOWN_GARMENTS.includes(g)).map(([g, label]) => (
           <button
             key={g}
             type="button"
