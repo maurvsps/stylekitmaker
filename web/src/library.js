@@ -6,6 +6,7 @@
 // top line and h = metres down from the shoulder or the top edge. The compositor sets that transform up.
 
 const BIG = 2; // metres: further than any panel reaches
+const TRIPLE = [0, 0.025, 0.05]; // offsets of sportswear triple stripes (14 mm stripes, 11 mm gaps)
 
 const box = (ctx, color, x0, h0, x1, h1) => {
   ctx.fillStyle = color;
@@ -282,46 +283,56 @@ export const PATTERNS = [
     id: "triple-stripes",
     label: "Three stripes",
     slots: ["Stripes"],
+    // Sportswear-style triple stripes: down the top of each sleeve to the cuff, and down both side seams.
     paint(ctx, [a], { reach: R }) {
-      // A compact three-band identity mark; layer scale and mask control its size and placement.
-      for (const x of [-0.075, -0.025, 0.025]) box(ctx, a, x, -R, x + 0.025, R);
+      for (const x of TRIPLE) {
+        box(ctx, a, 0.236 - x - 0.014, -R, 0.236 - x, R);
+        box(ctx, a, -0.236 + x, -R, -0.236 + x + 0.014, R);
+      }
     },
-    sleeve(ctx, [a], { reach: R }) {
-      for (const x of [-0.075, -0.025, 0.025]) box(ctx, a, x, -R, x + 0.025, R);
+    sleeve(ctx, [a], { isl, reach: R }) {
+      const end = (isl?.length ?? 0.26) - cuffLength(isl ?? {}) - 0.004; // stop at the cuff
+      for (const x of TRIPLE) box(ctx, a, x - 0.032, -R, x - 0.018, end);
     },
   },
   {
     id: "claw-marks",
     label: "Claw marks",
-    slots: ["Stripes"],
+    slots: ["Marks"],
+    // Three tapered slashes rising from each side seam toward the waist, clear of the crest, number and sponsor.
     paint(ctx, [a]) {
-      // Three curved speed slashes inspired by athletic claw marks, without using a brand logo.
-      ctx.save();
-      ctx.strokeStyle = a;
-      ctx.lineWidth = 0.055;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      for (const y of [-0.09, 0, 0.09]) {
-        ctx.beginPath();
-        ctx.moveTo(-0.18, y - 0.12);
-        ctx.quadraticCurveTo(-0.03, y - 0.01, 0.16, y + 0.12);
-        ctx.stroke();
+      ctx.fillStyle = a;
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 3; k++) {
+          const h = 0.03 + k * 0.07; // where the slash leaves the side seam
+          ctx.beginPath();
+          ctx.moveTo(side * 0.27, h - 0.015);
+          ctx.quadraticCurveTo(side * 0.2, h + 0.03, side * 0.135, h + 0.12);
+          ctx.lineTo(side * 0.15, h + 0.13);
+          ctx.quadraticCurveTo(side * 0.215, h + 0.08, side * 0.27, h + 0.04);
+          ctx.closePath();
+          ctx.fill();
+        }
       }
-      ctx.restore();
     },
+    sleeve() {}, // body only
   },
   {
     id: "wing-bands",
     label: "Wing bands",
-    slots: ["Stripes"],
+    slots: ["Bands"],
+    // Three bands fanning from the shoulders toward the chest, kept out of the middle (crest, number, name).
     paint(ctx, [a]) {
-      // Repeated angled bands fan out from the upper chest toward each shoulder.
-      band(ctx, a, 0.022, [[-0.04, 0.72], [-0.16, 0.63], [-0.34, 0.61]]);
-      band(ctx, a, 0.022, [[-0.04, 0.67], [-0.17, 0.58], [-0.35, 0.56]]);
-      band(ctx, a, 0.022, [[-0.04, 0.62], [-0.18, 0.53], [-0.36, 0.51]]);
-      band(ctx, a, 0.022, [[0.04, 0.72], [0.16, 0.63], [0.34, 0.61]]);
-      band(ctx, a, 0.022, [[0.04, 0.67], [0.17, 0.58], [0.35, 0.56]]);
-      band(ctx, a, 0.022, [[0.04, 0.62], [0.18, 0.53], [0.36, 0.51]]);
+      for (const side of [-1, 1]) {
+        for (let k = 0; k < 3; k++) {
+          const d = k * 0.042;
+          band(ctx, a, 0.02, [[side * 0.17, 0.66 - d], [side * 0.27, 0.6 - d], [side * 0.4, 0.58 - d]]);
+        }
+      }
+    },
+    sleeve(ctx, [a], { reach: R }) {
+      // The bands carry on round the top of the sleeve as short rings near the shoulder.
+      for (let k = 0; k < 3; k++) box(ctx, a, -R, 0.03 + k * 0.042, R, 0.05 + k * 0.042);
     },
   },
   {
