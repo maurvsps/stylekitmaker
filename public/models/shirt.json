@@ -5,7 +5,7 @@
     "collar": "crew",
     "sleeves": "short",
     "fit": "regular",
-    "sleeve_angle": 68.0
+    "sleeve_angle": 45.0
   },
   "materials": [
     "shirt_body",
@@ -47,12 +47,12 @@
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.435224,
+        0.467771,
         0.621404,
-        0.395224,
+        0.427771,
         0.185792
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.743167,
       "length": 0.25
@@ -64,10 +64,10 @@
       "rect": [
         0.02,
         0.621404,
-        0.395224,
+        0.427771,
         0.185792
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.743167,
       "length": 0.25

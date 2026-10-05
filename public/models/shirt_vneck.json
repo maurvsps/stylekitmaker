@@ -5,7 +5,7 @@
     "collar": "v-neck",
     "sleeves": "short",
     "fit": "regular",
-    "sleeve_angle": 68.0
+    "sleeve_angle": 45.0
   },
   "materials": [
     "shirt_body",
@@ -47,12 +47,12 @@
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.434231,
+        0.466697,
         0.619944,
-        0.394231,
+        0.426697,
         0.185325
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.741301,
       "length": 0.25
@@ -64,10 +64,10 @@
       "rect": [
         0.02,
         0.619944,
-        0.394231,
+        0.426697,
         0.185325
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.741301,
       "length": 0.25

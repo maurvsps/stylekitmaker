@@ -5,7 +5,7 @@
     "collar": "polo",
     "sleeves": "short",
     "fit": "regular",
-    "sleeve_angle": 68.0
+    "sleeve_angle": 45.0
   },
   "materials": [
     "shirt_body",
@@ -47,12 +47,12 @@
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.440463,
+        0.473442,
         0.629111,
-        0.400463,
+        0.433442,
         0.188255
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.753018,
       "length": 0.25
@@ -64,10 +64,10 @@
       "rect": [
         0.02,
         0.629111,
-        0.400463,
+        0.433442,
         0.188255
       ],
-      "pmin": -0.265905,
+      "pmin": -0.287803,
       "qmax": -0.0,
       "scale": 0.753018,
       "length": 0.25
