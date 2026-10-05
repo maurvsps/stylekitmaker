@@ -311,3 +311,48 @@ details.sub:not([open]) { gap: 0; }
 .logo-slot-label { font-weight: 600; }
 .panel .layer-actions { gap: 4px; }
 .panel .layer-actions button { font-size: 12.5px; padding: 6px 6px; }
+
+/* Glass: the whole app sits on a dark backdrop with soft light pools; the panel and controls are frosted glass over it. */
+:root {
+  --panel: rgba(22, 22, 25, .52);
+  --raised: rgba(255, 255, 255, .035);
+  --field: rgba(255, 255, 255, .06);
+  --hover: rgba(255, 255, 255, .11);
+  --line: rgba(255, 255, 255, .1);
+  --line-strong: rgba(255, 255, 255, .26);
+  --chip: rgba(255, 255, 255, .08);
+  --chip-hover: rgba(255, 255, 255, .16);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
+body, .app {
+  background:
+    radial-gradient(48vmax 40vmax at 8% 6%, rgba(255, 255, 255, .13), transparent 62%),
+    radial-gradient(40vmax 34vmax at 96% 100%, rgba(255, 255, 255, .08), transparent 60%),
+    radial-gradient(30vmax 26vmax at 60% 40%, rgba(255, 255, 255, .05), transparent 65%),
+    #070708;
+}
+.stage, .texture-view { background: transparent; }
+.panel {
+  margin: 12px 0 12px 12px; border: 1px solid var(--line); border-radius: 22px;
+  background: var(--panel);
+  backdrop-filter: blur(28px) saturate(150%); -webkit-backdrop-filter: blur(28px) saturate(150%);
+  box-shadow: var(--glass-edge), 0 24px 60px rgba(0, 0, 0, .45);
+}
+.layer-list, .inspector, .logo-finder, .panel .logo-slot, .panel .logo-result, .panel .design-card, .panel .graphic-card, .tabs {
+  box-shadow: var(--glass-edge);
+}
+.panel select, .panel input:not([type]), .panel input[inputmode], .panel button.quiet, .panel button.chip { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+.panel .patterns button, .panel .asset { background: var(--field); }
+.logo-preview, .logo-result img { background: rgba(0, 0, 0, .28); }
+.panel button:not(.quiet):not(.chip):not(.link):not(.icon):not(.swatch):not(.logo-slot):not(.logo-result):not(.asset):not(.design-card):not(.graphic-card) {
+  box-shadow: 0 6px 20px rgba(255, 255, 255, .08), inset 0 1px 0 rgba(255, 255, 255, .6);
+}
+.panel .tabs button, .logo-finder .seg button:not(.on), .panel .patterns button { box-shadow: none; }
+.stage-tools select, .seg, .pill, .view-buttons button, .texture-toggle, .stage-note {
+  backdrop-filter: blur(18px) saturate(150%); -webkit-backdrop-filter: blur(18px) saturate(150%); box-shadow: var(--glass-edge);
+}
+.sheet { background: rgba(24, 24, 27, .62); backdrop-filter: blur(30px) saturate(150%); -webkit-backdrop-filter: blur(30px) saturate(150%); box-shadow: var(--glass-edge), 0 24px 80px rgba(0, 0, 0, .6); }
+.sheet-backdrop { backdrop-filter: blur(4px); }
+.panel .swatch.active { box-shadow: 0 0 0 2px #19191b, 0 0 0 4px var(--accent); }
+.panel .swatch.none { background: linear-gradient(135deg, transparent 45%, var(--danger) 45% 55%, transparent 55%), #19191b; }
+@media (max-width: 760px) { .panel { margin: 0 8px 8px; border-radius: 18px; } }
