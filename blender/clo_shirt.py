@@ -204,7 +204,33 @@ def place(ps):
         c["uv"] = fit_rigid(c["R"][i] / 1000, q["uv"][j])(c["R"] / 1000)
         c["island"] = q["island"]
         todo.remove(c)
+        if c["role"] == "+":
+            match_yoke(c, q, [p for p in ps if p["role"] in ("front", "back") and p is not q])
     return ps
+
+
+def match_yoke(yoke, home, others):
+    """The yoke is laid out next to the panel it shares the most seam with (`home`), so a vertical pattern runs on
+    from that panel over the shoulder, but meets the other panel's stripes a few centimetres off (a white block
+    on a red stripe at the shoulder seam). Shear its p so that along the other seam it matches that panel too,
+    blending from no change at the home seam. Pattern space mirrors the back, so the other panel's p is matched
+    with whichever sign fits the yoke as laid out."""
+    P = yoke["P"] / 1000
+    home_ids = np.array([i for i, _ in seam_pairs(P, home["P"] / 1000, SEAM)])
+    for other in others:
+        pairs = seam_pairs(P, other["P"] / 1000, SEAM)
+        if len(pairs) < 3:
+            continue
+        i, j = np.array(pairs).T
+        cur = yoke["uv"][i, 0]
+        target = min((sign * other["uv"][j, 0] for sign in (1, -1)), key=lambda t: np.abs(t - cur).mean())
+        delta = target - cur
+        d_home = np.linalg.norm(P[:, None, :] - P[None, home_ids, :], axis=2).min(1) if len(home_ids) else 1
+        d_seam = np.linalg.norm(P[:, None, :] - P[None, i, :], axis=2)
+        near = d_seam.argmin(1)
+        w = d_home / np.maximum(d_home + d_seam.min(1), 1e-9)
+        yoke["uv"][:, 0] += w * delta[near]
+        print(f"[clo] yoke matched to {other['role']}: shifted up to {np.abs(delta).max() * 100:.1f} cm at its seam")
 
 
 # ---------------------------------------------------------------- the part
@@ -304,16 +330,35 @@ def clo_part(path):
 
 
 def decimate(obj, ratio):
-    """Fewer triangles where the cloth is flat; folds, outlines and UV island borders keep their detail."""
+    """Fewer triangles where the cloth is flat. Seams, the outline and UV island borders are kept as they are:
+    collapsing an edge across a border drags the other piece's UVs with it, which shows as saw-tooth stripes and
+    smeared knit along the shoulder, armhole and collar seams."""
+    import bmesh
     import bpy
 
     if ratio >= 1:
         return
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    uv = bm.loops.layers.uv.active
+    keep = []
+    for v in bm.verts:
+        uvs = {(round(l[uv].uv.x, 5), round(l[uv].uv.y, 5)) for l in v.link_loops}
+        if len(uvs) > 1 or v.is_boundary or any(len(e.link_faces) != 2 for e in v.link_edges):
+            keep.append(v.index)
+    bm.free()
+    group = obj.vertex_groups.new(name="Seams")
+    group.add(keep, 1.0, "REPLACE")
     mod = obj.modifiers.new("Lighter", "DECIMATE")
     mod.decimate_type = "COLLAPSE"
     mod.ratio = ratio
+    mod.vertex_group = group.name
+    mod.invert_vertex_group = True  # weight 1 = never collapse
+    mod.vertex_group_factor = 1000
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.modifier_apply(modifier=mod.name)
+    obj.vertex_groups.remove(obj.vertex_groups[group.name])
+    print(f"[clo] decimate kept {len(keep)} seam vertices")
 
 
 def build(path, out_name, draco):
