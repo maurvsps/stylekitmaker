@@ -68,7 +68,7 @@ export const NO_FINISH = { relief: 0, stitch: false, roughness: null, metalness:
 
 /** Whether a layer changes the material maps (relief, roughness, metalness). */
 export const hasFinish = (l) =>
-  l.type === "material" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null));
+  l.type === "material" || l.texture === "smooth" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null));
 
 export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
@@ -110,8 +110,8 @@ export function makeLayer(type, garment, fields = {}) {
       return { name: p.label, pattern: p.id, colors: defaultPatternColors(p) };
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
-    image: () => ({ ...placed, asset: null, size: 0.085, tint: null }), // tint: one colour for the whole logo
-    text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true }),
+    image: () => ({ ...placed, asset: null, size: 0.085, tint: null, texture: "kit" }), // texture: kit fabric or a smooth print
+    text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true, texture: "kit" }),
     material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
   }[type]();
@@ -288,6 +288,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.asset = typeof l.asset === "string" && assets[l.asset] ? l.asset : null;
       layer.size = num(l.size, 0.005, 1, d.size);
       layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
+      layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       break;
     case "text":
       layer.text = str(l.text, 40, "");
@@ -297,6 +298,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.size = num(l.size, 0.005, 0.6, d.size);
       layer.maxWidth = num(l.maxWidth, 0.01, 1.5, d.maxWidth);
       layer.outline = l.outline !== false;
+      layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       break;
     case "material":
       {

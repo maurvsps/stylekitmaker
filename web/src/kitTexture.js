@@ -399,6 +399,12 @@ function finishLayer(h, o, layer, env, alpha) {
     ctx.drawImage(scratch, 0, 0);
     ctx.restore();
   };
+  if (layer.texture === "smooth") {
+    silhouette();
+    sctx.fillStyle = ormColor(f.roughness ?? FABRIC_ROUGHNESS, f.metalness ?? 0, 0);
+    sctx.fillRect(0, 0, env.S, env.S);
+    lay(o);
+  }
   if (f.relief || f.stitch) {
     silhouette();
     const g = FLAT + Math.round((f.relief || (f.stitch ? 0.35 : 0)) * 110);
@@ -408,7 +414,7 @@ function finishLayer(h, o, layer, env, alpha) {
   }
   if (f.roughness !== null || f.metalness !== null || f.stitch) {
     silhouette();
-    sctx.fillStyle = ormColor(f.roughness ?? (f.stitch ? 0.6 : FABRIC_ROUGHNESS), f.metalness ?? 0);
+    sctx.fillStyle = ormColor(f.roughness ?? (f.stitch ? 0.6 : FABRIC_ROUGHNESS), f.metalness ?? 0, layer.texture === "smooth" ? 0 : 255);
     sctx.fillRect(0, 0, env.S, env.S);
     lay(o);
   }
@@ -437,7 +443,7 @@ function materialEffect(h, o, layer, env, alpha) {
 }
 
 const grey = (v) => `rgb(${v},${v},${v})`;
-const ormColor = (r, m) => `rgb(255,${Math.round(r * 255)},${Math.round(m * 255)})`;
+const ormColor = (r, m, knit = 255) => `rgb(${knit},${Math.round(r * 255)},${Math.round(m * 255)})`;
 
 // Embroidery: rows of slanted stitches, about 1.5 mm apart on a 2048 texture.
 const stitches = new Map();

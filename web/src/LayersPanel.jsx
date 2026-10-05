@@ -561,6 +561,16 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             </label>
           </details>
           <MaskFields layer={layer} garment={garment} patch={patch} />
+          {(layer.role === "sponsor" || layer.role?.includes("sponsor")) && (
+            <label className="field">
+              <span>Print texture</span>
+              <select value={layer.texture || "kit"} onChange={(e) => patch({ texture: e.target.value })}>
+                <option value="kit">Kit fabric</option>
+                <option value="smooth">Smooth print</option>
+              </select>
+              <span className="hint">Smooth print removes the knit detail from this sponsor.</span>
+            </label>
+          )}
           <FinishFields layer={layer} patch={patch} />
         </>
       )}
