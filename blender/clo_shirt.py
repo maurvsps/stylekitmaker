@@ -37,11 +37,11 @@ SEAM = 0.004            # metres: vertices this close across two pieces count as
 # a new rib band along it.
 COLLARS = {
     "crew": ("", "Crew neck (realistic)", None, None),
-    "v": ("_v", "V-neck (realistic)", "v", 0.022),
-    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.02),
-    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.032),
+    "v": ("_v", "V-neck (realistic)", "v", 0.016),
+    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.015),
+    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.02),
 }
-NECK_DEPTH = {"v": 0.10, "scoop": 0.07}  # metres the new neckline drops below CLO's at the front centre
+NECK_DEPTH = {"v": 0.065, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
