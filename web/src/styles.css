@@ -340,3 +340,20 @@ details.sub:not([open]) { gap: 0; }
   backdrop-filter: blur(14px);
 }
 .sheet textarea { background: rgba(255, 255, 255, .05); border-color: rgba(170, 190, 218, .15); }
+
+/* Keep native dropdown menus readable in the dark-themed editor. */
+.panel select, .stage-tools select { color-scheme: dark; }
+.panel select option, .stage-tools select option { background: #171d29; color: #eef3fb; }
+.logo-section > .group-label { margin: 2px 0 -4px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.logo-slot-label { overflow-wrap: anywhere; }
+.sponsor-text { margin-top: 4px; }
+.finder-label { color: var(--text); font-size: 12px; font-weight: 650; margin-top: 6px; }
+.logo-finder .seg { width: 100%; }
+.logo-finder .seg button { flex: 1; padding-inline: 8px; }
+.logo-finder form { flex-wrap: nowrap; }
+.logo-finder form button { flex: 0 0 auto; }
+.logo-finder .logo-results { margin-top: 2px; }
+.logo-result { min-width: 0; }
+.logo-result img { background: var(--field); border-radius: 6px; }
+.layer-help { margin: -3px 0 0; color: var(--muted); font-size: 11px; }
+.layer-role { flex: 0 0 auto; color: #adc8ff; background: rgba(118, 169, 255, .1); border: 1px solid rgba(118, 169, 255, .16); border-radius: 999px; padding: 1px 6px; font-size: 9px; }

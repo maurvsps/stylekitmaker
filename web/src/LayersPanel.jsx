@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
+import { findOpenImagePosition } from "./imagePlacement.js";
 import {
   BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor, SHOWN_GARMENTS,
@@ -46,7 +47,15 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
 
   const onImageFile = async (file) => {
     const asset = await uploadImage(file);
-    if (asset) add(makeLayer("image", garment, { asset: asset.id, name: asset.name.replace(/\.\w+$/, "").slice(0, 40) || "Image" }));
+    if (asset) {
+      const position = findOpenImagePosition(layers, garment, template);
+      add(makeLayer("image", garment, {
+        asset: asset.id,
+        name: asset.name.replace(/\.\w+$/, "").slice(0, 40) || "Image",
+        surface: position.surface,
+        transform: { x: position.x, y: position.y, scaleX: 1, scaleY: 1, rotation: 0, flipX: false, flipY: false },
+      }));
+    }
   };
 
   const act = {
@@ -128,12 +137,11 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
             Paste
           </button>
         )}
-        <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer">
+        <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
           <option value="">+ Add layer</option>
           {ADDABLE.map((t) => (
             <option key={t} value={t}>
-              {t === "trim" ? baseDesign(garment, "trim").label : LAYER_TYPES[t]}
-              {t === "image" ? "…" : ""}
+              {t === "trim" ? baseDesign(garment, "trim").label : t === "image" ? "Image / logo…" : LAYER_TYPES[t]}
             </option>
           ))}
         </select>
@@ -142,6 +150,8 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
           e.target.value = "";
         }} />
       </div>
+
+      <p className="layer-help" id="layer-help">Top layers cover lower ones. Select a row to edit it; drag ⠿ to reorder. Images are placed in a free spot.</p>
 
       <LayerList
         layers={layers}
@@ -303,7 +313,10 @@ function LayerList({ layers, selected, select, renaming, setRenaming, patch, mov
                 }}
               />
             ) : (
-              <span className="name">{layer.name}</span>
+              <>
+                <span className="name">{layer.name}</span>
+                {layer.role && <span className="layer-role" title="This layer is linked to a quick control above">Quick control</span>}
+              </>
             )}
           </li>
         );
