@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
 import ColorButton from "./ColorPicker.jsx";
 import LayersPanel from "./LayersPanel.jsx";
@@ -6,6 +6,24 @@ import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRo
 import { findOpenImagePosition } from "./imagePlacement.js";
 import { prepareLogo } from "./logoImage.js";
 import { fetchLogo, searchBrands, searchCrests } from "./logoSearch.js";
+
+// The sidebar: one section at a time, so the panel stays short.
+const TABS = [
+  { id: "kit", label: "Kit", icon: "M8 4 4 6.5 5.5 10 7 9.3V20h10V9.3l1.5.7L20 6.5 16 4c-.5 1.6-2.1 2.7-4 2.7S8.5 5.6 8 4Z" },
+  { id: "logos", label: "Logos", icon: "M12 3 5 5.5V11c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V5.5L12 3Z" },
+  { id: "layers", label: "Layers", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" },
+  { id: "player", label: "Player", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" },
+  { id: "export", label: "Export", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
+];
+const TAB_KEY = "kit-maker:panel-tab";
+const savedTab = () => {
+  try {
+    const t = localStorage.getItem(TAB_KEY);
+    return TABS.some((x) => x.id === t) ? t : "kit";
+  } catch {
+    return "kit";
+  }
+};
 
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // stored in the design
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // a raster file before prepareLogo shrinks it
@@ -15,6 +33,14 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const logoInput = useRef(null);
   const [pendingLogo, setPendingLogo] = useState(null);
   const [selection, setSelection] = useState({}); // garment -> selected layer id
+  const [tab, setTab] = useState(savedTab);
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAB_KEY, tab);
+    } catch {
+      /* storage blocked: the panel just opens on Kit next time */
+    }
+  }, [tab]);
   const selected = selection[garment] && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
   const select = (id, g = garment) => setSelection((s) => ({ ...s, [g]: id }));
 
@@ -115,7 +141,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <button className="quiet header-action" type="button" onClick={actions.reset} title="Start a new design" aria-label="New design">＋</button>
       </header>
 
-      <Section title="Settings" eyebrow="01">
+      <div className="panel-body">
+      <nav className="panel-nav" aria-label="Panel sections">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" className={tab === t.id ? "on" : ""} aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
+            <span>{t.label}</span>
+          </button>
+        ))}
+      </nav>
+      <div className="panel-content">
+      {tab === "kit" && <Section title="Settings" eyebrow="01">
         <span className="group-label">Shirt template</span>
         <select value={project.template} onChange={(e) => set({ template: e.target.value })} aria-label="Shirt template">
           {shirts.map((k) => (
@@ -134,9 +170,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </div>
           ))}
         </div>
-      </Section>
+      </Section>}
 
-      <Section title="Crest & sponsors" eyebrow="02" className="logo-section">
+      {tab === "logos" && <Section title="Crest & sponsors" eyebrow="02" className="logo-section">
         <p className="section-copy">Search a club or a brand, or tap a spot below to upload your own image.</p>
         <LogoFinder slots={logoSlots} onPick={uploadLogo} onError={onError} />
         <span className="group-label">Club</span>
@@ -154,9 +190,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
           e.target.value = "";
         }} />
-      </Section>
+      </Section>}
 
-      <Section title="Design layers" eyebrow="03">
+      {tab === "layers" && <Section title="Design layers" eyebrow="03">
         <LayersPanel
           project={project}
           setProject={setProject}
@@ -168,9 +204,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           fonts={fonts}
           uploadImage={uploadImage}
         />
-      </Section>
+      </Section>}
 
-      <Section title="Player details" eyebrow="04">
+      {tab === "player" && <Section title="Player details" eyebrow="04">
         <div className="row">
           <label className="field grow">
             <span>Name</span>
@@ -192,9 +228,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             ))}
           </select>
         </label>
-      </Section>
+      </Section>}
 
-      <Section title="Export" eyebrow="05">
+      {tab === "export" && <Section title="Export" eyebrow="05">
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
             Screenshot (PNG)
@@ -240,9 +276,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             ])}
           </div>
         )}
-      </Section>
+      </Section>}
 
-      <Section title="Save & load" eyebrow="06">
+      {tab === "export" && <Section title="Save & load" eyebrow="06">
         <input ref={designInput} type="file" accept="application/json,.json" hidden onChange={(e) => {
           if (e.target.files[0]) actions.load(e.target.files[0]);
           e.target.value = "";
@@ -258,7 +294,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             Reset
           </button>
         </div>
-      </Section>
+      </Section>}
+      </div>
+      </div>
     </aside>
   );
 }

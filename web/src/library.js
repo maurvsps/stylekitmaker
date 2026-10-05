@@ -703,6 +703,17 @@ function poly(ctx, pts) {
 // knit relief. `relief(ctx, frame, lo)` paints in the island's local metres (frame bounds p0..p1, q0..q1) on a
 // height map where mid grey is flat; `lo` is the grey of the recesses, `hi` of raised parts. Nothing here touches the colour texture.
 
+// Line patterns in the island frame for the relief effects below: diagonal lines p = ±q + k, zig-zags and waves across p.
+const diagonals = (ctx, f, gap, sign) => {
+  for (let k = Math.floor((sign > 0 ? f.p0 - f.q1 : f.p0 + f.q0) / gap) * gap; k < (sign > 0 ? f.p1 - f.q0 : f.p1 + f.q1); k += gap) {
+    ctx.moveTo(k + sign * f.q0, f.q0);
+    ctx.lineTo(k + sign * f.q1, f.q1);
+  }
+};
+const acrossRows = (f, gap, draw) => {
+  for (let q = Math.floor(f.q0 / gap) * gap; q < f.q1 + gap; q += gap) draw(q);
+};
+
 const grooves = (gap, width, vertical) => (ctx, f, lo) => {
   ctx.fillStyle = lo;
   if (vertical) for (let p = Math.floor(f.p0 / gap) * gap; p < f.p1; p += gap) ctx.fillRect(p, f.q0, width, f.q1 - f.q0);
@@ -755,6 +766,111 @@ export const MATERIALS = [
         ctx.lineTo(k - f.q1, f.q1);
       }
       ctx.stroke();
+    },
+  },
+  { id: "pearl", label: "Pearl sheen", roughness: 0.3, metalness: 0.35 },
+  { id: "rubber", label: "Rubberised", roughness: 0.62, metalness: 0 },
+  {
+    id: "honeycomb", label: "Honeycomb mesh", roughness: 0.86, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.strokeStyle = lo;
+      ctx.lineWidth = 0.0012;
+      const r = 0.004, w = r * Math.sqrt(3);
+      let row = 0;
+      ctx.beginPath();
+      for (let q = Math.floor(f.q0 / (1.5 * r)) * 1.5 * r; q < f.q1 + r; q += 1.5 * r, row++) {
+        for (let p = Math.floor(f.p0 / w) * w + (row % 2) * (w / 2); p < f.p1 + w; p += w) {
+          for (let k = 0; k <= 6; k++) {
+            const a = Math.PI / 6 + (k * Math.PI) / 3;
+            const x = p + r * Math.cos(a), y = q + r * Math.sin(a);
+            if (k) ctx.lineTo(x, y);
+            else ctx.moveTo(x, y);
+          }
+        }
+      }
+      ctx.stroke();
+    },
+  },
+  {
+    id: "waffle", label: "Waffle knit", roughness: 0.9, metalness: 0,
+    relief(ctx, f, lo) {
+      grooves(0.008, 0.0016, true)(ctx, f, lo);
+      grooves(0.008, 0.0016, false)(ctx, f, lo);
+    },
+  },
+  {
+    id: "twill", label: "Diagonal twill", roughness: 0.8, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.strokeStyle = lo;
+      ctx.lineWidth = 0.0014;
+      ctx.beginPath();
+      diagonals(ctx, f, 0.004, 1);
+      ctx.stroke();
+    },
+  },
+  { id: "embossed-hoops", label: "Embossed hoops", roughness: 0.75, metalness: 0, relief: grooves(0.03, 0.004, false) },
+  {
+    id: "jacquard", label: "Tonal jacquard", roughness: 0.72, metalness: 0,
+    relief(ctx, f, lo, hi) { // small woven triangles, like the tonal patterns on modern shirts
+      const g = 0.012;
+      let row = 0;
+      acrossRows(f, g, (q) => {
+        for (let p = Math.floor(f.p0 / g) * g + (row % 2) * (g / 2); p < f.p1 + g; p += g) {
+          ctx.fillStyle = (Math.floor(p / g) + row) % 3 ? hi : lo;
+          ctx.beginPath();
+          ctx.moveTo(p, q + g * 0.8);
+          ctx.lineTo(p + g * 0.42, q + g * 0.08);
+          ctx.lineTo(p - g * 0.42, q + g * 0.08);
+          ctx.fill();
+        }
+        row++;
+      });
+    },
+  },
+  {
+    id: "chevron", label: "Embossed chevrons", roughness: 0.75, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.strokeStyle = lo;
+      ctx.lineWidth = 0.004;
+      const g = 0.035, w = 0.04;
+      ctx.beginPath();
+      acrossRows(f, g, (q) => {
+        ctx.moveTo(Math.floor(f.p0 / w) * w, q);
+        for (let p = Math.floor(f.p0 / w) * w; p < f.p1 + w; p += w) {
+          ctx.lineTo(p + w / 2, q + g * 0.45);
+          ctx.lineTo(p + w, q);
+        }
+      });
+      ctx.stroke();
+    },
+  },
+  {
+    id: "waves", label: "Embossed waves", roughness: 0.75, metalness: 0,
+    relief(ctx, f, lo) {
+      ctx.strokeStyle = lo;
+      ctx.lineWidth = 0.003;
+      const g = 0.025, len = 0.08;
+      ctx.beginPath();
+      acrossRows(f, g, (q) => {
+        const p0 = Math.floor(f.p0 / len) * len;
+        ctx.moveTo(p0, q);
+        for (let p = p0; p < f.p1 + len; p += 0.004) ctx.lineTo(p, q + 0.006 * Math.sin((p / len) * Math.PI * 2));
+      });
+      ctx.stroke();
+    },
+  },
+  {
+    id: "carbon", label: "Carbon weave", roughness: 0.38, metalness: 0.25,
+    relief(ctx, f, lo, hi) {
+      const g = 0.004;
+      acrossRows(f, g, (q) => {
+        for (let p = Math.floor(f.p0 / g) * g; p < f.p1 + g; p += g) {
+          const odd = (Math.round(p / g) + Math.round(q / g)) % 2;
+          ctx.fillStyle = odd ? lo : hi;
+          if (odd) ctx.fillRect(p, q + g * 0.1, g, g * 0.8);
+          else ctx.fillRect(p + g * 0.1, q, g * 0.8, g);
+        }
+      });
     },
   },
 ];

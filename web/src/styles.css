@@ -388,3 +388,23 @@ body, .app {
 .cp-swatch { aspect-ratio: 1; padding: 0; border-radius: 7px; border: 1px solid rgba(255, 255, 255, .16); cursor: pointer; }
 .cp-swatch:hover { transform: scale(1.08); }
 .cp-swatch.on { box-shadow: 0 0 0 2px #18181b, 0 0 0 3.5px var(--accent); }
+
+/* Sidebar: section tabs down the panel's left edge (a row along the top on phones), one section shown at a time. */
+.app { grid-template-columns: minmax(350px, 420px) minmax(0, 1fr); }
+.panel-body { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 12px; align-items: start; }
+.panel-nav { position: sticky; top: 0; z-index: 2; display: grid; gap: 4px; padding: 5px; border-radius: 16px; background: var(--raised); border: 1px solid var(--line); box-shadow: var(--glass-edge); }
+.panel .panel-nav button {
+  display: grid; justify-items: center; gap: 3px; padding: 8px 2px 7px; border-radius: 11px; border: 0;
+  background: transparent; color: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .01em; box-shadow: none !important;
+}
+.panel .panel-nav button:hover { background: var(--hover); color: var(--text); }
+.panel .panel-nav button.on { background: var(--accent); color: var(--accent-text); box-shadow: 0 4px 14px rgba(255, 255, 255, .1); }
+.panel-nav svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.panel-content { min-width: 0; display: grid; }
+.panel-content > .section:first-child { border-top: 0; padding-top: 2px; }
+@media (min-width: 761px) and (max-width: 1050px) { .app { grid-template-columns: 330px minmax(0, 1fr); } .panel-body { grid-template-columns: 50px minmax(0, 1fr); gap: 10px; } }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .panel-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .panel-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); top: -1px; }
+}
