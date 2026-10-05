@@ -110,10 +110,7 @@ export default function App() {
   }, []);
 
   const shirtNames = useMemo(() => (kits || []).filter((k) => k.garment === "shirt"), [kits]);
-  // A shirt draped on its own body (an imported artist garment) names that body in its template.
-  const mannequinName = templates?.[project.template]?.mannequin || "mannequin";
-  const models = useMemo(() => ({ shirt: project.template, mannequin: mannequinName }),
-    [project.template, mannequinName]);
+  const models = useMemo(() => ({ shirt: project.template }), [project.template]);
 
   // Uploaded images, decoded once each.
   const assets = project.assets;
@@ -244,7 +241,7 @@ export default function App() {
         {kits && (
           <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
             onLoading={onLoading}
-            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} mannequin={prefs.mannequin} pixelRatio={MOBILE ? 1.5 : 2} />
+            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={MOBILE ? 1.5 : 2} />
         )}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
@@ -258,10 +255,6 @@ export default function App() {
               Texture
             </button>
           </div>
-          <button type="button" className={`pill${prefs.mannequin ? " on" : ""}`} aria-pressed={prefs.mannequin} hidden={view === "texture"}
-            onClick={() => setPref("mannequin", !prefs.mannequin)} title="Show or hide the mannequin">
-            Mannequin
-          </button>
           <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting">
             {LIGHTING_PRESETS.map((l) => (
               <option key={l} value={l}>
@@ -302,13 +295,11 @@ export default function App() {
 }
 
 function readPrefs() {
-  const prefs = { textureSize: MOBILE && Math.min(screen.width, screen.height) < 500 ? 1024 : 2048, lighting: "studio", mannequin: true, transparent: false };
+  const prefs = { textureSize: MOBILE && Math.min(screen.width, screen.height) < 500 ? 1024 : 2048, lighting: "studio", transparent: false };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
-    if (typeof saved.mannequin === "boolean") prefs.mannequin = saved.mannequin;
-    else if (typeof saved.showMannequin === "boolean") prefs.mannequin = saved.showMannequin; // earlier name
     if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
   } catch {
     // defaults

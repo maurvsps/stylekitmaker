@@ -36,15 +36,11 @@ function kitModels() {
       const manifest = readFileSync(modelsDir + "kits.json");
       this.emitFile({ type: "asset", fileName: "models/kits.json", source: manifest });
       for (const { name } of JSON.parse(manifest).kits) {
-        // a template draped on its own body names it (blender/clo_shirt.py)
-        const body = JSON.parse(readFileSync(modelsDir + `${name}.json`)).mannequin;
-        for (const file of [`${name}.glb`, `${name}.json`, `${name}_ao.png`, `${name}_uv.png`, body && `${body}.glb`]) {
-          if (!file || !existsSync(modelsDir + file)) continue;
+        for (const file of [`${name}.glb`, `${name}.json`, `${name}_ao.png`, `${name}_uv.png`]) {
+          if (!existsSync(modelsDir + file)) continue;
           this.emitFile({ type: "asset", fileName: `models/${file}`, source: readFileSync(modelsDir + file) });
         }
       }
-      const mannequin = modelsDir + "mannequin.glb";
-      if (existsSync(mannequin)) this.emitFile({ type: "asset", fileName: "models/mannequin.glb", source: readFileSync(mannequin) });
     },
   };
 }

@@ -1042,12 +1042,18 @@ def bake_ao(obj, body, path, size):
     bpy.data.images.remove(img)
 
 
-def thicken(obj, thickness):
+def thicken(obj, thickness, inner=False):
     """Give the cloth a thickness: an inner shell (same UVs, facing in) joined to the outer by a rim at every open
-    edge, so hems, cuffs and the collar read as fabric with an edge instead of a paper-thin sheet."""
+    edge, so hems, cuffs and the collar read as fabric with an edge instead of a paper-thin sheet. With inner, the
+    inner shell and the rims get their own "<material>_inner" materials (the viewer shades the inside plainly)."""
     if thickness <= 0:
         return
     mod = obj.modifiers.new("Thickness", "SOLIDIFY")
+    if inner:
+        mats = list(obj.data.materials)
+        for m in mats:
+            obj.data.materials.append(make_material(m.name + "_inner"))
+        mod.material_offset = mod.material_offset_rim = len(mats)  # seam walls inside match the inside
     mod.thickness = thickness
     mod.offset = -1  # inwards: the outside, where the design is, stays where it was
     mod.use_quality_normals = True  # no spikes where the rim turns sharply
