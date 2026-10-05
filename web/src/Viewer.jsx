@@ -363,6 +363,10 @@ uniform float ribPeriod;
       ShaderChunk.normal_fragment_maps.replace(
         "mapN.xy *= normalScale;",
         `mapN.xy *= normalScale;
+	#ifdef USE_ROUGHNESSMAP
+		// The ORM red channel keeps the fabric knit off smooth sponsor prints while leaving relief intact.
+		mapN.xy *= texture2D( roughnessMap, vRoughnessMapUv ).r;
+	#endif
 	#ifdef USE_RIB
 		// Rib knit on the trims: raised cords running along the band (the island's q axis is the texture's v).
 		vec2 rawUv = ( reliefUv * vec3( vMapUv, 1.0 ) ).xy;
