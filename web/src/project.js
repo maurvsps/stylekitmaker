@@ -110,7 +110,7 @@ export function makeLayer(type, garment, fields = {}) {
       return { name: p.label, pattern: p.id, colors: defaultPatternColors(p) };
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
-    image: () => ({ ...placed, asset: null, size: 0.085 }),
+    image: () => ({ ...placed, asset: null, size: 0.085, tint: null }), // tint: one colour for the whole logo
     text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true }),
     material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
@@ -287,6 +287,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
     case "image":
       layer.asset = typeof l.asset === "string" && assets[l.asset] ? l.asset : null;
       layer.size = num(l.size, 0.005, 1, d.size);
+      layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
       break;
     case "text":
       layer.text = str(l.text, 40, "");

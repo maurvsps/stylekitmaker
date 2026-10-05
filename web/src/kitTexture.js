@@ -303,7 +303,27 @@ function placeImage(ctx, layer, env, frame, x, y) {
   const k = layer.size / Math.max(iw, ih); // metres per image pixel
   const w = iw * k * t.scaleX * frame.s;
   const h = ih * k * t.scaleY * frame.s;
-  ctx.drawImage(image, x - w / 2, y - h / 2, w, h);
+  ctx.drawImage(layer.tint ? tinted(image, env.color(layer.tint)) : image, x - w / 2, y - h / 2, w, h);
+}
+
+// One-colour versions of logos (a white brand mark, a sponsor in the trim colour), kept per image and colour.
+const tints = new WeakMap();
+function tinted(image, color) {
+  let byColor = tints.get(image);
+  if (!byColor) tints.set(image, (byColor = new Map()));
+  let c = byColor.get(color);
+  if (!c) {
+    c = document.createElement("canvas");
+    c.width = image.naturalWidth || image.width || 1;
+    c.height = image.naturalHeight || image.height || 1;
+    const g = c.getContext("2d");
+    g.drawImage(image, 0, 0, c.width, c.height);
+    g.globalCompositeOperation = "source-in"; // keep the logo's shape (alpha), replace its colours
+    g.fillStyle = color;
+    g.fillRect(0, 0, c.width, c.height);
+    byColor.set(color, c);
+  }
+  return c;
 }
 
 function placeGraphic(ctx, layer, env, frame, x, y) {
