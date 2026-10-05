@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
+import ColorButton from "./ColorPicker.jsx";
 import LayersPanel from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
@@ -124,10 +125,11 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <span className="group-label">Kit colours</span>
         <div className="colors">
           {project.palette.map((c, i) => (
-            <label key={i} className="color">
-              <input type="color" value={c} onChange={(e) => set({ palette: project.palette.map((x, k) => (k === i ? e.target.value : x)) })} />
+            <div key={i} className="color">
+              <ColorButton className="kit-color" style={{ background: c }} value={c} label={PALETTE_LABELS[i]} palette={project.palette}
+                onChange={(hex) => set({ palette: project.palette.map((x, k) => (k === i ? hex : x)) })} />
               <span>{PALETTE_LABELS[i]}</span>
-            </label>
+            </div>
           ))}
         </div>
       </Section>

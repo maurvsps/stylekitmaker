@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import ColorButton from "./ColorPicker.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
@@ -738,9 +739,8 @@ export function ColorField({ label, value, palette, onChange, allowNone = false,
             title={PALETTE_LABELS[i]} aria-label={`${label}: ${PALETTE_LABELS[i]}`} aria-pressed={value === `@${i}`}
             onClick={() => onChange(`@${i}`)} />
         ))}
-        <label className={`swatch custom${value?.[0] === "#" ? " active" : ""}`} title="Custom colour">
-          <input type="color" value={resolved} aria-label={`${label}: custom colour`} onChange={(e) => onChange(e.target.value)} />
-        </label>
+        <ColorButton className={`swatch custom${value?.[0] === "#" ? " active picked" : ""}`} style={value?.[0] === "#" ? { background: value } : undefined}
+          value={resolved} palette={palette} label={label} title="More colours" aria-label={`${label}: more colours`} onChange={onChange} />
       </div>
     </div>
   );
