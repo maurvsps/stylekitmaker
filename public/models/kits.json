@@ -34,6 +34,17 @@
       }
     },
     {
+      "name": "shirt_clo_v_wide",
+      "garment": "shirt",
+      "label": "V-neck, wide trim (realistic)",
+      "params": {
+        "collar": "v-neck",
+        "sleeves": "short",
+        "fit": "regular",
+        "source": "clo"
+      }
+    },
+    {
       "name": "shirt_clo_wide",
       "garment": "shirt",
       "label": "Crew neck, wide band (realistic)",

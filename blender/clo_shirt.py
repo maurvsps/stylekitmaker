@@ -1,10 +1,10 @@
 """
 Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj).
 
-    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|scoop|wide] [--name shirt_clo]
+    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|v_wide|scoop|wide] [--name shirt_clo]
 
---collar picks the neck (see COLLARS): crew keeps CLO's band; v and scoop cut a deeper neckline into the front
-panel and wide keeps CLO's; all three then sew on a new rib band. Each builds its own template (shirt_clo_v, ...).
+--collar picks the neck (see COLLARS): crew keeps CLO's band; v, v_wide and scoop cut a deeper neckline into the front
+panel and wide keeps CLO's; all of them then sew on a new rib band. Each builds its own template (shirt_clo_v, ...).
 
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
 millimetres, Y up). The flat pieces are exactly what a UV frame in metres wants, so the islands come straight from
@@ -37,7 +37,8 @@ SEAM = 0.004            # metres: vertices this close across two pieces count as
 # a new rib band along it.
 COLLARS = {
     "crew": ("", "Crew neck (realistic)", None, None),
-    "v": ("_v", "V-neck (realistic)", "v", 0.016),
+    "v": ("_v", "V-neck (realistic)", "v", 0.006),
+    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.016),
     "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.015),
     "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.02),
 }
@@ -447,7 +448,7 @@ def clo_part(path, collar_kind="crew"):
     circ = ring.max() - ring.min()
 
     part = mk.Part("Shirt")
-    part.params = dict(collar={"v": "v-neck"}.get(collar_kind, "crew"), sleeves="short", fit="regular", source="clo")
+    part.params = dict(collar="v-neck" if COLLARS[collar_kind][2] == "v" else "crew", sleeves="short", fit="regular", source="clo")
     if band:  # CLO's band comes off; a new one is sewn on below
         neck_marks(ps, collar)
         ps = [p for p in ps if p["island"] != "collar"]
