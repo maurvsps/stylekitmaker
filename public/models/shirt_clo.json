@@ -14,7 +14,6 @@
     "shirt_sleeves",
     "shirt_collar"
   ],
-  "mannequin": "mannequin_shirt_clo",
   "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. A point (p, q) of an island's local frame (metres) lands at x = rect.x + scale * (p - pmin), y = rect.y + scale * (qmax - q).",
   "islands": {
     "front": {

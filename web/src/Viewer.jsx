@@ -42,7 +42,7 @@ const loadAo = (name) => {
  * template (where the ribbed trims are). The ref exposes screenshot() and view().
  */
 const Viewer = forwardRef(function Viewer(
-  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", mannequin = true, pixelRatio = 2 },
+  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2 },
   ref,
 ) {
   const host = useRef(null);
@@ -81,16 +81,6 @@ const Viewer = forwardRef(function Viewer(
     scene.add(key, fill, rim);
     const hemi = scene.children.find((o) => o.isHemisphereLight);
 
-    // Soft contact shadow under the feet.
-    const shadowTex = new THREE.CanvasTexture(radialShadow());
-    const shadow = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.9, 0.5),
-      new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }),
-    );
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.set(0, -1.012, 0.03);
-    scene.add(shadow);
-
     const kit = new THREE.Group();
     scene.add(kit);
 
@@ -123,7 +113,7 @@ const Viewer = forwardRef(function Viewer(
       renderer.render(scene, camera);
     });
 
-    three.current = { renderer, scene, camera, controls, kit, shadow, garments: {}, lights: { key, fill, rim, hemi } };
+    three.current = { renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi } };
     if (import.meta.env.DEV) window.__kit = three.current; // for screenshots and debugging in the dev server
     return () => {
       observer.disconnect();
@@ -142,22 +132,14 @@ const Viewer = forwardRef(function Viewer(
     const t = three.current;
     onLoading?.();
     Promise.all(
-      Object.entries({ mannequin: "mannequin", ...models }).map(async ([garment, name]) => {
+      Object.entries(models).map(async ([garment, name]) => {
         if (t.garments[garment]?.name === name) return;
-        const isMannequin = garment === "mannequin";
-        const [gltf, ao] = await Promise.all([loadGlb(name), isMannequin ? Promise.resolve(null) : loadAo(name)]);
+        const [gltf, ao] = await Promise.all([loadGlb(name), loadAo(name)]);
         if (cancelled || !three.current) return;
         const object = gltf.scene.clone(true);
         object.traverse((o) => {
           if (o.isMesh) o.castShadow = o.receiveShadow = true;
         });
-        if (isMannequin) {
-          if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
-          object.visible = t.showMannequin ?? true;
-          t.garments[garment] = { name, object };
-          t.kit.add(object);
-          return;
-        }
         const anisotropy = t.renderer.capabilities.getMaxAnisotropy();
         object.traverse((o) => {
           if (o.isMesh) {
@@ -196,7 +178,6 @@ const Viewer = forwardRef(function Viewer(
     if (!t) return;
     t.maps = maps;
     for (const [garment, { object }] of Object.entries(t.garments)) {
-      if (garment === "mannequin") continue;
       object.traverse((o) => o.isMesh && applyMaps(o.material, maps?.[garment]));
     }
   }, [maps]);
@@ -206,18 +187,10 @@ const Viewer = forwardRef(function Viewer(
     const t = three.current;
     if (!t) return;
     t.templates = templates;
-    for (const [garment, { name, object }] of Object.entries(t.garments)) {
-      if (garment === "mannequin") continue;
+    for (const { name, object } of Object.values(t.garments)) {
       object.traverse((o) => o.isMesh && applyRibs(o.material, templates?.[name]));
     }
   }, [templates]);
-
-  useEffect(() => {
-    const t = three.current;
-    if (!t) return;
-    t.showMannequin = mannequin;
-    if (t.garments.mannequin) t.garments.mannequin.object.visible = mannequin;
-  }, [mannequin]);
 
   // Lighting presets: the same rig, re-balanced.
   useEffect(() => {
@@ -237,20 +210,16 @@ const Viewer = forwardRef(function Viewer(
     /**
      * PNG data URL of the 3D view. With `aspect` ("1:1", "16:9", "9:16") it renders a fresh image at that shape
      * (long side 2048 px), framing the whole kit from the current camera direction. `transparent` leaves out the
-     * background and the floor shadow.
+     * background.
      */
     screenshot(aspect, { transparent = false } = {}) {
       const t = three.current;
       const background = t.scene.background;
-      if (transparent) {
-        t.scene.background = null;
-        t.shadow.visible = false;
-      }
+      if (transparent) t.scene.background = null;
       try {
         return capture(t, aspect);
       } finally {
         t.scene.background = background;
-        t.shadow.visible = true;
       }
     },
 
@@ -260,10 +229,10 @@ const Viewer = forwardRef(function Viewer(
       const close = preset === "close-up";
       controls.target.set(0, close ? 0.48 : CENTRE_Y, 0);
       const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45, side: Math.PI / 2, "close-up": 0.15 }[preset] ?? 0;
-      const d = close ? 0.95 : fitDistance(camera, controls, false);
+      const d = close ? 0.75 : fitDistance(camera, controls, false);
       camera.position.set(
         controls.target.x + Math.sin(yaw) * d,
-        controls.target.y + (close ? 0.08 : 0.25),
+        controls.target.y + (close ? 0.06 : 0.12),
         controls.target.z + Math.cos(yaw) * d,
       );
       controls.update();
@@ -442,11 +411,11 @@ const LIGHTING = {
 };
 export const LIGHTING_PRESETS = Object.keys(LIGHTING);
 
-// The view frames the shirt on the mannequin, head to hips (shorts and socks are not shown): about 1.3 m tall and
-// 0.9 m wide round CENTRE_Y.
-const CENTRE_Y = 0.4;
-const KIT_HEIGHT = 1.45;
-const KIT_WIDTH = 1.0;
+// The view frames the shirt alone (no mannequin, shorts or socks): hem to collar is about 0.75 m, sleeve tip to
+// sleeve tip about 0.6 m, round CENTRE_Y. The sizes below leave a margin.
+const CENTRE_Y = 0.35;
+const KIT_HEIGHT = 0.95;
+const KIT_WIDTH = 0.85;
 
 /** Distance at which the whole kit fits the view, with a margin; moves the camera there unless apply is false. */
 function fitDistance(camera, controls, apply = true) {
@@ -500,20 +469,6 @@ function makeMeshFabric() {
   t.colorSpace = THREE.NoColorSpace;
   t.anisotropy = 8;
   return t;
-}
-
-function radialShadow() {
-  const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 128;
-  const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(128, 64, 0, 128, 64, 120);
-  g.addColorStop(0, "rgba(0,0,0,.28)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.setTransform(1, 0, 0, 0.5, 0, 32);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 256, 256);
-  return c;
 }
 
 export default Viewer;

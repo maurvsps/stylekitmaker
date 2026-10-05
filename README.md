@@ -108,8 +108,8 @@ default for new designs):
 It reads the draped pieces and their flat patterns straight from the file. The flat patterns become the UV islands
 (front, back with its yoke, sleeves with their cuffs, the collar strips laid end to end), so the metric frames are
 the real pattern. The drape is kept as the artist made it: no folds or re-drape. The shirt is scaled onto the
-mannequin, and the script writes its own `mannequin_<name>.glb` with the arms down the sleeves and the torso inside
-the shirt. The template JSON names it in `"mannequin"`, and the viewer loads that body with this shirt.
+mannequin, which is fitted inside the shirt only to shade the AO bake. The editor shows the shirt alone, without
+a mannequin, shorts or socks.
 
 ## Part 2: Web editor (React)
 
@@ -151,7 +151,7 @@ The project is one object (`project.js` documents every field):
 - **Materials (PBR):** every layer has a Finish: relief (raised or pressed in), stitched (embroidery), its own roughness and metalness, with presets (flat print, embroidered, raised, glossy vinyl, debossed, metallic foil). Material effect layers change the fabric over their mask: satin, gloss, matte cotton, metallic, perforated mesh, ribbed knit, embossed pinstripes, quilted diamonds. They paint two extra maps per garment, only while something uses them: a height map turned into a normal map (added on top of the knit in the shader) and a glTF roughness / metalness map. Colour changes never repaint them. Without finishes the kit renders exactly as before.
 - **Collar:** the collar mesh gets its own texture (twice the garment width, so about five times the pixels on the thin band), painted from the same layers. Text, images and graphics can be placed on the collar.
 - **Editing:** undo / redo (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y; quick changes such as dragging a slider merge into one step), copy / paste layers between garments (Ctrl+C, Ctrl+V), duplicate (Ctrl+D) and Delete.
-- **Stage:** 3D view or Texture view (the flat texture of the garment in the Layers tab, with the UV guide), camera presets (front, 3/4, side, back, chest close-up), lighting presets (studio, daylight, dramatic, flat) and a mannequin on/off switch. The texture resolution (1024, 2048, 4096), lighting, mannequin and transparent-export setting are remembered by the browser, not saved in the design.
+- **Stage:** 3D view or Texture view (the flat texture of the garment in the Layers tab, with the UV guide), camera presets (front, 3/4, side, back, chest close-up), lighting presets (studio, daylight, dramatic, flat). The texture resolution (1024, 2048, 4096), lighting and transparent-export setting are remembered by the browser, not saved in the design.
 - **Shortcuts:** the Player section edits the name and number shown by bound text layers, the kit font, and the sponsor layer; the Crest section uploads or replaces the crest layer's image. Images (PNG, SVG, JPEG, WebP, up to 1.5 MB each) can be added as any number of image layers.
 - **Fonts:** Oswald, Bebas Neue, Anton, Teko and Saira Condensed, loaded from Google Fonts. Text is repainted when a font arrives; without a connection it falls back to Impact or sans-serif.
 - **Export:** a PNG screenshot of the 3D view, framed 1:1, 16:9 or 9:16 images (2048 px long side), optionally with a transparent background, a flat PNG texture per garment and, when a garment has finishes, its normal map and roughness / metalness map.

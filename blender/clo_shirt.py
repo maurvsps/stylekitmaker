@@ -7,7 +7,7 @@ A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and 
 millimetres, Y up). The flat pieces are exactly what a UV frame in metres wants, so the islands come straight from
 the patterns: front, back (+ yoke), sleeves (+ cuffs) and the collar band (+ its tabs), each placed next to the piece
 it is sewn to. The draped shape is kept as the artist left it (no folds, no re-drape); it is scaled onto our
-mannequin, whose torso and arms are fitted inside the shirt. Then the usual pipeline: UV pack, template JSON, UV
+mannequin (fitted inside the shirt; it only shades the AO bake and is not exported). Then the usual pipeline: UV pack, template JSON, UV
 PNGs, AO bake, thickness, GLB.
 """
 
@@ -329,7 +329,6 @@ def build(path, out_name, draco):
     template = {
         "template": "shirt", "name": out_name, "label": "Crew neck (realistic)", "params": part.params,
         "materials": part.materials,
-        "mannequin": f"mannequin_{out_name}",
         "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. "
                    "A point (p, q) of an island's local frame (metres) lands at "
                    "x = rect.x + scale * (p - pmin), y = rect.y + scale * (qmax - q).",
@@ -350,11 +349,6 @@ def build(path, out_name, draco):
     mk.bake_ao(obj, body, os.path.join(mk.MODELS_DIR, f"{out_name}_ao.png"), mk.AO_SIZE)
     mk.thicken(obj, mk.THICKNESS)
     how = mk.export_glb(obj, os.path.join(mk.MODELS_DIR, f"{out_name}.glb"), draco)
-    skin = mk.make_mannequin_material()
-    for item in body:
-        item.data.materials.clear()
-        item.data.materials.append(skin)
-    mk.export_glb(body, os.path.join(mk.MODELS_DIR, f"mannequin_{out_name}.glb"), draco)
     mk.write_manifest()
     print(f"[clo] {out_name}: {len(obj.data.vertices)} verts, UV faces wound wrong {bad}, GLB {how}")
 
