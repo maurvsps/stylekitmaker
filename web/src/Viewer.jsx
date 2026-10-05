@@ -334,7 +334,16 @@ function makeFabric(name, map, ao) {
     fs = fs.replace(
       "#include <map_fragment>",
       `#ifdef USE_INNER
-	diffuseColor *= vec4( textureLod( map, vMapUv, 10.0 ).rgb * 0.8, 1.0 );
+	vec4 innerColor = vec4( textureLod( map, vMapUv, 10.0 ).rgb * 0.8, 1.0 );
+	#ifdef USE_RIB
+		// Rib trims (collar band, cuffs) are the same knit on both faces: show their own colour inside too.
+		vec2 innerUv = ( reliefUv * vec3( vMapUv, 1.0 ) ).xy;
+		for ( int i = 0; i < ${RIB_ZONES}; i ++ ) {
+			vec4 r = ribRects[ i ];
+			if ( innerUv.x >= r.x && innerUv.x <= r.z && innerUv.y >= r.y && innerUv.y <= r.w ) innerColor = texture2D( map, vMapUv ) * 0.85;
+		}
+	#endif
+	diffuseColor *= vec4( innerColor.rgb, 1.0 );
 #else
 	#include <map_fragment>
 #endif`,
@@ -380,7 +389,7 @@ uniform float ribPeriod;
 			float phase = rawUv.x / ribPeriod;
 			float fade = clamp( 1.5 - 2.0 * fwidth( phase ), 0.0, 1.0 ); // fade out where the cords get too small to draw
 			float slope = sin( 6.2831853 * phase );
-			slope = sign( slope ) * pow( abs( slope ), 0.6 ) * 0.85 * fade;
+			slope = sign( slope ) * pow( abs( slope ), 0.6 ) * 0.5 * fade;
 			mapN = normalize( vec3( slope + mapN.x * 0.25, mapN.y * 0.25, 1.0 ) );
 		}
 	#endif
@@ -415,7 +424,7 @@ function applyMaps(material, maps) {
 
 // Ribbed trims: up to RIB_ZONES rectangles of the texture (the collar, each cuff, each sock top).
 const RIB_ZONES = 4;
-const RIB_SPACING = 0.0032; // metres from cord to cord
+const RIB_SPACING = 0.0026; // metres from cord to cord
 
 /** Texture rectangles [u0, v0, u1, v1] of a template's ribbed trims, and the cord spacing in texture units. */
 function ribZones(template) {

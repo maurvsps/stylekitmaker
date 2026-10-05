@@ -3,17 +3,19 @@
 //   - the flat background (the colour all four corners share) made transparent, edges softened;
 //   - the empty margin trimmed;
 //   - at most MAX_SIDE pixels on the long side, as PNG.
-// SVGs are vector and usually already transparent: they are kept as they are.
+// SVGs are drawn at their own aspect ratio (an SVG with only a viewBox would otherwise come in at the browser's
+// default 300 x 150 and squash the logo) and kept transparent; the margin is trimmed the same way.
 
 const MAX_SIDE = 1024;
 const TOLERANCE = 48; // colour distance (0..441) still counted as background
 const SOFT = 24; // ...and the band above it that fades from transparent to opaque
 
 export async function prepareLogo(file) {
-  const src = await readDataUrl(file);
-  if (file.type === "image/svg+xml") return src;
+  const svg = file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "");
+  const src = svg ? sizedSvg(await file.text()) : await readDataUrl(file);
+  if (!src) return readDataUrl(file);
   const img = await decode(src);
-  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const scale = svg ? 1 : Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
   const canvas = document.createElement("canvas");
@@ -22,7 +24,7 @@ export async function prepareLogo(file) {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(img, 0, 0, w, h);
   const data = ctx.getImageData(0, 0, w, h);
-  removeBackground(data);
+  if (!svg) removeBackground(data);
   const box = opaqueBox(data);
   if (!box) return src; // nothing left: keep the original rather than an empty image
   ctx.putImageData(data, 0, 0);
@@ -83,6 +85,24 @@ export function opaqueBox({ data, width: w, height: h }) {
     }
   }
   return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+}
+
+/** The SVG as a data URL with explicit width and height (MAX_SIDE on the long side) taken from its viewBox. */
+function sizedSvg(text) {
+  const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+  const el = doc.documentElement;
+  if (!el || el.nodeName.toLowerCase() !== "svg") return null;
+  const box = (el.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+  let w = box.length === 4 ? box[2] : parseFloat(el.getAttribute("width"));
+  let h = box.length === 4 ? box[3] : parseFloat(el.getAttribute("height"));
+  if (!(w > 0 && h > 0)) [w, h] = [1, 1];
+  if (box.length !== 4) el.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  const k = MAX_SIDE / Math.max(w, h);
+  el.setAttribute("width", String(Math.round(w * k)));
+  el.setAttribute("height", String(Math.round(h * k)));
+  el.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  const xml = new XMLSerializer().serializeToString(el);
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
 }
 
 function readDataUrl(file) {
