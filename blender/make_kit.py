@@ -27,6 +27,8 @@ New templates: write a function that returns a "part" (see `shirt_part`) and reg
 """
 import bpy, bmesh, math, os, sys, json, shutil, subprocess, tempfile
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 import numpy as np
 
 # ---------------------------------------------------------------- parameters
@@ -44,6 +46,7 @@ CLOTH_SHRINK = 0.0          # >0 tightens the cloth onto the body while it drape
 AO_SIZE = 1024              # baked ambient occlusion texture, public/models/<name>_ao.png
 AO_SAMPLES = 64
 AO_FLOOR = 0.2             # darkest the baked occlusion gets
+THICKNESS = 0.0022          # fabric thickness (metres): hems, cuffs and collar edges show a rolled edge, not a sheet
 # Shirt templates built by default (the editor's template selector): (output name, label, collar, sleeves).
 # Passing --collar or --sleeves builds a single shirt instead.
 SHIRT_VARIANTS = [
@@ -122,6 +125,7 @@ class Part:
         self.pin = set()         # island names held in place while the cloth drapes (collar, waistband)
         self.pin_below = 0.0     # ...and the cloth up to this far (metres) below them
         self.pin_hem = False     # keep a garment's lower edge from being pulled up by gravity
+        self.pin_near = 0.0      # ...and any cloth closer than this (metres) to the pinned vertices
         self.drape = True        # False: keep the modelled shape (socks are knitted tubes that hug the leg)
         self.bending = 0.6       # cloth bending stiffness: higher = fewer, broader folds
 
@@ -148,7 +152,8 @@ def shirt_params(collar, sleeves, fit):
         "crew": (0.085, 0.08, 0.035),
         # A sports V-neck should open at the collarbone without dropping into the upper chest.
         "v-neck": (0.12, 0.065, 0.02),
-        "polo": (0.045, 0.07, 0.015),
+        # Johnny collar (retro polo): a V opening the fold-down collar lies around.
+        "polo": (0.1, 0.06, 0.015),
     }[collar]
     return dict(
         collar=collar, fit=fit, fw=fw, length=0.74 * fl,
@@ -198,7 +203,7 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
         round_ = math.sqrt(max(0.0, 1 - u * u))
         if back:
             return P["neck_drop_back"] * round_, P["neck_depth_back"] * round_
-        drop = P["neck_drop_front"] * ((1 - u) if collar == "v-neck" else round_)
+        drop = P["neck_drop_front"] * ((1 - u) if collar in ("v-neck", "polo") else round_)
         return drop, P["neck_depth_front"] * round_
 
     def top(back, s):
@@ -318,35 +323,84 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
     profile = {
         "crew": [(0.0, 0.0), (0.011, 0.001), (0.021, 0.002), (0.027, 0.001)],
         "v-neck": [(0.0, 0.0), (0.01, -0.003), (0.02, -0.004), (0.023, 0.0)],
-        "polo": [(0.0, 0.0), (0.015, -0.003), (0.03, -0.004), (0.035, 0.004), (0.014, 0.022), (-0.004, 0.038)],
+        "polo": None,  # see johnny_collar
     }[collar]
     part.island("collar", "shirt_collar", "collar",
                 "p: metres around from the front centre (seam at the back), q: metres up the band")
-    band(part, loop, loop.index(vid[(False, half, R)]), profile, "collar",
-         gap=0.03 if collar == "polo" else 0.0)  # the polo opening at the front
+    front = loop.index(vid[(False, half, R)])
+    if collar == "polo":
+        band(part, loop, front, [None] * len(JOHNNY), "collar", gap=0.028, rows=johnny_collar(part, loop))
+    else:
+        band(part, loop, front, profile, "collar")
 
     part.pin, part.pin_below, part.pin_hem = {"collar"}, 0.035, True
+    part.pin_near = 0.02 if collar == "polo" else 0.0
     part.params = dict(collar=collar, sleeves=sleeves, fit=fit, sleeve_angle=SLEEVE_ANGLE)
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
     return part
 
 
-def band(part, loop, front_index, profile, island, gap=0.0):
+# Johnny collar rows: (stand height, outward, lift off the shirt), scaled per point by johnny_collar.
+# The stand rises from the neckline, rolls over and the fall lies back down on the shirt.
+JOHNNY = [(0.0, 0.0, 0.0), (0.014, -0.002, 0.0), (0.027, -0.002, 0.0), (0.033, 0.004, 0.0),
+          (0.03, 0.012, 0.003), (0.014, 0.026, 0.004), (-0.001, 0.04, 0.004), (-0.012, 0.052, 0.003)]
+
+
+def johnny_collar(part, loop):
+    """Positions of the polo collar rows (JOHNNY) around the neckline loop, as a list of rows of Vectors.
+    At the back the collar stands about 3 cm and falls over the shoulders; towards the V it lies flatter on the
+    chest and its fall widens into the collar points. "Outward" is across the neckline on the shirt's surface:
+    sideways and down from the V edges, away from the neck at the back."""
+    V = part.verts
+    N = len(loop)
+    base = [V[k] for k in loop]
+    centre = sum(base, Vector()) / N
+    top = max(b.z for b in base)
+    up = Vector((0, 0, 1))
+    frames = []
+    for k, b in enumerate(base):
+        t = (base[(k + 1) % N] - base[k - 1]).normalized()
+        radial = Vector((b.x - centre.x, b.y - centre.y, 0)).normalized()
+        # How far down the V this point is: 0 round the back and sides, 1 at the bottom of the opening.
+        w = smoothstep(0.012, 0.085, top - b.z) if b.y < centre.y else 0.0
+        m = (radial * (0.25 + 0.75 * w) + up * (1 - w)).normalized()  # the shirt surface's normal, roughly
+        out = t.cross(m).normalized()
+        if out.dot(radial) < 0:
+            out = -out
+        stand = lerp(1.0, 0.3, w)
+        fall = lerp(1.0, 2.1, smoothstep(0.25, 1.0, w) ** 1.5)  # the collar points
+        frames.append((b, out, m, stand, fall))
+    # The fall (rows from the fold on) is laid onto the shirt built so far, lifted by its thickness.
+    bvh = BVHTree.FromPolygons([Vector(v) for v in V], [ids for ids, _, _ in part.faces])
+    rows = []
+    for r, (h, o, l) in enumerate(JOHNNY):
+        row = []
+        for b, out, m, st, fa in frames:
+            pt = b + up * (h * st) + out * (o * fa)
+            if r >= 4:
+                loc, n, _, _ = bvh.find_nearest(pt)
+                if n.dot(m) < 0:
+                    n = -n
+                pt = loc + n * (0.004 + l)
+            row.append(pt + m * l if r < 4 else pt)
+        rows.append(row)
+    return rows
+
+
+def band(part, loop, front_index, profile, island, gap=0.0, rows=None):
     """A band rising from a closed vertex loop (collar, waistband). profile: (height, outward offset) per row,
-    the first row being the loop itself. The UV seam sits opposite front_index; faces whose ends are both
-    closer than `gap` to the front centre are left out (an opening)."""
+    the first row being the loop itself; `rows` instead gives every row's positions (the first row unused).
+    The UV seam sits opposite front_index; faces whose ends are both closer than `gap` to the front centre are
+    left out (an opening)."""
     V = part.verts
     N = len(loop)
     base = [V[k] for k in loop]
     centre = sum(base, Vector()) / N
     up = Vector((0, 0, 1))
-    rows = [loop]
-    for h, o in profile[1:]:
-        row = []
-        for b in base:
-            out = Vector((b.x - centre.x, b.y - centre.y, 0)).normalized()
-            row.append(part.vert(b + up * h + out * o))
-        rows.append(row)
+    if rows is None:
+        rows = [[b + up * h + Vector((b.x - centre.x, b.y - centre.y, 0)).normalized() * o for b in base]
+                for h, o in profile]
+    rows = [loop] + [[part.vert(pt) for pt in row] for row in rows[1:]]
     # Indices 0..N run round the loop from the seam (opposite the front) back to it; p = 0 at the front.
     start = (front_index + N // 2) % N
     order = [(start + m) % N for m in range(N + 1)]
@@ -421,10 +475,10 @@ def shorts_part(fit=FIT):
     z_hem, z_crotch, z_waist = -0.33 * fl, -0.17 * fl, 0.10
     hip = 0.205 * fw                 # half width at the hips; each leg is half of that at the crotch
     a_c = hip / 2
-    pelvis_w = [(0, hip), (0.35, hip), (1, 0.185 * fw)]
-    # Above the shirt hem (t > ~0.6) the shorts stay inside the shirt (back depth there is ~0.11).
-    pelvis_d = {False: [(0, .095), (0.35, .108), (0.6, .096), (1, .086)],
-                True: [(0, .1), (0.35, .122), (0.6, .098), (1, .088)]}
+    pelvis_w = [(0, hip), (0.35, hip), (0.6, 0.186 * fw), (1, 0.168 * fw)]
+    # Above the shirt hem (t > ~0.6) the shorts stay inside the shirt, which drapes close to the body there.
+    pelvis_d = {False: [(0, .095), (0.35, .106), (0.6, .088), (1, .078)],
+                True: [(0, .1), (0.35, .12), (0.6, .09), (1, .08)]}
 
     def position(back, i, j, sg):
         s = -1 + 2 * i / C
@@ -803,9 +857,10 @@ def mannequin(part, fw):
     objs = []
     rings = []
     # Keep the body just inside the shorts at the waist so the fused skin surface cannot poke through the gap.
+    # The shorts' top tucks under the shirt: let it drape inside the shirt's own clearance (above the hips).
     under = -0.008 if part.name == "Shirt" else 0.0
     for z, w, df, db in TORSO:
-        g = under * smoothstep(0.16, 0.08, z)
+        g = under * smoothstep(0.16, 0.08, z) if part.name == "Shirt" else -0.022 * smoothstep(-0.13, -0.04, z)
         w, df, db = w + g, df + g, db + g
         # front and back depths differ: shift the ellipse's centre so each side reaches its own depth
         d = (df + db) / 2
@@ -894,12 +949,20 @@ def drape(obj, part, names, body, frames):
     for poly in mesh.polygons:
         if names[isl[poly.index].value] in part.pin:
             pinned.update(poly.vertices)
+    bands = set(pinned)
     if pinned and part.pin_below:
         # also hold the cloth just below the pinned band, so the band doesn't drag it into creases
         # Measure down from the upper edge of the pinned area. Using the lowest vertex here makes a V-neck
         # pin an entire wedge of the chest because its front point sits far below the shoulders.
         floor = max(mesh.vertices[i].co.z for i in pinned) - part.pin_below
         pinned.update(v.index for v in mesh.vertices if v.co.z >= floor)
+    if pinned and part.pin_near:
+        # Hold the cloth lying under a pinned band (the fall of a polo collar) so it can't drape through it.
+        tree = KDTree(len(bands))
+        for i in bands:
+            tree.insert(mesh.vertices[i].co, i)
+        tree.balance()
+        pinned.update(v.index for v in mesh.vertices if tree.find(v.co)[2] < part.pin_near)
     if part.pin_hem:
         # Anchor the bottom edge as well as the collar. This stops gravity from shortening the shirt and shifting
         # artwork toward the neck, especially on V-necks where the front collar has a deep centre point.
@@ -976,6 +1039,27 @@ def bake_ao(obj, body, path, size):
     for mat, node in nodes:
         mat.node_tree.nodes.remove(node)
     bpy.data.images.remove(img)
+
+
+def thicken(obj, thickness):
+    """Give the cloth a thickness: an inner shell (same UVs, facing in) joined to the outer by a rim at every open
+    edge, so hems, cuffs and the collar read as fabric with an edge instead of a paper-thin sheet."""
+    if thickness <= 0:
+        return
+    mod = obj.modifiers.new("Thickness", "SOLIDIFY")
+    mod.thickness = thickness
+    mod.offset = -1  # inwards: the outside, where the design is, stays where it was
+    mod.use_quality_normals = True  # no spikes where the rim turns sharply
+    mod.use_rim = True
+    deps = bpy.context.evaluated_depsgraph_get()
+    mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(deps), preserve_all_data_layers=True, depsgraph=deps)
+    old = obj.data
+    obj.modifiers.clear()
+    obj.data = mesh
+    mesh.name = old.name
+    bpy.data.meshes.remove(old)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
 
 
 def add_folds(obj, part, names, fold_fn, strength):
@@ -1243,6 +1327,7 @@ def build_template(name, kwargs, out_name, draco):
 
     if AO_SIZE:
         bake_ao(obj, body, os.path.join(MODELS_DIR, f"{out_name}_ao.png"), AO_SIZE)
+    thicken(obj, THICKNESS)  # after the bake: the inner shell shares the outer's UVs
     how = export_glb(obj, os.path.join(MODELS_DIR, f"{out_name}.glb"), draco)
     if out_name == "shirt":
         skin = make_mannequin_material()

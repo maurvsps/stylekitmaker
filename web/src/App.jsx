@@ -239,7 +239,8 @@ export default function App() {
     <div className="app">
       <main className="stage">
         {kits && (
-          <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} onLoading={onLoading}
+          <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
+            onLoading={onLoading}
             onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} mannequin={prefs.mannequin} pixelRatio={MOBILE ? 1.5 : 2} />
         )}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
