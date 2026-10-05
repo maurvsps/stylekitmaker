@@ -1378,9 +1378,9 @@ def write_manifest():
             data = json.load(fh)
         if "template" not in data or not os.path.exists(os.path.join(MODELS_DIR, data["name"] + ".glb")):
             continue
-        kits.append({"name": data["name"], "garment": data["template"], "label": labels.get(data["name"], data["name"]),
-                     "params": data["params"]})
-    order = list(labels)
+        kits.append({"name": data["name"], "garment": data["template"],
+                     "label": data.get("label") or labels.get(data["name"], data["name"]), "params": data["params"]})
+    order = ["shirt_clo"] + list(labels)  # the artist-made shirt (blender/clo_shirt.py) leads the selector
     kits.sort(key=lambda k: (k["garment"], order.index(k["name"]) if k["name"] in order else len(order), k["name"]))
     with open(os.path.join(MODELS_DIR, "kits.json"), "w") as fh:
         json.dump({"kits": kits}, fh, indent=2)

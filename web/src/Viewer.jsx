@@ -142,7 +142,7 @@ const Viewer = forwardRef(function Viewer(
     const t = three.current;
     onLoading?.();
     Promise.all(
-      Object.entries({ ...models, mannequin: "mannequin" }).map(async ([garment, name]) => {
+      Object.entries({ mannequin: "mannequin", ...models }).map(async ([garment, name]) => {
         if (t.garments[garment]?.name === name) return;
         const isMannequin = garment === "mannequin";
         const [gltf, ao] = await Promise.all([loadGlb(name), isMannequin ? Promise.resolve(null) : loadAo(name)]);

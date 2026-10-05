@@ -96,6 +96,21 @@ One square texture covers every part. Each island has a local frame in metres, a
 
 Write a function that returns a `Part` (vertices, faces with per-corner local UVs, islands, materials) and an optional fold function, then register both in `TEMPLATES`. `shirt_part` is the reference.
 
+### A shirt made in CLO 3D / Marvelous Designer
+
+`blender/clo_shirt.py` turns a `.zprj` into a template (default name `shirt_clo`, first in the selector and the
+default for new designs):
+
+```bash
+.bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--name shirt_clo]
+```
+
+It reads the draped pieces and their flat patterns straight from the file. The flat patterns become the UV islands
+(front, back with its yoke, sleeves with their cuffs, the collar strips laid end to end), so the metric frames are
+the real pattern. The drape is kept as the artist made it: no folds or re-drape. The shirt is scaled onto the
+mannequin, and the script writes its own `mannequin_<name>.glb` with the arms down the sleeves and the torso inside
+the shirt. The template JSON names it in `"mannequin"`, and the viewer loads that body with this shirt.
+
 ## Part 2: Web editor (React)
 
 ```bash

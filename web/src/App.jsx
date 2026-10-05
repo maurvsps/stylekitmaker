@@ -110,7 +110,10 @@ export default function App() {
   }, []);
 
   const shirtNames = useMemo(() => (kits || []).filter((k) => k.garment === "shirt"), [kits]);
-  const models = useMemo(() => ({ shirt: project.template, shorts: "shorts", socks: "socks" }), [project.template]);
+  // A shirt draped on its own body (an imported artist garment) names that body in its template.
+  const mannequinName = templates?.[project.template]?.mannequin || "mannequin";
+  const models = useMemo(() => ({ shirt: project.template, shorts: "shorts", socks: "socks", mannequin: mannequinName }),
+    [project.template, mannequinName]);
 
   // Uploaded images, decoded once each.
   const assets = project.assets;
