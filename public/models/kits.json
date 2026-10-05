@@ -10,6 +10,39 @@
         "fit": "regular",
         "source": "clo"
       }
+    },
+    {
+      "name": "shirt_clo_scoop",
+      "garment": "shirt",
+      "label": "Deep round neck (realistic)",
+      "params": {
+        "collar": "crew",
+        "sleeves": "short",
+        "fit": "regular",
+        "source": "clo"
+      }
+    },
+    {
+      "name": "shirt_clo_v",
+      "garment": "shirt",
+      "label": "V-neck (realistic)",
+      "params": {
+        "collar": "v-neck",
+        "sleeves": "short",
+        "fit": "regular",
+        "source": "clo"
+      }
+    },
+    {
+      "name": "shirt_clo_wide",
+      "garment": "shirt",
+      "label": "Crew neck, wide band (realistic)",
+      "params": {
+        "collar": "crew",
+        "sleeves": "short",
+        "fit": "regular",
+        "source": "clo"
+      }
     }
   ]
 }
