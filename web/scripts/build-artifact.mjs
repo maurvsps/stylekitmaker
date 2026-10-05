@@ -25,6 +25,8 @@ for (const { name } of kits) {
   const ao = path.join(build, "models", `${name}_ao.png`);
   if (fs.existsSync(ao)) fs.copyFileSync(ao, path.join(out, "models", `${name}_ao.png`));
   embedModel(name);
+  const body = JSON.parse(fs.readFileSync(path.join(build, "models", `${name}.json`))).mannequin;
+  if (body) embedModel(body);
 }
 embedModel("mannequin");
 

@@ -3,3 +3,4 @@ dist/
 dist-artifact/
 __pycache__/
 .bpy/
+.vite/

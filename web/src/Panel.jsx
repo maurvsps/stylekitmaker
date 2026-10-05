@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
 import LayersPanel from "./LayersPanel.jsx";
-import { IDENTITY, PALETTE_LABELS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
+import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
 
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 
@@ -55,8 +55,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     { id: "back-sponsor", label: "Back sponsor", garment: "shirt", surface: "back", x: 0, y: 0.42 },
     { id: "sleeve-left", label: "Left sleeve", garment: "shirt", surface: "sleeve_left", x: 0, y: 0.42 },
     { id: "sleeve-right", label: "Right sleeve", garment: "shirt", surface: "sleeve_right", x: 0, y: 0.42 },
-    { id: "shorts-mark", label: "Shorts", garment: "shorts", surface: "front", x: 0.12, y: 0.27 },
-    { id: "sock-mark", label: "Socks", garment: "socks", surface: "sock_left", x: 0, y: -0.36 },
   ];
   const uploadLogo = async (file, slot) => {
     const asset = await uploadImage(file);
@@ -196,7 +194,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           </select>
         </label>
         <div className="row">
-          {["shirt", "shorts", "socks"].map((g) => (
+          {SHOWN_GARMENTS.map((g) => (
             <button key={g} type="button" className="quiet" onClick={() => actions.texture(g)}>
               {g[0].toUpperCase() + g.slice(1)} texture
             </button>

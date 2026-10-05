@@ -100,8 +100,8 @@ const Viewer = forwardRef(function Viewer(
     controls.enablePan = false; // keep the kit in frame; orbit and zoom still work
     controls.minDistance = 0.6;
     controls.maxDistance = 8;
-    controls.target.set(0, 0, 0);
-    camera.position.set(0.26, 0.05, 1); // direction only: the distance is fitted below
+    controls.target.set(0, CENTRE_Y, 0);
+    camera.position.set(0.26, CENTRE_Y + 0.05, 1); // direction only: the distance is fitted below
 
     let fitted = false;
     const resize = () => {
@@ -258,7 +258,7 @@ const Viewer = forwardRef(function Viewer(
     view(preset) {
       const { camera, controls } = three.current;
       const close = preset === "close-up";
-      controls.target.set(0, close ? 0.48 : 0, 0);
+      controls.target.set(0, close ? 0.48 : CENTRE_Y, 0);
       const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45, side: Math.PI / 2, "close-up": 0.15 }[preset] ?? 0;
       const d = close ? 0.95 : fitDistance(camera, controls, false);
       camera.position.set(
@@ -442,9 +442,11 @@ const LIGHTING = {
 };
 export const LIGHTING_PRESETS = Object.keys(LIGHTING);
 
-// The kit (shirt top to sock soles) is about 1.85 m tall and 0.95 m wide, centred on the orbit target.
-const KIT_HEIGHT = 2.08;
-const KIT_WIDTH = 1.04;
+// The view frames the shirt on the mannequin, head to hips (shorts and socks are not shown): about 1.3 m tall and
+// 0.9 m wide round CENTRE_Y.
+const CENTRE_Y = 0.4;
+const KIT_HEIGHT = 1.45;
+const KIT_WIDTH = 1.0;
 
 /** Distance at which the whole kit fits the view, with a margin; moves the camera there unless apply is false. */
 function fitDistance(camera, controls, apply = true) {

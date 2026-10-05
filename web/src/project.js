@@ -36,6 +36,8 @@ import { GRAPHICS, MATERIALS, REGIONS, baseDesign, pattern as patternDef, patter
 
 export const PROJECT_VERSION = 4;
 export const GARMENTS = ["shirt", "shorts", "socks"];
+// Garments the editor shows and edits. Shorts and socks stay in the project (old designs keep them) but are hidden.
+export const SHOWN_GARMENTS = ["shirt"];
 export const PALETTE_LABELS = ["Primary", "Secondary", "Trim"];
 
 export const LAYER_TYPES = {
