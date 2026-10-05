@@ -116,7 +116,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
   const at = layer && locate(layers, layer.id);
   return (
     <div className="layers">
-      <div className="tabs" role="tablist" aria-label="Garment">
+      {SHOWN_GARMENTS.length > 1 && <div className="tabs" role="tablist" aria-label="Garment">
         {Object.entries(GARMENT_LABELS).filter(([g]) => SHOWN_GARMENTS.includes(g)).map(([g, label]) => (
           <button
             key={g}
@@ -129,7 +129,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
             {label}
           </button>
         ))}
-      </div>
+      </div>}
 
       <div className="layer-tools">
         {clip && (
@@ -151,7 +151,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
         }} />
       </div>
 
-      <p className="layer-help" id="layer-help">Top layers cover lower ones. Select a row to edit it; drag ⠿ to reorder. Images are placed in a free spot.</p>
+      <p className="layer-help" id="layer-help">The top of the list prints on top. Tap a layer to edit it, drag ⠿ to reorder.</p>
 
       <LayerList
         layers={layers}
@@ -313,10 +313,7 @@ function LayerList({ layers, selected, select, renaming, setRenaming, patch, mov
                 }}
               />
             ) : (
-              <>
-                <span className="name">{layer.name}</span>
-                {layer.role && <span className="layer-role" title="This layer is linked to a quick control above">Quick control</span>}
-              </>
+              <span className="name">{layer.name}</span>
             )}
           </li>
         );
@@ -470,7 +467,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
       {layer.type === "image" && (
         <>
           <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
-          <ColorField label="One colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original colours"
+          <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
         </>
       )}
@@ -754,7 +751,7 @@ function AssetPicker({ project, value, onChange, uploadImage }) {
   const assets = Object.entries(project.assets);
   return (
     <div className="field">
-      <span>Image</span>
+      <span>Artwork</span>
       <div className="assets">
         {assets.map(([id, a]) => (
           <button key={id} type="button" className={`asset${id === value ? " active" : ""}`} title={a.name} aria-label={a.name}

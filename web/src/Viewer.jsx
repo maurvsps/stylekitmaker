@@ -7,7 +7,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { cuffLength } from "./library.js";
 
-const BACKGROUND = 0xd9dbde;
+const BACKGROUND = 0x121213;
 const draco = new DRACOLoader().setDecoderPath("draco/");
 // The artifact build runs where WebAssembly may be refused: use the plain JS decoder there.
 if (import.meta.env.VITE_NO_DOWNLOAD) draco.setDecoderConfig({ type: "js" });

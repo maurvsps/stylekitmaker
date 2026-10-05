@@ -92,6 +92,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     select(existing?.id || fresh.id, slot.garment);
   };
   const slotLayer = (slot) => findRole(project.garments[slot.garment].layers, slot.id === "crest" ? "crest" : `logo-${slot.id}`);
+  const slotButton = (slot) => {
+    const layer = slotLayer(slot);
+    const asset = layer && project.assets[layer.asset];
+    return <button type="button" className={`logo-slot${layer ? " populated" : ""}`} key={slot.id} title={asset ? "Replace image" : "Upload image"} onClick={() => {
+      setPendingLogo(slot); logoInput.current.click();
+    }}>
+      <span className="logo-preview">{asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">+</span>}</span>
+      <span className="logo-slot-label">{slot.label}</span>
+      <span className="logo-slot-file">{asset ? "Tap to replace" : "Upload"}</span>
+    </button>;
+  };
 
   return (
     <aside className="panel" aria-label="Kit design">
@@ -121,48 +132,24 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </div>
       </Section>
 
-      <Section title="Club crest & sponsors" eyebrow="02" className="logo-section">
-        <p className="section-copy">Choose a spot to upload an image. Each one creates a clearly named image layer you can move and resize below.</p>
-        <span className="group-label">Club identity</span>
-        <div className="logo-grid">
-          {logoSlots.filter((slot) => ["crest", "brand"].includes(slot.id)).map((slot) => {
-            const layer = slotLayer(slot);
-            const asset = layer && project.assets[layer.asset];
-            return <button type="button" className={`logo-slot${layer ? " populated" : ""}`} key={slot.id} onClick={() => {
-              setPendingLogo(slot); logoInput.current.click();
-            }}>
-              <span className="logo-preview">{asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">＋</span>}</span>
-              <span className="logo-slot-label">{asset ? slot.label : `Add ${slot.label.toLowerCase()}`}</span>
-              <span className="logo-slot-file">{asset?.name || "Upload image"}</span>
-            </button>;
-          })}
-        </div>
-        <span className="group-label">Sponsors & sleeve marks</span>
-        <div className="logo-grid">
-          {logoSlots.filter((slot) => !["crest", "brand"].includes(slot.id)).map((slot) => {
-            const layer = slotLayer(slot);
-            const asset = layer && project.assets[layer.asset];
-            return <button type="button" className={`logo-slot${layer ? " populated" : ""}`} key={slot.id} onClick={() => {
-              setPendingLogo(slot); logoInput.current.click();
-            }}>
-              <span className="logo-preview">{asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">＋</span>}</span>
-              <span className="logo-slot-label">{asset ? slot.label : `Add ${slot.label.toLowerCase()}`}</span>
-              <span className="logo-slot-file">{asset?.name || "Upload image"}</span>
-            </button>;
-          })}
-        </div>
+      <Section title="Crest & sponsors" eyebrow="02" className="logo-section">
+        <p className="section-copy">Search a club or a brand, or tap a spot below to upload your own image.</p>
+        <LogoFinder slots={logoSlots} onPick={uploadLogo} onError={onError} />
+        <span className="group-label">Club</span>
+        <div className="logo-grid">{logoSlots.filter((slot) => ["crest", "brand"].includes(slot.id)).map(slotButton)}</div>
+        <span className="group-label">Sponsors & sleeves</span>
+        <div className="logo-grid">{logoSlots.filter((slot) => !["crest", "brand"].includes(slot.id)).map(slotButton)}</div>
         <label className="field sponsor-text">
-          <span>Sponsor text (optional)</span>
+          <span>Sponsor as text</span>
           <input value={sponsor?.text ?? ""} maxLength={20} disabled={sponsor?.locked}
             placeholder="Type a name or brand"
             onChange={(e) => setSponsor(e.target.value)} />
         </label>
-        <p className="section-copy fine">Text sponsors appear across the chest. Use the Front sponsor image slot for a sponsor logo.</p>
+        <p className="section-copy fine">Printed across the chest. For a sponsor logo, use Front sponsor above.</p>
         <input ref={logoInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
           if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
           e.target.value = "";
         }} />
-        <LogoFinder slots={logoSlots} onPick={uploadLogo} onError={onError} />
       </Section>
 
       <Section title="Design layers" eyebrow="03">
@@ -329,8 +316,7 @@ function LogoFinder({ slots, onPick, onError }) {
   };
   return (
     <div className="logo-finder">
-      <div className="finder-label">Or find an image online</div>
-      <div className="seg" role="group" aria-label="Image type">
+            <div className="seg" role="group" aria-label="Image type">
         <button type="button" className={kind === "crest" ? "on" : ""} aria-pressed={kind === "crest"} onClick={() => switchKind("crest")}>Club crest</button>
         <button type="button" className={kind === "brand" ? "on" : ""} aria-pressed={kind === "brand"} onClick={() => switchKind("brand")}>Brand / sponsor</button>
       </div>
