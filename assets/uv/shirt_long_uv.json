@@ -5,7 +5,7 @@
     "collar": "crew",
     "sleeves": "long",
     "fit": "regular",
-    "sleeve_angle": 68.0
+    "sleeve_angle": 45.0
   },
   "materials": [
     "shirt_body",

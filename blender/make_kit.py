@@ -35,9 +35,9 @@ import numpy as np
 COLLAR_TYPE = "crew"        # "crew" | "v-neck" | "polo"
 SLEEVE_LENGTH = "short"     # "short" | "long" | a length in metres, e.g. 0.4
 FIT = "regular"             # "slim" | "regular" | "loose"
-SLEEVE_ANGLE = 68.0         # degrees below horizontal: relaxed arms, still clear of the torso
+SLEEVE_ANGLE = 45.0         # degrees below horizontal: arms held out like a product shot, sleeves clear of the torso
 SUBDIVISION_LEVELS = 1      # Catmull-Clark levels applied before export
-FOLD_STRENGTH = 0.72       # subtle sewn-fabric creases, softened by the cloth drape
+FOLD_STRENGTH = 0.3        # a hint of sewn-fabric creases; the cloth drape makes the rest
 BUILD = ["shirt", "shorts", "socks"]  # templates to generate
 UV_SIZES = (1024, 2048)     # UV layout PNG sizes
 DRACO = True                # Draco mesh compression
@@ -165,7 +165,7 @@ def shirt_params(collar, sleeves, fit):
         chest_t=0.62, armhole_depth=0.075, shoulder_drop=0.075,
         neck_drop_front=neck[0], neck_depth_front=neck[1], neck_drop_back=neck[2], neck_depth_back=0.05,
         sleeve_len=sleeve_len * fl, sleeve_angle=math.radians(SLEEVE_ANGLE),
-        cuff_radius=(0.085 if sleeve_len < 0.35 else 0.045) * fw,
+        cuff_radius=(0.092 if sleeve_len < 0.35 else 0.045) * fw,
     )
 
 
@@ -334,6 +334,7 @@ def shirt_part(collar=COLLAR_TYPE, sleeves=SLEEVE_LENGTH, fit=FIT):
         band(part, loop, front, profile, "collar")
 
     part.pin, part.pin_below, part.pin_hem = {"collar"}, 0.035, True
+    part.bending = 2.5  # a jersey knit holds its shape: a few broad folds, not crumples
     part.pin_near = 0.02 if collar == "polo" else 0.0
     part.params = dict(collar=collar, sleeves=sleeves, fit=fit, sleeve_angle=SLEEVE_ANGLE)
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
