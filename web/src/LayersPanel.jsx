@@ -455,7 +455,11 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
       )}
 
       {layer.type === "image" && (
-        <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
+        <>
+          <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
+          <ColorField label="One colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original colours"
+            onChange={(tint) => patch({ tint })} />
+        </>
       )}
 
       {layer.type === "graphic" && (
@@ -699,15 +703,15 @@ function islandBounds(isl) {
 }
 
 /** A colour: one of the palette entries (follows palette changes), a custom colour, or none when allowed. */
-export function ColorField({ label, value, palette, onChange, allowNone = false }) {
+export function ColorField({ label, value, palette, onChange, allowNone = false, noneLabel = "None (transparent)" }) {
   const resolved = value ? resolveColor(value, palette) : "#ffffff";
   return (
     <div className="color-field">
       <span>{label}</span>
       <div className="swatches">
         {allowNone && (
-          <button type="button" className={`swatch none${value === null ? " active" : ""}`} title="None (transparent)"
-            aria-label={`${label}: none`} aria-pressed={value === null} onClick={() => onChange(null)} />
+          <button type="button" className={`swatch none${value === null ? " active" : ""}`} title={noneLabel}
+            aria-label={`${label}: ${noneLabel}`} aria-pressed={value === null} onClick={() => onChange(null)} />
         )}
         {palette.map((c, i) => (
           <button key={i} type="button" className={`swatch${value === `@${i}` ? " active" : ""}`} style={{ background: c }}

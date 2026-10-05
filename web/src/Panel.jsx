@@ -2,8 +2,11 @@ import { useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
 import LayersPanel from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
+import { prepareLogo } from "./logoImage.js";
+import { fetchLogo, searchBrands, searchCrests } from "./logoSearch.js";
 
-const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // stored in the design
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // a raster file before prepareLogo shrinks it
 
 export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
@@ -16,26 +19,35 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const set = (fields) => setProject((p) => ({ ...p, ...fields }));
   const shirtRole = (role) => findRole(project.garments.shirt.layers, role);
 
-  /** Read an image file into the project's assets; resolves to { id, name } (or null after showing an error). */
-  const uploadImage = (file) =>
-    new Promise((resolve) => {
-      if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
-        onError("Images must be PNG, SVG, JPEG or WebP files.");
-        return resolve(null);
-      }
-      if (file.size > MAX_IMAGE_BYTES) {
-        onError("That image is too large (1.5 MB max).");
-        return resolve(null);
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const id = newId("img");
-        setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: reader.result, name: file.name } } }));
-        resolve({ id, name: file.name });
-      };
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(file);
-    });
+  /**
+   * Read an image file into the project's assets; resolves to { id, name } (or null after showing an error).
+   * Logos are cleaned up on the way in (logoImage.js): a flat background becomes transparent, margins are trimmed and
+   * big photos are scaled down, so a crest or brand logo saved from the web drops straight onto the shirt.
+   */
+  const uploadImage = async (file) => {
+    if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
+      onError("Images must be PNG, SVG, JPEG or WebP files.");
+      return null;
+    }
+    if (file.size > (file.type === "image/svg+xml" ? MAX_IMAGE_BYTES : MAX_UPLOAD_BYTES)) {
+      onError(`That image is too large (${file.type === "image/svg+xml" ? "1.5" : "15"} MB max).`);
+      return null;
+    }
+    let src;
+    try {
+      src = await prepareLogo(file);
+    } catch {
+      onError("That image could not be read.");
+      return null;
+    }
+    if (src.length * 0.75 > MAX_IMAGE_BYTES) {
+      onError("That image is still too large after shrinking it (1.5 MB max).");
+      return null;
+    }
+    const id = newId("img");
+    setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src, name: file.name } } }));
+    return { id, name: file.name };
+  };
 
   // Shortcuts: the crest and sponsor are ordinary shirt layers marked with a role.
   const setSponsor = (text) =>
@@ -68,7 +80,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     const existing = findRole(project.garments[slot.garment].layers, role);
     setProject((p) => editLayers(p, slot.garment, (ls) => {
       const old = findRole(ls, role);
-      return old ? mapLayer(ls, old.id, (l) => ({ ...l, asset: asset.id })) : [...ls, fresh];
+      // Whatever already sits in that spot (the default design's chest number, under the brand logo) steps aside.
+      const cleared = hideAt(ls, slot, role);
+      return old ? mapLayer(cleared, old.id, (l) => ({ ...l, asset: asset.id })) : [...cleared, fresh];
     }));
     setGarment(slot.garment);
     select(existing?.id || fresh.id, slot.garment);
@@ -122,6 +136,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
           e.target.value = "";
         }} />
+        <LogoFinder slots={logoSlots} onPick={uploadLogo} onError={onError} />
       </Section>
 
       <Section title="Design layers" eyebrow="03">
@@ -241,5 +256,88 @@ function Section({ title, eyebrow, children, className = "" }) {
       <h2>{eyebrow && <span className="section-index">{eyebrow}</span>}{title}</h2>
       {children}
     </section>
+  );
+}
+
+/** Hide the placed layers (other than `role`'s) centred within 4 cm of a logo slot on the same surface. */
+function hideAt(layers, slot, role) {
+  return layers.map((l) => {
+    if (l.type === "group") return { ...l, children: hideAt(l.children, slot, role) };
+    const near = l.surface === slot.surface && l.role !== role && l.transform &&
+      Math.hypot(l.transform.x - slot.x, l.transform.y - slot.y) < 0.04;
+    return near && l.visible ? { ...l, visible: false } : l;
+  });
+}
+
+/** Search real club crests and brand logos by name and drop the chosen one into a logo slot. */
+function LogoFinder({ slots, onPick, onError }) {
+  const [kind, setKind] = useState("crest");
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [target, setTarget] = useState("crest");
+  const search = async (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    setBusy(true);
+    try {
+      setResults(await (kind === "crest" ? searchCrests(query) : searchBrands(query)));
+    } catch (err) {
+      setResults([]);
+      onError(`Could not search ${kind === "crest" ? "crests" : "logos"} (${err.message}). Check the connection, or upload the image instead.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const pick = async (r) => {
+    setBusy(true);
+    try {
+      await onPick(await fetchLogo(r.url, r.name), slots.find((s) => s.id === target));
+    } catch (err) {
+      onError(`Could not load that logo (${err.message}). Download it and upload the file instead.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const switchKind = (k) => {
+    setKind(k);
+    setResults(null);
+    setTarget(k === "crest" ? "crest" : "brand");
+  };
+  return (
+    <div className="logo-finder">
+      <div className="seg" role="group" aria-label="Find">
+        <button type="button" className={kind === "crest" ? "on" : ""} aria-pressed={kind === "crest"} onClick={() => switchKind("crest")}>Club crest</button>
+        <button type="button" className={kind === "brand" ? "on" : ""} aria-pressed={kind === "brand"} onClick={() => switchKind("brand")}>Brand / sponsor</button>
+      </div>
+      <form className="row" onSubmit={search}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search"
+          placeholder={kind === "crest" ? "Club name, e.g. Arsenal" : "Brand, e.g. Nike, Adidas, Puma"} />
+        <button type="submit" disabled={busy}>{busy ? "…" : "Search"}</button>
+      </form>
+      {results && (
+        <>
+          <label className="field">
+            <span>Put it on</span>
+            <select value={target} onChange={(e) => setTarget(e.target.value)}>
+              {slots.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+          {results.length === 0 && <p className="section-copy">Nothing found.</p>}
+          <div className="logo-results">
+            {results.map((r) => (
+              <button key={r.url} type="button" className="logo-result" title={r.name} disabled={busy} onClick={() => pick(r)}>
+                <img src={r.thumb} alt="" loading="lazy" onError={(e) => { if (e.currentTarget.src !== r.url) e.currentTarget.src = r.url; }} />
+                <span>{r.name}</span>
+              </button>
+            ))}
+          </div>
+          <p className="section-copy fine">
+            {kind === "crest" ? "Crests from TheSportsDB" : "Logos from Wikimedia Commons"}. Club crests and brand logos are
+            trademarks of their owners: use them for your own designs.
+          </p>
+        </>
+      )}
+    </div>
   );
 }
