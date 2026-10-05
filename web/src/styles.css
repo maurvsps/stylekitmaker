@@ -248,3 +248,95 @@ details.sub:not([open]) { gap: 0; }
 .texture-frame img { opacity: .45; mix-blend-mode: multiply; pointer-events: none; }
 .texture-toggle { position: absolute; top: 56px; right: 12px; display: flex; gap: 6px; align-items: center; background: var(--chip); color: var(--chip-text); padding: 6px 12px; border-radius: 999px; font-size: 13px; }
 .view-buttons { z-index: 2; }
+
+/* Dark glass controls. The 3D stage and its studio colors stay unchanged. */
+:root {
+  --panel: #11151d;
+  --text: #eef3fb;
+  --muted: #8d9aab;
+  --line: rgba(170, 190, 218, .13);
+  --field: rgba(255, 255, 255, .045);
+  --accent: #76a9ff;
+  --accent-text: #101827;
+  --danger: #ff8d9b;
+  color-scheme: dark;
+}
+
+.panel {
+  background: linear-gradient(155deg, rgba(23, 29, 41, .97), rgba(14, 18, 26, .98));
+  border-right-color: rgba(180, 200, 230, .16);
+  box-shadow: 8px 0 28px rgba(17, 26, 42, .10);
+  padding: 18px 18px 30px;
+}
+.panel-header { padding-bottom: 16px; }
+.panel-header h1 { letter-spacing: -.035em; }
+.panel-header p { color: #8d9aab; }
+.brand-mark {
+  background: linear-gradient(145deg, #85b7ff, #6587f5);
+  color: #111827;
+  box-shadow: 0 5px 18px rgba(101, 135, 245, .24);
+}
+.section { gap: 9px; padding: 14px 0; border-color: rgba(170, 190, 218, .12); }
+.section h2 { font-size: 13px; letter-spacing: .01em; }
+.section-index { color: #91b8ff; font-variant-numeric: tabular-nums; }
+.group-label, .field > span, .slider > span { color: #9aa8ba; }
+.panel select, .panel input:not([type]), .panel input[inputmode] {
+  background: rgba(255, 255, 255, .055);
+  border-color: rgba(170, 190, 218, .15);
+  border-radius: 10px;
+}
+.panel select:hover, .panel input:not([type]):hover, .panel input[inputmode]:hover { border-color: rgba(170, 190, 218, .28); }
+.panel button { border-radius: 10px; }
+.panel button.quiet {
+  background: rgba(255, 255, 255, .045);
+  border-color: rgba(170, 190, 218, .14);
+}
+.panel button.quiet:hover, .panel button.chip:hover { background: rgba(255, 255, 255, .09); }
+.header-action { border-radius: 10px !important; }
+.color input { border-radius: 10px; }
+.panel .design-card, .panel .graphic-card, .panel .logo-slot, .panel .logo-result {
+  background: rgba(255, 255, 255, .045);
+  border-color: rgba(170, 190, 218, .1);
+  border-radius: 11px;
+}
+.panel .logo-slot { padding: 7px; }
+.logo-preview { background: rgba(255, 255, 255, .075); border-radius: 9px; }
+.tabs {
+  background: rgba(255, 255, 255, .045);
+  border-color: rgba(170, 190, 218, .12);
+  border-radius: 11px;
+}
+.panel .tabs button.active {
+  background: rgba(144, 180, 255, .15);
+  color: #eaf1ff;
+  box-shadow: inset 0 0 0 1px rgba(144, 180, 255, .19);
+}
+.layer-list, .inspector {
+  background: rgba(255, 255, 255, .025);
+  border-color: rgba(170, 190, 218, .14);
+  border-radius: 11px;
+}
+.layer-row { border-color: rgba(170, 190, 218, .11); }
+.layer-row:hover { background: rgba(255, 255, 255, .045); }
+.layer-row.selected { background: rgba(118, 169, 255, .13); }
+.layer-row .handle { color: #78869a; }
+.panel .layer-row button.icon:hover { background: rgba(255, 255, 255, .09); }
+.inspector { padding: 11px; }
+.sub { border-color: rgba(170, 190, 218, .13); }
+.panel button.chip { background: rgba(255, 255, 255, .045); border-color: rgba(170, 190, 218, .14); }
+.panel button.quiet.on, .panel button.chip.on {
+  background: rgba(118, 169, 255, .17);
+  border-color: rgba(118, 169, 255, .58);
+  color: #edf4ff;
+}
+.panel .swatch.active { box-shadow: 0 0 0 2px #11151d, 0 0 0 4px var(--accent); }
+.panel button:focus-visible, .panel input:focus-visible, .panel select:focus-visible { outline-offset: 2px; }
+.panel::-webkit-scrollbar { width: 8px; }
+.panel::-webkit-scrollbar-thumb { background: rgba(170, 190, 218, .2); border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+.sheet {
+  background: rgba(21, 27, 38, .97);
+  border: 1px solid rgba(180, 200, 230, .15);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(14px);
+}
+.sheet textarea { background: rgba(255, 255, 255, .05); border-color: rgba(170, 190, 218, .15); }
