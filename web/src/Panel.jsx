@@ -32,6 +32,10 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const designInput = useRef(null);
   const logoInput = useRef(null);
   const [pendingLogo, setPendingLogo] = useState(null);
+  const [showGuide, setShowGuide] = useState(() => {
+    try { return !localStorage.getItem("kit-maker:guide-dismissed") && !localStorage.getItem("kit-maker:design"); }
+    catch { return true; }
+  });
   const [selection, setSelection] = useState({}); // garment -> selected layer id
   const [tab, setTab] = useState(savedTab);
   useEffect(() => {
@@ -151,6 +155,14 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         ))}
       </nav>
       <div className="panel-content">
+      {tab === "kit" && showGuide && <div className="quick-start">
+        <button type="button" className="quiet quick-start-close" aria-label="Dismiss getting started guide" onClick={() => {
+          setShowGuide(false);
+          try { localStorage.setItem("kit-maker:guide-dismissed", "1"); } catch { /* private browsing */ }
+        }}>×</button>
+        <strong>Make your first kit</strong>
+        <p>Choose a shirt template, pick your colours, then add a crest or sponsor. Rotate the 3D kit to check the result.</p>
+      </div>}
       {tab === "kit" && <Section title="Settings" eyebrow="01">
         <span className="group-label">Shirt template</span>
         <select value={project.template} onChange={(e) => set({ template: e.target.value })} aria-label="Shirt template">
@@ -231,6 +243,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
 
       {tab === "export" && <Section title="Export" eyebrow="05">
+        <p className="section-copy">Preview the crop before downloading a PNG.</p>
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
             Screenshot (PNG)
@@ -279,6 +292,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
 
       {tab === "export" && <Section title="Save & load" eyebrow="06">
+        <p className={`save-status ${actions.saveStatus === "unavailable" ? "warning" : ""}`} role="status">
+          {actions.saveStatus === "saved" ? "● Saved on this device" : actions.saveStatus === "unavailable" ? "Browser storage unavailable. Export a JSON copy to keep your design." : "Saving…"}
+        </p>
         <input ref={designInput} type="file" accept="application/json,.json" hidden onChange={(e) => {
           if (e.target.files[0]) actions.load(e.target.files[0]);
           e.target.value = "";

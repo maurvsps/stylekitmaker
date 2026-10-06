@@ -90,6 +90,10 @@ export default function App() {
   const [fontsReady, setFontsReady] = useState(0);
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // { kind: "image" | "json", title, url | text, filename }
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("saving");
+  const [previewHeight, setPreviewHeight] = useState(null);
+  const app = useRef(null);
   const viewer = useRef(null);
   const renderer = useMemo(() => new KitRenderer(prefs.textureSize, MOBILE ? 0.5 : 1), []); // eslint-disable-line react-hooks/exhaustive-deps
   const textures = renderer.textures;
@@ -162,8 +166,9 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeProject(project)));
+      setSaveStatus("saved");
     } catch {
-      // storage full or blocked (large images): the project still works, it just is not remembered
+      setSaveStatus("unavailable");
     }
   }, [project]);
 
@@ -180,11 +185,12 @@ export default function App() {
 
   const actions = {
     screenshot: (aspect) =>
-      offer({
+      setSheet({
         kind: "image",
-        title: aspect ? `Screenshot ${aspect}` : "Screenshot",
+        title: aspect ? `Preview ${aspect}` : "Preview screenshot",
         url: viewer.current.screenshot(aspect, { transparent: prefs.transparent }),
         filename: `kit${aspect ? `-${aspect.replace(":", "x")}` : ""}${prefs.transparent ? "-transparent" : ""}.png`,
+        preview: true,
       }),
     /** kind: "color" (the texture), "normal" or "orm" (material maps, when the garment has them). */
     texture: (garment, kind = "color") => {
@@ -203,6 +209,7 @@ export default function App() {
     setTransparent: (v) => setPref("transparent", v),
     save: () =>
       offer({ kind: "json", title: "Design file", text: JSON.stringify(serializeProject(project), null, 2), filename: "kit-design.json" }),
+    saveStatus,
     load: async (file) => {
       try {
         const data = JSON.parse(await file.text());
@@ -211,7 +218,7 @@ export default function App() {
         setError("That file is not a kit design (JSON).");
       }
     },
-    reset: () => setProject({ ...structuredClone(DEFAULT_PROJECT), template: shirtNames[0]?.name || DEFAULT_PROJECT.template }),
+    reset: () => setConfirmReset(true),
     view: (preset) => {
       setView("3d");
       viewer.current?.view(preset);
@@ -236,7 +243,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" ref={app} style={previewHeight == null ? undefined : { "--preview-height": `${previewHeight}px` }}>
       <main className="stage">
         {kits && (
           <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
@@ -277,7 +284,38 @@ export default function App() {
           ))}
         </div>
       </main>
-      {sheet && <ExportSheet file={sheet} onClose={() => setSheet(null)} />}
+      <div className="preview-resize" role="separator" aria-label="Resize 3D preview" aria-orientation="horizontal"
+        aria-valuemin={25} aria-valuemax={75}
+        aria-valuenow={Math.round(((previewHeight ?? window.innerHeight * 0.46) / window.innerHeight) * 100)}
+        tabIndex={0}
+        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); }}
+        onPointerMove={(e) => {
+          if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+          const top = app.current.getBoundingClientRect().top;
+          setPreviewHeight(Math.max(200, Math.min(app.current.clientHeight - 200, e.clientY - top)));
+        }}
+        onKeyDown={(e) => {
+          if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
+          e.preventDefault();
+          if (e.key === "Home") return setPreviewHeight(null);
+          setPreviewHeight(Math.max(200, Math.min(app.current.clientHeight - 200,
+            (previewHeight ?? app.current.clientHeight * 0.46) + (e.key === "ArrowDown" ? 24 : -24))));
+        }}><span aria-hidden="true" /></div>
+      {sheet && <ExportSheet file={sheet} onClose={() => setSheet(null)}
+        onDownload={CAN_DOWNLOAD ? () => { download(sheet.url, sheet.filename); setSheet(null); } : null} />}
+      {confirmReset && <div className="sheet-backdrop" onClick={() => setConfirmReset(false)}>
+        <div className="sheet confirm-sheet" role="alertdialog" aria-modal="true" aria-label="Reset design" onClick={(e) => e.stopPropagation()}>
+          <h2>Reset this design?</h2>
+          <p>This replaces the current kit with the starter design. Save a JSON copy first if you want to keep it.</p>
+          <div className="row">
+            <button type="button" className="quiet" onClick={() => setConfirmReset(false)}>Cancel</button>
+            <button type="button" onClick={() => {
+              setProject({ ...structuredClone(DEFAULT_PROJECT), template: shirtNames[0]?.name || DEFAULT_PROJECT.template });
+              setConfirmReset(false);
+            }}>Reset design</button>
+          </div>
+        </div>
+      </div>}
       <Panel
         project={project}
         setProject={setProject}

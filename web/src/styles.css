@@ -406,5 +406,48 @@ body, .app {
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; }
   .panel-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .panel-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); top: -1px; }
+  .panel-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); top: -1px; z-index: 4; background: rgba(20, 20, 22, .97); backdrop-filter: blur(18px); }
+}
+
+/* The 3D scene stays black while the rest of the editor retains its glass finish. */
+.stage { background: #000; }
+.view-buttons[hidden] { display: none; }
+.quick-start { position: relative; display: grid; gap: 5px; padding: 14px 42px 14px 14px; margin: 2px 0 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--raised); }
+.quick-start strong { font-size: 14px; }
+.quick-start p { margin: 0; color: var(--muted); font-size: 12px; }
+.panel .quick-start-close { position: absolute; top: 7px; right: 7px; width: 28px; height: 28px; padding: 0; font-size: 20px; }
+.save-status { margin: 0; color: #a8d9bb; font-size: 12px; }
+.save-status.warning { color: var(--danger); }
+.export-preview { max-height: min(58dvh, 560px); object-fit: contain; background-color: #242832 !important; background-image: conic-gradient(#333945 25%, #242832 0 50%, #333945 0 75%, #242832 0); background-size: 24px 24px !important; }
+.confirm-sheet .row { justify-content: flex-end; }
+.confirm-sheet .row button { flex: 0 0 auto; }
+.preview-resize { display: none; }
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .app { position: relative; grid-template-columns: minmax(0, 1fr); grid-template-rows: clamp(200px, var(--preview-height, 46dvh), calc(100dvh - 200px)) minmax(0, 1fr); height: 100dvh; }
+  .stage { grid-column: 1; grid-row: 1; }
+  .panel { grid-column: 1; grid-row: 2; min-height: 0; margin: 0 8px 8px; padding: 12px 16px calc(20px + env(safe-area-inset-bottom, 0px)); border-radius: 18px; }
+  .panel-body { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .panel-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); top: -1px; z-index: 4; background: rgba(20, 20, 22, .97); backdrop-filter: blur(18px); }
+  .preview-resize { position: absolute; top: clamp(200px, var(--preview-height, 46dvh), calc(100dvh - 200px)); left: 0; z-index: 5; display: grid; place-items: center; width: 100%; height: 28px; transform: translateY(-50%); cursor: ns-resize; touch-action: none; }
+  .preview-resize span { width: 44px; height: 6px; border-radius: 999px; background: #eee; box-shadow: 0 0 0 5px rgba(15, 15, 17, .82); }
+  .preview-resize:focus-visible span { outline: 2px solid var(--accent); outline-offset: 6px; }
+  .stage-tools { top: max(10px, env(safe-area-inset-top, 0px)); left: 10px; right: 10px; gap: 6px; }
+  .stage-tools .seg button, .stage-tools select { min-height: 40px; }
+  .view-buttons { bottom: max(10px, env(safe-area-inset-bottom, 0px)); gap: 6px; max-width: calc(100% - 24px); overflow-x: auto; }
+  .view-buttons button { flex: 0 0 auto; min-height: 40px; padding: 8px 12px; }
+  .stage-note { bottom: max(58px, calc(env(safe-area-inset-bottom, 0px) + 52px)); left: 10px; font-size: 12px; }
+}
+@media (max-width: 760px) and (orientation: landscape) {
+  .app { grid-template-columns: minmax(260px, 40vw) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100dvh; }
+  .panel { grid-column: 1; grid-row: 1; margin: 8px 0 8px 8px; padding: 10px 12px 16px; }
+  .stage { grid-column: 2; grid-row: 1; }
+  .stage-tools { top: 8px; left: 8px; right: 8px; gap: 4px; }
+}
+@media (max-width: 900px) and (orientation: portrait), (max-width: 760px) {
+  .panel { display: flex; flex-direction: column; overflow: hidden; }
+  .panel-header { flex: 0 0 auto; }
+  .panel-body { display: flex; flex: 1 1 auto; flex-direction: column; align-items: stretch; min-height: 0; overflow: hidden; }
+  .panel-nav { position: static; flex: 0 0 auto; width: 100%; }
+  .panel-content { flex: 1 1 auto; width: 100%; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; }
 }

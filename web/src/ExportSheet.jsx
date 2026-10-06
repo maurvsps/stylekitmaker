@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Shows an export when the page cannot download files: the image to press-and-hold, or the JSON to copy. */
-export default function ExportSheet({ file, onClose }) {
+export default function ExportSheet({ file, onClose, onDownload }) {
   const close = useRef(null);
   const text = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -33,8 +33,10 @@ export default function ExportSheet({ file, onClose }) {
         </div>
         {file.kind === "image" ? (
           <>
-            <img src={file.url} alt={file.title} />
-            <p>Press and hold the image to save it (right-click on a computer).</p>
+            <img className={file.preview ? "export-preview" : ""} src={file.url} alt={file.title} />
+            {file.preview && <p>Check the framing and crop. The image will be saved as {file.filename}.</p>}
+            {file.preview && onDownload && <button type="button" onClick={onDownload}>Download PNG</button>}
+            {!onDownload && <p>Press and hold the image to save it (right-click on a computer).</p>}
           </>
         ) : (
           <>
