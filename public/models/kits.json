@@ -3,7 +3,7 @@
     {
       "name": "shirt_clo",
       "garment": "shirt",
-      "label": "Crew neck (realistic)",
+      "label": "Crew neck (narrow binding)",
       "params": {
         "collar": "crew",
         "sleeves": "short",
@@ -25,18 +25,7 @@
     {
       "name": "shirt_clo_v",
       "garment": "shirt",
-      "label": "V-neck (realistic)",
-      "params": {
-        "collar": "v-neck",
-        "sleeves": "short",
-        "fit": "regular",
-        "source": "clo"
-      }
-    },
-    {
-      "name": "shirt_clo_v_wide",
-      "garment": "shirt",
-      "label": "V-neck, wide trim (realistic)",
+      "label": "V-neck (curved)",
       "params": {
         "collar": "v-neck",
         "sleeves": "short",
@@ -47,7 +36,7 @@
     {
       "name": "shirt_clo_wide",
       "garment": "shirt",
-      "label": "Crew neck, wide band (realistic)",
+      "label": "Crew neck (wide band)",
       "params": {
         "collar": "crew",
         "sleeves": "short",

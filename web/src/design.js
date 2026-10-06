@@ -37,7 +37,8 @@ const HEX = /^#[0-9a-f]{6}$/i;
 export function sanitizeDesign(input, templates = []) {
   const d = { ...DEFAULT_DESIGN };
   if (!input || typeof input !== "object") return d;
-  if (typeof input.template === "string" && (!templates.length || templates.includes(input.template))) d.template = input.template;
+  const template = resolveTemplate(input.template);
+  if (typeof template === "string" && (!templates.length || templates.includes(template))) d.template = template;
   if (Array.isArray(input.colors)) d.colors = DEFAULT_DESIGN.colors.map((c, i) => (HEX.test(input.colors[i]) ? input.colors[i].toLowerCase() : c));
   if (PATTERNS.some((p) => p.id === input.pattern)) d.pattern = input.pattern;
   if (FONTS.some((f) => f.id === input.font)) d.font = input.font;
@@ -55,6 +56,10 @@ export function sanitizeDesign(input, templates = []) {
     };
   }
   return d;
+}
+
+export function resolveTemplate(name) {
+  return name === "shirt_clo_v_wide" ? "shirt_clo_v" : name;
 }
 
 export const cleanName = (s) => s.toUpperCase().slice(0, 14);

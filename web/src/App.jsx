@@ -4,7 +4,7 @@ import TextureView from "./TextureView.jsx";
 import { isTyping } from "./LayersPanel.jsx";
 import Panel from "./Panel.jsx";
 import ExportSheet from "./ExportSheet.jsx";
-import { FONTS, fontCss } from "./design.js";
+import { FONTS, fontCss, resolveTemplate } from "./design.js";
 import { DEFAULT_PROJECT, fontsInUse, sanitizeProject, serializeProject } from "./project.js";
 import { KitRenderer } from "./kitRenderer.js";
 
@@ -109,7 +109,10 @@ export default function App() {
       setTemplates(Object.fromEntries(entries));
       setKits(kits);
       const shirts = kits.filter((k) => k.garment === "shirt").map((k) => k.name);
-      setProjectRaw((p) => (shirts.includes(p.template) ? p : { ...p, template: shirts[0] }));
+      setProjectRaw((p) => {
+        const template = resolveTemplate(p.template);
+        return shirts.includes(template) ? { ...p, template } : { ...p, template: shirts[0] };
+      });
     })().catch((err) => setError(`Could not load the kit templates (${err.message}). Run blender/make_kit.py first.`));
   }, []);
 

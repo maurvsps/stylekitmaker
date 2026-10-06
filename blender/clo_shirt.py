@@ -1,9 +1,9 @@
 """
 Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj).
 
-    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|v_wide|scoop|wide] [--name shirt_clo]
+    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|scoop|wide] [--name shirt_clo]
 
---collar picks the neck (see COLLARS): v, v_wide and scoop cut a deeper neckline into the front panel. Every variant
+--collar picks the neck (see COLLARS): v, scoop and wide reshape the front neckline. Every variant
 replaces CLO's standing strip with a flat rib binding. Each builds its own template (shirt_clo_v, ...).
 
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
@@ -36,13 +36,12 @@ SEAM = 0.004            # metres: vertices this close across two pieces count as
 # The original CLO strip stands too far into the opening. Rebuild each variant with a smooth rib binding that lies
 # on the shirt outside the neck edge, as on a sewn football jersey.
 COLLARS = {
-    "crew": ("", "Crew neck (realistic)", None, 0.009),
-    "v": ("_v", "V-neck (realistic)", "v", 0.009),
-    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.014),
+    "crew": ("", "Crew neck (narrow binding)", None, 0.008),
+    "v": ("_v", "V-neck (curved)", "v", 0.010),
     "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.012),
-    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.016),
+    "wide": ("_wide", "Crew neck (wide band)", "wide", 0.028),
 }
-NECK_DEPTH = {"v": 0.025, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
+NECK_DEPTH = {"v": 0.018, "scoop": 0.04, "wide": 0.012}  # extra drop at front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -283,7 +282,7 @@ def stitch(ps, reach=0.006):
 
 
 def cut_neckline(front, collar, shape, depth):
-    """Cut a deeper neckline into the front panel, in its flat frame (p across, q up): a straight V or a round
+    """Cut a deeper neckline into the front panel, in its flat frame (p across, q up): a soft V or a round
     scoop from CLO's neck corners down to `depth` below its front centre. Triangles crossing the line are clipped."""
     P, uv = front["P"], front["uv"]
     C = np.concatenate([c["P"] for c in collar])
@@ -293,13 +292,13 @@ def cut_neckline(front, collar, shape, depth):
     ps = np.abs(nb[:, 0]).max()
     qs = nb[np.abs(nb[:, 0]) > 0.9 * ps, 1].min()
     qv = nb[np.abs(nb[:, 0]) < 0.03, 1].min() - depth
-    span = ps * (0.7 if shape == "v" else 1.0)
+    span = ps * (0.85 if shape == "v" else 1.0)
     if shape == "v":
-        # Join the straight V arms to the existing crew curve before they reach the shoulders.
+        # Join the curved V arms to the existing crew curve before they reach the shoulders.
         at_join = nb[np.abs(np.abs(nb[:, 0]) - span) < ps * 0.05, 1]
         qs = float(np.median(at_join)) if len(at_join) else qs
     a = np.clip(np.abs(uv[:, 0]) / span, 0, 1)
-    line = qv + (qs - qv) * (a if shape == "v" else 1 - np.sqrt(1 - a * a))
+    line = qv + (qs - qv) * (a ** 0.75 if shape == "v" else 1 - np.sqrt(1 - a * a))
     f = np.where(np.abs(uv[:, 0]) < span, line - uv[:, 1], 1.0)  # >= 0: keep
     keys = ("P", "R", "uv")
     extra = {k: [] for k in keys}
@@ -407,7 +406,9 @@ def sew_band(part, neck_ids, width, rows=4, samples=160, pointed=False):
     grid = []
     for r in range(rows):
         q = -tuck + (width + tuck) * r / (rows - 1)
-        grid.append([part.vert(c[i] + d[i] * q + normal[i] * 0.001) for i in range(samples)])
+        # A broad rib knit has a little loft; keep its outer edge above the curved body fabric.
+        lift = 0.001 + max(0.0, width - 0.012) * 0.25 * max(0.0, q / width)
+        grid.append([part.vert(c[i] + d[i] * q + normal[i] * lift) for i in range(samples)])
     seg = np.linalg.norm(np.roll(c, -1, 0) - c, axis=1)
     s = np.concatenate([[0], np.cumsum(seg)])
     k0 = samples // 2  # t = 0: the front centre

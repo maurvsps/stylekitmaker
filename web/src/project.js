@@ -31,7 +31,7 @@
 //   group    { children: [layers...] }
 // `role` (optional) marks the layers the panel's shortcuts edit: crest, sponsor, name, number.
 
-import { DEFAULT_DESIGN, FONTS, cleanName, cleanNumber, sanitizeDesign } from "./design.js";
+import { DEFAULT_DESIGN, FONTS, cleanName, cleanNumber, resolveTemplate, sanitizeDesign } from "./design.js";
 import { GRAPHICS, MATERIALS, REGIONS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
 
 export const PROJECT_VERSION = 4;
@@ -198,7 +198,8 @@ export function sanitizeProject(input, templates = []) {
   if (!input || typeof input !== "object") return structuredClone(DEFAULT_PROJECT);
   if (!(Number(input.version) >= 2) || !input.garments) return projectFromDesign(input, templates);
   const p = structuredClone(DEFAULT_PROJECT);
-  if (typeof input.template === "string" && (!templates.length || templates.includes(input.template))) p.template = input.template;
+  const template = resolveTemplate(input.template);
+  if (typeof template === "string" && (!templates.length || templates.includes(template))) p.template = template;
   if (Array.isArray(input.palette)) p.palette = p.palette.map((c, i) => (HEX.test(input.palette[i]) ? input.palette[i].toLowerCase() : c));
   if (FONTS.some((f) => f.id === input.font)) p.font = input.font;
   if (input.player && typeof input.player === "object") {

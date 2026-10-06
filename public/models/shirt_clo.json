@@ -1,7 +1,7 @@
 {
   "template": "shirt",
   "name": "shirt_clo",
-  "label": "Crew neck (realistic)",
+  "label": "Crew neck (narrow binding)",
   "params": {
     "collar": "crew",
     "sleeves": "short",
@@ -22,40 +22,40 @@
       "rect": [
         0.02,
         0.02,
-        0.409558,
-        0.596668
+        0.409933,
+        0.597215
       ],
       "pmin": -0.243237,
       "qmax": 0.708725,
-      "scale": 0.841889
+      "scale": 0.842661
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.449558,
+        0.449933,
         0.02,
-        0.409558,
-        0.691344
+        0.409933,
+        0.691977
       ],
       "pmin": -0.243237,
       "qmax": 0.821181,
-      "scale": 0.841889
+      "scale": 0.842661
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.392106,
-        0.731344,
-        0.352106,
-        0.219785
+        0.392429,
+        0.731977,
+        0.352429,
+        0.219986
       ],
       "pmin": -0.138327,
       "qmax": 0.0,
-      "scale": 0.841889,
+      "scale": 0.842661,
       "length": 0.2611
     },
     "sleeve_right": {
@@ -64,13 +64,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.731344,
-        0.352106,
-        0.219816
+        0.731977,
+        0.352429,
+        0.220018
       ],
       "pmin": -0.279906,
       "qmax": 0.0,
-      "scale": 0.841889,
+      "scale": 0.842661,
       "length": 0.2611
     },
     "collar": {
@@ -79,13 +79,13 @@
       "frame": "p: metres around from the front centre, q: metres up the band",
       "rect": [
         0.02,
-        0.97116,
-        0.499643,
-        0.00884
+        0.971995,
+        0.500101,
+        0.008005
       ],
       "pmin": -0.297568,
-      "qmax": 0.009,
-      "scale": 0.841889
+      "qmax": 0.008,
+      "scale": 0.842661
     }
   }
 }
