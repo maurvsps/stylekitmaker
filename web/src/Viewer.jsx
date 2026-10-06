@@ -310,10 +310,11 @@ function capture(t, aspect) {
  */
 function makeFabric(name, map, ao) {
   const inner = name.endsWith("_inner"); // the inner shell (blender/make_kit.py thicken)
+  const sleeve = name.startsWith("shirt_sleeves");
   const material = new THREE.MeshPhysicalMaterial({
     name, map, side: THREE.DoubleSide,
     roughness: FABRIC.roughness, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
-    aoMap: ao, aoMapIntensity: 1,
+    aoMap: ao, aoMapIntensity: sleeve ? 0.45 : 1,
     normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
   });
   if (inner) material.defines = { ...material.defines, USE_INNER: "" }; // its own shader program
@@ -356,7 +357,7 @@ function makeFabric(name, map, ao) {
     if (ao) {
       fs = fs.replace(
         "#include <aomap_fragment>",
-        "#include <aomap_fragment>\n\treflectedLight.directDiffuse *= mix(1.0, ambientOcclusion, 0.8);",
+        `#include <aomap_fragment>\n\treflectedLight.directDiffuse *= mix(1.0, ambientOcclusion, ${sleeve ? "0.3" : "0.8"});`,
       );
     }
     fs = fs.replace(

@@ -28,7 +28,7 @@ import make_kit as mk  # noqa: E402  (imports bpy, which provides mathutils)
 SCALE = 1.1             # CLO avatar -> our kit: the collar top lands where make_kit's crew collar does
 DROP = 0.03             # metres the hem hangs below z = 0, over the top of the shorts
 NECK_Y = 0.005          # our neck's centre, front to back
-DECIMATE = 0.4          # keep this share of CLO's triangles: its sim mesh is far denser than the view needs
+DECIMATE = 1.0          # preserve the CLO seam triangles; decimation flips UVs at shoulders and armholes
 WELD = 0.0006           # metres: vertices this close (where CLO sewed two pieces) become one
 SEAM = 0.004            # metres: vertices this close across two pieces count as sewn together
 
@@ -225,10 +225,8 @@ def place(ps):
 
 def match_yoke(yoke, home, others):
     """The yoke is laid out next to the panel it shares the most seam with (`home`), so a vertical pattern runs on
-    from that panel over the shoulder, but meets the other panel's stripes a few centimetres off (a white block
-    on a red stripe at the shoulder seam). Shear its p so that along the other seam it matches that panel too,
-    blending from no change at the home seam. Pattern space mirrors the back, so the other panel's p is matched
-    with whichever sign fits the yoke as laid out."""
+    from that panel over the shoulder. Match its stripes to the other panel with a smooth correction: mapping each
+    vertex to its nearest seam sample folds tiny UV triangles at the armhole and creates dark specks in the bake."""
     P = yoke["P"] / 1000
     home_ids = np.array([i for i, _ in seam_pairs(P, home["P"] / 1000, SEAM)])
     for other in others:
@@ -239,12 +237,13 @@ def match_yoke(yoke, home, others):
         cur = yoke["uv"][i, 0]
         target = min((sign * other["uv"][j, 0] for sign in (1, -1)), key=lambda t: np.abs(t - cur).mean())
         delta = target - cur
+        # A low-order curve follows the seam shift without the abrupt nearest-sample jumps that invert UV faces.
+        correction = np.polyval(np.polyfit(cur, delta, 2), yoke["uv"][:, 0])
         d_home = np.linalg.norm(P[:, None, :] - P[None, home_ids, :], axis=2).min(1) if len(home_ids) else 1
         d_seam = np.linalg.norm(P[:, None, :] - P[None, i, :], axis=2)
-        near = d_seam.argmin(1)
         w = d_home / np.maximum(d_home + d_seam.min(1), 1e-9)
-        yoke["uv"][:, 0] += w * delta[near]
-        print(f"[clo] yoke matched to {other['role']}: shifted up to {np.abs(delta).max() * 100:.1f} cm at its seam")
+        yoke["uv"][:, 0] += w * correction
+        print(f"[clo] yoke matched to {other['role']}: shifted up to {np.abs(w * correction).max() * 100:.1f} cm")
 
 
 # ---------------------------------------------------------------- the part
