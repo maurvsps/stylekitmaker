@@ -645,9 +645,6 @@ body, .app {
   overflow-y: auto;
   padding: 2px;
 }
-.preset-grid.sponsors-grid {
-  grid-template-columns: repeat(3, 1fr);
-}
 .preset-grid.clubs-grid {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -664,8 +661,12 @@ body, .app {
   border: 1px solid var(--line);
   cursor: pointer;
   box-shadow: none;
-  min-height: 58px;
+  min-height: 54px;
   text-align: center;
+}
+.panel .preset-card.club-card {
+  min-height: 38px;
+  padding: 8px 6px;
 }
 .panel .preset-card:hover {
   background: var(--hover);
@@ -684,10 +685,6 @@ body, .app {
   max-height: 100%;
   object-fit: contain;
 }
-.preset-icon.sponsor-svg {
-  width: 58px;
-  height: 22px;
-}
 .preset-label {
   font-size: 10px;
   font-weight: 600;
@@ -699,9 +696,6 @@ body, .app {
 }
 .panel .preset-card:hover .preset-label {
   color: var(--text);
-}
-.club-badge-icon {
-  font-size: 16px;
 }
 
 /* Search block */

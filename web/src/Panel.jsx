@@ -3,10 +3,9 @@ import { cleanName, cleanNumber } from "./design.js";
 import ColorButton from "./ColorPicker.jsx";
 import LayersPanel from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
-import { findOpenImagePosition } from "./imagePlacement.js";
 import { prepareLogo } from "./logoImage.js";
 import { fetchLogo, searchCrests, searchKitBrands, searchSponsors } from "./logoSearch.js";
-import { KIT_BRANDS, SPONSOR_PRESETS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
+import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 
 // The sidebar: one section at a time, so the panel stays short.
 const TABS = [
@@ -37,8 +36,8 @@ const savedLogoSubTab = () => {
   }
 };
 
-const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // stored in the design
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // a raster file before prepareLogo shrinks it
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
 const FINISH_PRESETS = [
   { id: "flat", label: "Flat print", finish: { relief: 0, stitch: false, roughness: null, metalness: null }, texture: "kit" },
@@ -46,6 +45,15 @@ const FINISH_PRESETS = [
   { id: "embroidered", label: "Embroidered", finish: { relief: 0.45, stitch: true, roughness: 0.6, metalness: null }, texture: "smooth" },
   { id: "foil", label: "Metallic", finish: { relief: 0.1, stitch: false, roughness: 0.3, metalness: 0.9 }, texture: "smooth" },
 ];
+
+const DEFAULT_SLOT_SIZES = {
+  crest: 0.08,
+  brand: 0.058,
+  "shirt-sponsor": 0.22,
+  "back-sponsor": 0.16,
+  "sleeve-left": 0.065,
+  "sleeve-right": 0.065,
+};
 
 export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
@@ -55,7 +63,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     try { return !localStorage.getItem("kit-maker:guide-dismissed") && !localStorage.getItem("kit-maker:design"); }
     catch { return true; }
   });
-  const [selection, setSelection] = useState({}); // garment -> selected layer id
+  const [selection, setSelection] = useState({});
   const [tab, setTab] = useState(savedTab);
   const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
@@ -82,9 +90,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const set = (fields) => setProject((p) => ({ ...p, ...fields }));
   const shirtRole = (role) => findRole(project.garments.shirt.layers, role);
 
-  /**
-   * Read an image file into the project's assets; resolves to { id, name } (or null after showing an error).
-   */
+  /** Read an image file into project assets */
   const uploadImage = async (file) => {
     if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
       onError("Images must be PNG, SVG, JPEG or WebP files.");
@@ -136,24 +142,39 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
   const slotLayer = (slot) => findRole(project.garments[slot.garment].layers, slot.id === "crest" ? "crest" : `logo-${slot.id}`);
 
-  const uploadLogo = async (file, slot) => {
+  /**
+   * Places or updates an image in a specific kit slot.
+   * Fixed slots stay strictly at their designated coordinates rather than wandering.
+   */
+  const uploadLogo = async (file, slot, customSize = null) => {
     const asset = await uploadImage(file);
     if (!asset) return;
     const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
-    const preferred = { surface: slot.surface, x: slot.x, y: slot.y };
-    const position = findOpenImagePosition(project.garments[slot.garment].layers, slot.garment, templates[models[slot.garment]], preferred,
-      slot.id.includes("sponsor") ? 0.16 : slot.id.includes("sleeve") ? 0.055 : 0.085);
+    const standardSize = customSize || DEFAULT_SLOT_SIZES[slot.id] || 0.08;
+
     const fresh = makeLayer("image", slot.garment, {
-      role, name: slot.label, asset: asset.id, surface: position.surface,
+      role,
+      name: slot.label,
+      asset: asset.id,
+      surface: slot.surface,
       texture: slot.id === "crest" || slot.id === "brand" ? "smooth" : "kit",
-      size: slot.id.includes("sleeve") ? 0.055 : slot.id.includes("sponsor") ? 0.16 : 0.085,
-      transform: { ...IDENTITY, x: position.x, y: position.y },
+      size: standardSize,
+      transform: { ...IDENTITY, x: slot.x, y: slot.y },
     });
+
     const existing = findRole(project.garments[slot.garment].layers, role);
     setProject((p) => editLayers(p, slot.garment, (ls) => {
       const old = findRole(ls, role);
       const cleared = hideAt(ls, slot, role);
-      return old ? mapLayer(cleared, old.id, (l) => ({ ...l, asset: asset.id })) : [...cleared, fresh];
+      if (old) {
+        return mapLayer(cleared, old.id, (l) => ({
+          ...l,
+          asset: asset.id,
+          // When a custom size is specified (e.g. from preset), use it; otherwise maintain layer size
+          size: customSize || l.size || standardSize,
+        }));
+      }
+      return [...cleared, fresh];
     }));
     setGarment(slot.garment);
     select(existing?.id || fresh.id, slot.garment);
@@ -162,6 +183,12 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const removeLogo = (slot) => {
     const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
     setProject((p) => editLayers(p, slot.garment, (ls) => ls.filter((l) => l.role !== role)));
+  };
+
+  const setSlotSize = (slot, sizeMeters) => {
+    const layer = slotLayer(slot);
+    if (!layer) return;
+    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, size: sizeMeters }))));
   };
 
   const setSlotTint = (slot, tint) => {
@@ -225,7 +252,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
   const applyPreset = async (preset, targetSlot) => {
     const file = presetToFile(preset);
-    await uploadLogo(file, targetSlot);
+    await uploadLogo(file, targetSlot, preset.size || DEFAULT_SLOT_SIZES[targetSlot.id]);
   };
 
   const pickPopularClub = async (club) => {
@@ -269,7 +296,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       <header className="panel-header">
         <div className="brand-mark" aria-hidden="true">K</div>
         <div><h1>Kit Maker</h1><p>Custom kit studio</p></div>
-        <button className="quiet header-action" type="button" onClick={actions.reset} title="Start a new design" aria-label="New design">＋</button>
+        <button className="quiet header-action" type="button" onClick={actions.reset} title="Start a new design" aria-label="New design">+</button>
       </header>
 
       <div className="panel-body">
@@ -286,7 +313,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <button type="button" className="quiet quick-start-close" aria-label="Dismiss getting started guide" onClick={() => {
           setShowGuide(false);
           try { localStorage.setItem("kit-maker:guide-dismissed", "1"); } catch { /* private browsing */ }
-        }}>×</button>
+        }}>x</button>
         <strong>Make your first kit</strong>
         <p>Choose a shirt template, pick your colours, then add a crest or sponsor. Rotate the 3D kit to check the result.</p>
       </div>}
@@ -313,7 +340,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
       {tab === "logos" && (
         <Section title="Emblems & sponsors" eyebrow="02" className="logo-section">
-          {/* Sub-navigation separating Badges, Kit Brands (Puma/Nike...), and Shirt Sponsors */}
+          {/* Sub-navigation without emojis */}
           <div className="logo-subnav" role="tablist" aria-label="Emblem categories">
             <button
               type="button"
@@ -322,7 +349,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
               className={logoSubTab === "brand" ? "on" : ""}
               onClick={() => setLogoSubTab("brand")}
             >
-              <span>⚡ Brand (Puma)</span>
+              <span>Brand</span>
             </button>
             <button
               type="button"
@@ -331,7 +358,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
               className={logoSubTab === "sponsors" ? "on" : ""}
               onClick={() => setLogoSubTab("sponsors")}
             >
-              <span>🏷️ Sponsors</span>
+              <span>Sponsors</span>
             </button>
             <button
               type="button"
@@ -340,7 +367,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
               className={logoSubTab === "crest" ? "on" : ""}
               onClick={() => setLogoSubTab("crest")}
             >
-              <span>🛡️ Crest</span>
+              <span>Crest</span>
             </button>
             <button
               type="button"
@@ -349,16 +376,16 @@ export default function Panel({ project, setProject, garment, setGarment, templa
               className={logoSubTab === "all" ? "on" : ""}
               onClick={() => setLogoSubTab("all")}
             >
-              <span>📋 All</span>
+              <span>All</span>
             </button>
           </div>
 
-          {/* 1. KIT MAKER BRAND (MARCAS TIPO PUMA, NIKE, ADIDAS...) */}
+          {/* 1. KIT MAKER BRAND (PUMA, NIKE, ADIDAS...) */}
           {logoSubTab === "brand" && (
             <div className="category-pane">
               <div className="pane-intro">
                 <strong>Kit maker brand</strong>
-                <p>Technical apparel supplier (Puma, Nike, Adidas, Kappa, Umbro...). Placed on the chest.</p>
+                <p>Technical apparel supplier (Puma, Nike, Adidas, Umbro, Kappa...). Placed on the chest.</p>
               </div>
 
               {/* Active Brand Slot Card */}
@@ -399,6 +426,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     </div>
                   </div>
 
+                  {/* Size slider */}
+                  <SliderField
+                    label="Brand size"
+                    value={Math.round((brandLayer.size || DEFAULT_SLOT_SIZES.brand) * 100)}
+                    unit="cm"
+                    min={2}
+                    max={12}
+                    step={0.2}
+                    onChange={(cm) => setSlotSize(brandSlot, cm / 100)}
+                  />
+
                   <TintPicker
                     value={brandLayer.tint}
                     palette={project.palette}
@@ -415,7 +453,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
               {/* Quick-Pick Popular Kit Makers */}
               <div className="preset-section">
-                <span className="group-label">Popular kit brands (1-click apply)</span>
+                <span className="group-label">Popular kit brands</span>
                 <div className="preset-grid">
                   {KIT_BRANDS.map((b) => (
                     <button
@@ -442,7 +480,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </div>
           )}
 
-          {/* 2. SHIRT SPONSORS (SPONSORS CAMISETA) */}
+          {/* 2. SHIRT SPONSORS */}
           {logoSubTab === "sponsors" && (
             <div className="category-pane">
               <div className="pane-intro">
@@ -450,8 +488,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 <p>Commercial club sponsors: main chest, lower back, and sleeve patches.</p>
               </div>
 
-              {/* Target sponsor slot selector */}
-              <span className="group-label">Select sponsor spot to edit</span>
+              {/* Target sponsor spot selector */}
+              <span className="group-label">Select spot to edit</span>
               <div className="sponsor-slot-selector">
                 {sponsorSlots.map((s) => {
                   const l = slotLayer(s);
@@ -481,6 +519,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
               {slotLayer(activeSponsorSlot) && (
                 <div className="slot-customizer">
+                  {/* Size slider */}
+                  <SliderField
+                    label="Sponsor size"
+                    value={Math.round((slotLayer(activeSponsorSlot).size || DEFAULT_SLOT_SIZES[activeSponsorSlot.id] || 0.18) * 100)}
+                    unit="cm"
+                    min={4}
+                    max={activeSponsorSlot.id.includes("sponsor") ? 36 : 14}
+                    step={0.5}
+                    onChange={(cm) => setSlotSize(activeSponsorSlot, cm / 100)}
+                  />
+
                   <TintPicker
                     value={slotLayer(activeSponsorSlot).tint}
                     palette={project.palette}
@@ -494,25 +543,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   />
                 </div>
               )}
-
-              {/* Quick-Pick Popular Sponsors */}
-              <div className="preset-section">
-                <span className="group-label">Iconic shirt sponsors (1-click apply to {activeSponsorSlot.label})</span>
-                <div className="preset-grid sponsors-grid">
-                  {SPONSOR_PRESETS.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className="preset-card sponsor-card"
-                      title={`Apply ${s.name}`}
-                      onClick={() => applyPreset(s, activeSponsorSlot)}
-                    >
-                      <div className="preset-icon sponsor-svg" dangerouslySetInnerHTML={{ __html: s.svg }} />
-                      <span className="preset-label">{s.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               {/* Search online sponsors */}
               <SearchBlock
@@ -543,7 +573,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </div>
           )}
 
-          {/* 3. CLUB CREST (ESCUDO DEL CLUB) */}
+          {/* 3. CLUB CREST */}
           {logoSubTab === "crest" && (
             <div className="category-pane">
               <div className="pane-intro">
@@ -582,6 +612,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     </div>
                   </div>
 
+                  {/* Size slider */}
+                  <SliderField
+                    label="Crest size"
+                    value={Math.round((crestLayer.size || DEFAULT_SLOT_SIZES.crest) * 100)}
+                    unit="cm"
+                    min={4}
+                    max={15}
+                    step={0.5}
+                    onChange={(cm) => setSlotSize(crestSlot, cm / 100)}
+                  />
+
                   <FinishSelector
                     finish={crestLayer.finish}
                     texture={crestLayer.texture}
@@ -590,9 +631,9 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Popular Clubs quick-pick */}
+              {/* Popular Clubs quick-pick without emojis */}
               <div className="preset-section">
-                <span className="group-label">Top football clubs (1-click badge)</span>
+                <span className="group-label">Popular football clubs</span>
                 <div className="preset-grid clubs-grid">
                   {POPULAR_CLUBS.map((c) => (
                     <button
@@ -601,7 +642,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                       className="preset-card club-card"
                       onClick={() => pickPopularClub(c)}
                     >
-                      <span className="club-badge-icon">🛡️</span>
                       <span className="preset-label">{c.name}</span>
                     </button>
                   ))}
@@ -670,7 +710,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   <span className="label">Text sponsor:</span>
                   <strong>{sponsor.text}</strong>
                   <button type="button" className="quiet danger" onClick={clearSponsorText} title="Remove text sponsor">
-                    ✕
+                    x
                   </button>
                 </div>
               )}
@@ -752,7 +792,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           <select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
             {actions.textureSizes.map((s) => (
               <option key={s} value={s}>
-                {s} × {s}
+                {s} x {s}
               </option>
             ))}
           </select>
@@ -780,7 +820,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
       {tab === "export" && <Section title="Save & load" eyebrow="06">
         <p className={`save-status ${actions.saveStatus === "unavailable" ? "warning" : ""}`} role="status">
-          {actions.saveStatus === "saved" ? "● Saved on this device" : actions.saveStatus === "unavailable" ? "Browser storage unavailable. Export a JSON copy to keep your design." : "Saving…"}
+          {actions.saveStatus === "saved" ? "Saved on this device" : actions.saveStatus === "unavailable" ? "Browser storage unavailable. Export a JSON copy to keep your design." : "Saving..."}
         </p>
         <input ref={designInput} type="file" accept="application/json,.json" hidden onChange={(e) => {
           if (e.target.files[0]) actions.load(e.target.files[0]);
@@ -849,11 +889,31 @@ function SlotCard({ slot, layer, project, onUpload, onRemove, onSelect }) {
             title={`Remove ${slot.label}`}
             aria-label={`Remove ${slot.label}`}
           >
-            ✕
+            x
           </button>
         )}
       </div>
     </div>
+  );
+}
+
+/** Size adjustment slider */
+function SliderField({ label, value, unit, min, max, step = 1, onChange }) {
+  return (
+    <label className="slider">
+      <span>
+        <span>{label}</span>
+        <output>{value}{unit ? ` ${unit}` : ""}</output>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
   );
 }
 
@@ -870,7 +930,7 @@ function TintPicker({ value, palette, onChange }) {
   ];
   return (
     <div className="tint-picker-block">
-      <span className="group-label">Logo color tint</span>
+      <span className="group-label">Color tint</span>
       <div className="swatches">
         {options.map((opt) => (
           <button
@@ -954,7 +1014,7 @@ function SearchBlock({ placeholder, onSearch, onPick, onError, credit }) {
           placeholder={placeholder}
           aria-label="Search"
         />
-        <button type="submit" disabled={busy}>{busy ? "…" : "Find"}</button>
+        <button type="submit" disabled={busy}>{busy ? "..." : "Find"}</button>
       </form>
       {results && (
         <div className="search-results-area">
