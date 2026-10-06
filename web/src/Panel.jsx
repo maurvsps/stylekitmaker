@@ -5,7 +5,8 @@ import LayersPanel from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import { prepareLogo } from "./logoImage.js";
-import { fetchLogo, searchBrands, searchCrests } from "./logoSearch.js";
+import { fetchLogo, searchCrests, searchKitBrands, searchSponsors } from "./logoSearch.js";
+import { KIT_BRANDS, SPONSOR_PRESETS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 
 // The sidebar: one section at a time, so the panel stays short.
 const TABS = [
@@ -16,6 +17,8 @@ const TABS = [
   { id: "export", label: "Export", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
 ];
 const TAB_KEY = "kit-maker:panel-tab";
+const LOGO_SUBTAB_KEY = "kit-maker:logo-subtab";
+
 const savedTab = () => {
   try {
     const t = localStorage.getItem(TAB_KEY);
@@ -25,8 +28,24 @@ const savedTab = () => {
   }
 };
 
+const savedLogoSubTab = () => {
+  try {
+    const t = localStorage.getItem(LOGO_SUBTAB_KEY);
+    return ["crest", "brand", "sponsors", "all"].includes(t) ? t : "brand";
+  } catch {
+    return "brand";
+  }
+};
+
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024; // stored in the design
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // a raster file before prepareLogo shrinks it
+
+const FINISH_PRESETS = [
+  { id: "flat", label: "Flat print", finish: { relief: 0, stitch: false, roughness: null, metalness: null }, texture: "kit" },
+  { id: "raised", label: "3D Raised", finish: { relief: 0.5, stitch: false, roughness: 0.5, metalness: null }, texture: "smooth" },
+  { id: "embroidered", label: "Embroidered", finish: { relief: 0.45, stitch: true, roughness: 0.6, metalness: null }, texture: "smooth" },
+  { id: "foil", label: "Metallic", finish: { relief: 0.1, stitch: false, roughness: 0.3, metalness: 0.9 }, texture: "smooth" },
+];
 
 export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
@@ -38,13 +57,25 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   });
   const [selection, setSelection] = useState({}); // garment -> selected layer id
   const [tab, setTab] = useState(savedTab);
+  const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
+  const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
+
   useEffect(() => {
     try {
       localStorage.setItem(TAB_KEY, tab);
     } catch {
-      /* storage blocked: the panel just opens on Kit next time */
+      /* storage blocked */
     }
   }, [tab]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOGO_SUBTAB_KEY, logoSubTab);
+    } catch {
+      /* storage blocked */
+    }
+  }, [logoSubTab]);
+
   const selected = selection[garment] && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
   const select = (id, g = garment) => setSelection((s) => ({ ...s, [g]: id }));
 
@@ -53,8 +84,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
   /**
    * Read an image file into the project's assets; resolves to { id, name } (or null after showing an error).
-   * Logos are cleaned up on the way in (logoImage.js): a flat background becomes transparent, margins are trimmed and
-   * big photos are scaled down, so a crest or brand logo saved from the web drops straight onto the shirt.
    */
   const uploadImage = async (file) => {
     if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
@@ -81,7 +110,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     return { id, name: file.name };
   };
 
-  // Shortcuts: the crest and sponsor are ordinary shirt layers marked with a role.
+  // Text sponsor
   const setSponsor = (text) =>
     setProject((p) =>
       editLayers(p, "shirt", (ls) => {
@@ -90,16 +119,23 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         return [...ls, makeLayer("text", "shirt", { role: "sponsor", name: "Sponsor", text, size: 0.065, maxWidth: 0.32, transform: { ...IDENTITY, y: 0.39 } })];
       }),
     );
+
+  const clearSponsorText = () =>
+    setProject((p) => editLayers(p, "shirt", (ls) => ls.filter((l) => l.role !== "sponsor")));
+
   const sponsor = shirtRole("sponsor");
 
   const logoSlots = [
-    { id: "crest", label: "Team crest", garment: "shirt", surface: "front", x: 0.095, y: 0.555 },
-    { id: "brand", label: "Brand", garment: "shirt", surface: "front", x: -0.095, y: 0.555 },
-    { id: "shirt-sponsor", label: "Front sponsor", garment: "shirt", surface: "front", x: 0, y: 0.38 },
-    { id: "back-sponsor", label: "Back sponsor", garment: "shirt", surface: "back", x: 0, y: 0.42 },
-    { id: "sleeve-left", label: "Left sleeve", garment: "shirt", surface: "sleeve_left", x: 0, y: 0.42 },
-    { id: "sleeve-right", label: "Right sleeve", garment: "shirt", surface: "sleeve_right", x: 0, y: 0.42 },
+    { id: "crest", label: "Team crest", category: "crest", garment: "shirt", surface: "front", x: 0.095, y: 0.555 },
+    { id: "brand", label: "Kit maker brand", category: "brand", garment: "shirt", surface: "front", x: -0.095, y: 0.555 },
+    { id: "shirt-sponsor", label: "Front sponsor", category: "sponsor", garment: "shirt", surface: "front", x: 0, y: 0.38 },
+    { id: "back-sponsor", label: "Back sponsor", category: "sponsor", garment: "shirt", surface: "back", x: 0, y: 0.42 },
+    { id: "sleeve-left", label: "Left sleeve", category: "sponsor", garment: "shirt", surface: "sleeve_left", x: 0, y: 0.42 },
+    { id: "sleeve-right", label: "Right sleeve", category: "sponsor", garment: "shirt", surface: "sleeve_right", x: 0, y: 0.42 },
   ];
+
+  const slotLayer = (slot) => findRole(project.garments[slot.garment].layers, slot.id === "crest" ? "crest" : `logo-${slot.id}`);
+
   const uploadLogo = async (file, slot) => {
     const asset = await uploadImage(file);
     if (!asset) return;
@@ -109,7 +145,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       slot.id.includes("sponsor") ? 0.16 : slot.id.includes("sleeve") ? 0.055 : 0.085);
     const fresh = makeLayer("image", slot.garment, {
       role, name: slot.label, asset: asset.id, surface: position.surface,
-      // Crest and brand are printed on top of the fabric, not woven into it; sponsors start on the fabric.
       texture: slot.id === "crest" || slot.id === "brand" ? "smooth" : "kit",
       size: slot.id.includes("sleeve") ? 0.055 : slot.id.includes("sponsor") ? 0.16 : 0.085,
       transform: { ...IDENTITY, x: position.x, y: position.y },
@@ -117,25 +152,117 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     const existing = findRole(project.garments[slot.garment].layers, role);
     setProject((p) => editLayers(p, slot.garment, (ls) => {
       const old = findRole(ls, role);
-      // Whatever already sits in that spot (the default design's chest number, under the brand logo) steps aside.
       const cleared = hideAt(ls, slot, role);
       return old ? mapLayer(cleared, old.id, (l) => ({ ...l, asset: asset.id })) : [...cleared, fresh];
     }));
     setGarment(slot.garment);
     select(existing?.id || fresh.id, slot.garment);
   };
-  const slotLayer = (slot) => findRole(project.garments[slot.garment].layers, slot.id === "crest" ? "crest" : `logo-${slot.id}`);
-  const slotButton = (slot) => {
-    const layer = slotLayer(slot);
-    const asset = layer && project.assets[layer.asset];
-    return <button type="button" className={`logo-slot${layer ? " populated" : ""}`} key={slot.id} title={asset ? "Replace image" : "Upload image"} onClick={() => {
-      setPendingLogo(slot); logoInput.current.click();
-    }}>
-      <span className="logo-preview">{asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">+</span>}</span>
-      <span className="logo-slot-label">{slot.label}</span>
-      <span className="logo-slot-file">{asset ? "Tap to replace" : "Upload"}</span>
-    </button>;
+
+  const removeLogo = (slot) => {
+    const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
+    setProject((p) => editLayers(p, slot.garment, (ls) => ls.filter((l) => l.role !== role)));
   };
+
+  const setSlotTint = (slot, tint) => {
+    const layer = slotLayer(slot);
+    if (!layer) return;
+    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, tint }))));
+  };
+
+  const setSlotFinish = (slot, finishItem) => {
+    const layer = slotLayer(slot);
+    if (!layer) return;
+    setProject((p) =>
+      editLayers(p, slot.garment, (ls) =>
+        mapLayer(ls, layer.id, (l) => ({
+          ...l,
+          finish: { ...finishItem.finish },
+          texture: finishItem.texture,
+        })),
+      ),
+    );
+  };
+
+  const setBrandPosition = (posKey) => {
+    const brandSlot = logoSlots.find((s) => s.id === "brand");
+    const layer = slotLayer(brandSlot);
+    if (!layer) return;
+    const positions = {
+      right: { x: -0.095, y: 0.555 },
+      center: { x: 0, y: 0.51 },
+      left: { x: 0.095, y: 0.555 },
+    };
+    const targetPos = positions[posKey] || positions.right;
+    setProject((p) =>
+      editLayers(p, "shirt", (ls) =>
+        mapLayer(ls, layer.id, (l) => ({
+          ...l,
+          transform: { ...l.transform, x: targetPos.x, y: targetPos.y },
+        })),
+      ),
+    );
+  };
+
+  const setCrestPosition = (posKey) => {
+    const crestSlot = logoSlots.find((s) => s.id === "crest");
+    const layer = slotLayer(crestSlot);
+    if (!layer) return;
+    const positions = {
+      left: { x: 0.095, y: 0.555 },
+      center: { x: 0, y: 0.555 },
+    };
+    const targetPos = positions[posKey] || positions.left;
+    setProject((p) =>
+      editLayers(p, "shirt", (ls) =>
+        mapLayer(ls, layer.id, (l) => ({
+          ...l,
+          transform: { ...l.transform, x: targetPos.x, y: targetPos.y },
+        })),
+      ),
+    );
+  };
+
+  const applyPreset = async (preset, targetSlot) => {
+    const file = presetToFile(preset);
+    await uploadLogo(file, targetSlot);
+  };
+
+  const pickPopularClub = async (club) => {
+    try {
+      const results = await searchCrests(club.query);
+      if (results && results[0]) {
+        const file = await fetchLogo(results[0].url, results[0].name);
+        await uploadLogo(file, logoSlots.find((s) => s.id === "crest"));
+      } else {
+        onError(`Could not find crest for ${club.name}.`);
+      }
+    } catch (err) {
+      onError(`Could not load crest (${err.message}).`);
+    }
+  };
+
+  const triggerUpload = (slot) => {
+    setPendingLogo(slot);
+    logoInput.current?.click();
+  };
+
+  const crestSlot = logoSlots.find((s) => s.id === "crest");
+  const brandSlot = logoSlots.find((s) => s.id === "brand");
+  const sponsorSlots = logoSlots.filter((s) => s.category === "sponsor");
+  const activeSponsorSlot = sponsorSlots.find((s) => s.id === activeSponsorSlotId) || sponsorSlots[0];
+
+  const crestLayer = slotLayer(crestSlot);
+  const crestPos = !crestLayer?.transform ? "left" : Math.abs(crestLayer.transform.x) < 0.03 ? "center" : "left";
+
+  const brandLayer = slotLayer(brandSlot);
+  const brandPos = !brandLayer?.transform
+    ? "right"
+    : Math.abs(brandLayer.transform.x) < 0.03
+    ? "center"
+    : brandLayer.transform.x > 0
+    ? "left"
+    : "right";
 
   return (
     <aside className="panel" aria-label="Kit design">
@@ -184,25 +311,385 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </div>
       </Section>}
 
-      {tab === "logos" && <Section title="Crest & sponsors" eyebrow="02" className="logo-section">
-        <p className="section-copy">Search a club or a brand, or tap a spot below to upload your own image.</p>
-        <LogoFinder slots={logoSlots} onPick={uploadLogo} onError={onError} />
-        <span className="group-label">Club</span>
-        <div className="logo-grid">{logoSlots.filter((slot) => ["crest", "brand"].includes(slot.id)).map(slotButton)}</div>
-        <span className="group-label">Sponsors & sleeves</span>
-        <div className="logo-grid">{logoSlots.filter((slot) => !["crest", "brand"].includes(slot.id)).map(slotButton)}</div>
-        <label className="field sponsor-text">
-          <span>Sponsor as text</span>
-          <input value={sponsor?.text ?? ""} maxLength={20} disabled={sponsor?.locked}
-            placeholder="Type a name or brand"
-            onChange={(e) => setSponsor(e.target.value)} />
-        </label>
-        <p className="section-copy fine">Printed across the chest. For a sponsor logo, use Front sponsor above.</p>
-        <input ref={logoInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
-          if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
-          e.target.value = "";
-        }} />
-      </Section>}
+      {tab === "logos" && (
+        <Section title="Emblems & sponsors" eyebrow="02" className="logo-section">
+          {/* Sub-navigation separating Badges, Kit Brands (Puma/Nike...), and Shirt Sponsors */}
+          <div className="logo-subnav" role="tablist" aria-label="Emblem categories">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={logoSubTab === "brand"}
+              className={logoSubTab === "brand" ? "on" : ""}
+              onClick={() => setLogoSubTab("brand")}
+            >
+              <span>⚡ Brand (Puma)</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={logoSubTab === "sponsors"}
+              className={logoSubTab === "sponsors" ? "on" : ""}
+              onClick={() => setLogoSubTab("sponsors")}
+            >
+              <span>🏷️ Sponsors</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={logoSubTab === "crest"}
+              className={logoSubTab === "crest" ? "on" : ""}
+              onClick={() => setLogoSubTab("crest")}
+            >
+              <span>🛡️ Crest</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={logoSubTab === "all"}
+              className={logoSubTab === "all" ? "on" : ""}
+              onClick={() => setLogoSubTab("all")}
+            >
+              <span>📋 All</span>
+            </button>
+          </div>
+
+          {/* 1. KIT MAKER BRAND (MARCAS TIPO PUMA, NIKE, ADIDAS...) */}
+          {logoSubTab === "brand" && (
+            <div className="category-pane">
+              <div className="pane-intro">
+                <strong>Kit maker brand</strong>
+                <p>Technical apparel supplier (Puma, Nike, Adidas, Kappa, Umbro...). Placed on the chest.</p>
+              </div>
+
+              {/* Active Brand Slot Card */}
+              <SlotCard
+                slot={brandSlot}
+                layer={brandLayer}
+                project={project}
+                onUpload={() => triggerUpload(brandSlot)}
+                onRemove={() => removeLogo(brandSlot)}
+              />
+
+              {brandLayer && (
+                <div className="slot-customizer">
+                  <div className="customizer-row">
+                    <span className="group-label">Chest position</span>
+                    <div className="seg">
+                      <button
+                        type="button"
+                        className={brandPos === "right" ? "on" : ""}
+                        onClick={() => setBrandPosition("right")}
+                      >
+                        Right chest
+                      </button>
+                      <button
+                        type="button"
+                        className={brandPos === "center" ? "on" : ""}
+                        onClick={() => setBrandPosition("center")}
+                      >
+                        Center
+                      </button>
+                      <button
+                        type="button"
+                        className={brandPos === "left" ? "on" : ""}
+                        onClick={() => setBrandPosition("left")}
+                      >
+                        Left chest
+                      </button>
+                    </div>
+                  </div>
+
+                  <TintPicker
+                    value={brandLayer.tint}
+                    palette={project.palette}
+                    onChange={(tint) => setSlotTint(brandSlot, tint)}
+                  />
+
+                  <FinishSelector
+                    finish={brandLayer.finish}
+                    texture={brandLayer.texture}
+                    onChange={(fin) => setSlotFinish(brandSlot, fin)}
+                  />
+                </div>
+              )}
+
+              {/* Quick-Pick Popular Kit Makers */}
+              <div className="preset-section">
+                <span className="group-label">Popular kit brands (1-click apply)</span>
+                <div className="preset-grid">
+                  {KIT_BRANDS.map((b) => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      className="preset-card brand-card"
+                      title={`Apply ${b.name}`}
+                      onClick={() => applyPreset(b, brandSlot)}
+                    >
+                      <div className="preset-icon" dangerouslySetInnerHTML={{ __html: b.svg }} />
+                      <span className="preset-label">{b.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Online Brand Search */}
+              <SearchBlock
+                placeholder="Search other brands (e.g. Kappa, Castore, Lotto)..."
+                onSearch={searchKitBrands}
+                onPick={(r) => uploadLogo(r, brandSlot)}
+                onError={onError}
+              />
+            </div>
+          )}
+
+          {/* 2. SHIRT SPONSORS (SPONSORS CAMISETA) */}
+          {logoSubTab === "sponsors" && (
+            <div className="category-pane">
+              <div className="pane-intro">
+                <strong>Shirt sponsors</strong>
+                <p>Commercial club sponsors: main chest, lower back, and sleeve patches.</p>
+              </div>
+
+              {/* Target sponsor slot selector */}
+              <span className="group-label">Select sponsor spot to edit</span>
+              <div className="sponsor-slot-selector">
+                {sponsorSlots.map((s) => {
+                  const l = slotLayer(s);
+                  const isAct = s.id === activeSponsorSlotId;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={`sponsor-pill${isAct ? " active" : ""}${l ? " populated" : ""}`}
+                      onClick={() => setActiveSponsorSlotId(s.id)}
+                    >
+                      <span>{s.label}</span>
+                      {l && <span className="dot" title="Active logo" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Selected Sponsor Slot Card */}
+              <SlotCard
+                slot={activeSponsorSlot}
+                layer={slotLayer(activeSponsorSlot)}
+                project={project}
+                onUpload={() => triggerUpload(activeSponsorSlot)}
+                onRemove={() => removeLogo(activeSponsorSlot)}
+              />
+
+              {slotLayer(activeSponsorSlot) && (
+                <div className="slot-customizer">
+                  <TintPicker
+                    value={slotLayer(activeSponsorSlot).tint}
+                    palette={project.palette}
+                    onChange={(tint) => setSlotTint(activeSponsorSlot, tint)}
+                  />
+
+                  <FinishSelector
+                    finish={slotLayer(activeSponsorSlot).finish}
+                    texture={slotLayer(activeSponsorSlot).texture}
+                    onChange={(fin) => setSlotFinish(activeSponsorSlot, fin)}
+                  />
+                </div>
+              )}
+
+              {/* Quick-Pick Popular Sponsors */}
+              <div className="preset-section">
+                <span className="group-label">Iconic shirt sponsors (1-click apply to {activeSponsorSlot.label})</span>
+                <div className="preset-grid sponsors-grid">
+                  {SPONSOR_PRESETS.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="preset-card sponsor-card"
+                      title={`Apply ${s.name}`}
+                      onClick={() => applyPreset(s, activeSponsorSlot)}
+                    >
+                      <div className="preset-icon sponsor-svg" dangerouslySetInnerHTML={{ __html: s.svg }} />
+                      <span className="preset-label">{s.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search online sponsors */}
+              <SearchBlock
+                placeholder="Search sponsors (e.g. Spotify, Pirelli, Audi)..."
+                onSearch={searchSponsors}
+                onPick={(r) => uploadLogo(r, activeSponsorSlot)}
+                onError={onError}
+              />
+
+              {/* Sponsor as Text */}
+              <div className="text-sponsor-block">
+                <span className="group-label">Chest sponsor as text</span>
+                <div className="row">
+                  <input
+                    value={sponsor?.text ?? ""}
+                    maxLength={20}
+                    disabled={sponsor?.locked}
+                    placeholder="Type brand text (e.g. SONY, JEEP)"
+                    onChange={(e) => setSponsor(e.target.value)}
+                  />
+                  {sponsor?.text && (
+                    <button type="button" className="quiet" onClick={clearSponsorText} title="Clear text sponsor">
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 3. CLUB CREST (ESCUDO DEL CLUB) */}
+          {logoSubTab === "crest" && (
+            <div className="category-pane">
+              <div className="pane-intro">
+                <strong>Team crest / badge</strong>
+                <p>Official football club badge placed on the left breast or chest center.</p>
+              </div>
+
+              {/* Active Crest Slot Card */}
+              <SlotCard
+                slot={crestSlot}
+                layer={crestLayer}
+                project={project}
+                onUpload={() => triggerUpload(crestSlot)}
+                onRemove={() => removeLogo(crestSlot)}
+              />
+
+              {crestLayer && (
+                <div className="slot-customizer">
+                  <div className="customizer-row">
+                    <span className="group-label">Crest position</span>
+                    <div className="seg">
+                      <button
+                        type="button"
+                        className={crestPos === "left" ? "on" : ""}
+                        onClick={() => setCrestPosition("left")}
+                      >
+                        Left breast
+                      </button>
+                      <button
+                        type="button"
+                        className={crestPos === "center" ? "on" : ""}
+                        onClick={() => setCrestPosition("center")}
+                      >
+                        Center chest
+                      </button>
+                    </div>
+                  </div>
+
+                  <FinishSelector
+                    finish={crestLayer.finish}
+                    texture={crestLayer.texture}
+                    onChange={(fin) => setSlotFinish(crestSlot, fin)}
+                  />
+                </div>
+              )}
+
+              {/* Popular Clubs quick-pick */}
+              <div className="preset-section">
+                <span className="group-label">Top football clubs (1-click badge)</span>
+                <div className="preset-grid clubs-grid">
+                  {POPULAR_CLUBS.map((c) => (
+                    <button
+                      key={c.name}
+                      type="button"
+                      className="preset-card club-card"
+                      onClick={() => pickPopularClub(c)}
+                    >
+                      <span className="club-badge-icon">🛡️</span>
+                      <span className="preset-label">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Search TheSportsDB */}
+              <SearchBlock
+                placeholder="Search club (e.g. Arsenal, Real Madrid, Boca)..."
+                onSearch={searchCrests}
+                onPick={(r) => uploadLogo(r, crestSlot)}
+                onError={onError}
+                credit="Crests from TheSportsDB"
+              />
+            </div>
+          )}
+
+          {/* 4. ALL LOGOS (OVERVIEW) */}
+          {logoSubTab === "all" && (
+            <div className="category-pane">
+              <div className="pane-intro">
+                <strong>Kit emblems overview</strong>
+                <p>All active badges, technical brands, and sponsors on this jersey.</p>
+              </div>
+
+              <span className="group-label">Club & technical brand</span>
+              <div className="all-slots-grid">
+                <SlotCard
+                  slot={crestSlot}
+                  layer={crestLayer}
+                  project={project}
+                  onUpload={() => triggerUpload(crestSlot)}
+                  onRemove={() => removeLogo(crestSlot)}
+                  onSelect={() => setLogoSubTab("crest")}
+                />
+                <SlotCard
+                  slot={brandSlot}
+                  layer={brandLayer}
+                  project={project}
+                  onUpload={() => triggerUpload(brandSlot)}
+                  onRemove={() => removeLogo(brandSlot)}
+                  onSelect={() => setLogoSubTab("brand")}
+                />
+              </div>
+
+              <span className="group-label">Shirt sponsors</span>
+              <div className="all-slots-grid">
+                {sponsorSlots.map((s) => (
+                  <SlotCard
+                    key={s.id}
+                    slot={s}
+                    layer={slotLayer(s)}
+                    project={project}
+                    onUpload={() => triggerUpload(s)}
+                    onRemove={() => removeLogo(s)}
+                    onSelect={() => {
+                      setActiveSponsorSlotId(s.id);
+                      setLogoSubTab("sponsors");
+                    }}
+                  />
+                ))}
+              </div>
+
+              {sponsor?.text && (
+                <div className="text-sponsor-card">
+                  <span className="label">Text sponsor:</span>
+                  <strong>{sponsor.text}</strong>
+                  <button type="button" className="quiet danger" onClick={clearSponsorText} title="Remove text sponsor">
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hidden File Input for uploading images */}
+          <input
+            ref={logoInput}
+            type="file"
+            accept="image/png,image/svg+xml,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
+              e.target.value = "";
+            }}
+          />
+        </Section>
+      )}
 
       {tab === "layers" && <Section title="Design layers" eyebrow="03">
         <LayersPanel
@@ -336,75 +823,164 @@ function hideAt(layers, slot, role) {
   });
 }
 
-/** Search real club crests and brand logos by name and drop the chosen one into a logo slot. */
-function LogoFinder({ slots, onPick, onError }) {
-  const [kind, setKind] = useState("crest");
+/** Card showing an individual logo slot with preview, replace, and clear buttons */
+function SlotCard({ slot, layer, project, onUpload, onRemove, onSelect }) {
+  const asset = layer && project.assets[layer.asset];
+  return (
+    <div className={`logo-slot-card${layer ? " populated" : ""}`} onClick={onSelect}>
+      <div className="logo-slot-main">
+        <div className="logo-preview">
+          {asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">+</span>}
+        </div>
+        <div className="logo-slot-info">
+          <span className="logo-slot-label">{slot.label}</span>
+          <span className="logo-slot-file">{asset ? asset.name : "Tap to add"}</span>
+        </div>
+      </div>
+      <div className="logo-slot-actions" onClick={(e) => e.stopPropagation()}>
+        <button type="button" className="quiet slot-act-btn" onClick={onUpload} title="Upload image file">
+          {asset ? "Replace" : "Upload"}
+        </button>
+        {layer && (
+          <button
+            type="button"
+            className="quiet slot-act-btn danger"
+            onClick={onRemove}
+            title={`Remove ${slot.label}`}
+            aria-label={`Remove ${slot.label}`}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Color tint picker for monochrome marks matching kit colors */
+function TintPicker({ value, palette, onChange }) {
+  const options = [
+    { label: "Original colors", value: null, bg: "conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)" },
+    { label: "White", value: "#ffffff", bg: "#ffffff" },
+    { label: "Black", value: "#111111", bg: "#111111" },
+    { label: "Gold", value: "#d4af37", bg: "#d4af37" },
+    { label: "Primary (@0)", value: "@0", bg: palette[0] },
+    { label: "Secondary (@1)", value: "@1", bg: palette[1] },
+    { label: "Trim (@2)", value: "@2", bg: palette[2] },
+  ];
+  return (
+    <div className="tint-picker-block">
+      <span className="group-label">Logo color tint</span>
+      <div className="swatches">
+        {options.map((opt) => (
+          <button
+            key={opt.label}
+            type="button"
+            className={`swatch${value === opt.value ? " active" : ""}`}
+            style={{ background: opt.bg }}
+            title={opt.label}
+            onClick={() => onChange(opt.value)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Finish selector (Flat, 3D Raised, Embroidered, Metallic) */
+function FinishSelector({ finish, texture, onChange }) {
+  const activePreset =
+    FINISH_PRESETS.find((p) => p.texture === texture && JSON.stringify(p.finish) === JSON.stringify(finish))?.id ||
+    (finish?.stitch ? "embroidered" : finish?.relief > 0 ? "raised" : finish?.metalness ? "foil" : "flat");
+
+  return (
+    <div className="finish-selector-block">
+      <span className="group-label">Finish / texture</span>
+      <div className="chips">
+        {FINISH_PRESETS.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className={`chip${activePreset === p.id ? " on" : ""}`}
+            onClick={() => onChange(p)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Online Search block with results thumbnail grid */
+function SearchBlock({ placeholder, onSearch, onPick, onError, credit }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [target, setTarget] = useState("crest");
-  const targets = kind === "crest" ? slots.filter((s) => s.id === "crest") : slots.filter((s) => s.id !== "crest");
-  const search = async (e) => {
+
+  const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
     setBusy(true);
     try {
-      setResults(await (kind === "crest" ? searchCrests(query) : searchBrands(query)));
+      setResults(await onSearch(query));
     } catch (err) {
       setResults([]);
-      onError(`Could not search ${kind === "crest" ? "crests" : "logos"} (${err.message}). Check the connection, or upload the image instead.`);
+      onError(`Search failed (${err.message}). Check your internet connection or upload a file directly.`);
     } finally {
       setBusy(false);
     }
   };
-  const pick = async (r) => {
+
+  const handlePick = async (r) => {
     setBusy(true);
     try {
-      await onPick(await fetchLogo(r.url, r.name), slots.find((s) => s.id === target));
+      const file = await fetchLogo(r.url, r.name);
+      await onPick(file);
     } catch (err) {
-      onError(`Could not load that logo (${err.message}). Download it and upload the file instead.`);
+      onError(`Could not download image (${err.message}). Try uploading a file.`);
     } finally {
       setBusy(false);
     }
   };
-  const switchKind = (k) => {
-    setKind(k);
-    setResults(null);
-    setTarget(k === "crest" ? "crest" : "brand");
-  };
+
   return (
-    <div className="logo-finder">
-            <div className="seg" role="group" aria-label="Image type">
-        <button type="button" className={kind === "crest" ? "on" : ""} aria-pressed={kind === "crest"} onClick={() => switchKind("crest")}>Club crest</button>
-        <button type="button" className={kind === "brand" ? "on" : ""} aria-pressed={kind === "brand"} onClick={() => switchKind("brand")}>Brand / sponsor</button>
-      </div>
-      <form className="row" onSubmit={search}>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search"
-          placeholder={kind === "crest" ? "Club name, e.g. Arsenal" : "Brand, e.g. Nike, Adidas, Puma"} />
-        <button type="submit" disabled={busy}>{busy ? "Searching…" : "Find"}</button>
+    <div className="search-block">
+      <span className="group-label">Search online</span>
+      <form className="row" onSubmit={handleSearch}>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={placeholder}
+          aria-label="Search"
+        />
+        <button type="submit" disabled={busy}>{busy ? "…" : "Find"}</button>
       </form>
       {results && (
-        <>
-          <label className="field">
-            <span>Place {kind === "crest" ? "crest" : "logo"} on</span>
-            <select value={target} onChange={(e) => setTarget(e.target.value)}>
-              {targets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
-          </label>
-          {results.length === 0 && <p className="section-copy">Nothing found.</p>}
+        <div className="search-results-area">
+          {results.length === 0 && <p className="section-copy">No results found.</p>}
           <div className="logo-results">
             {results.map((r) => (
-              <button key={r.url} type="button" className="logo-result" title={r.name} disabled={busy} onClick={() => pick(r)}>
-                <img src={r.thumb} alt="" loading="lazy" onError={(e) => { if (e.currentTarget.src !== r.url) e.currentTarget.src = r.url; }} />
+              <button
+                key={r.url}
+                type="button"
+                className="logo-result"
+                title={r.name}
+                disabled={busy}
+                onClick={() => handlePick(r)}
+              >
+                <img
+                  src={r.thumb}
+                  alt=""
+                  loading="lazy"
+                  onError={(e) => { if (e.currentTarget.src !== r.url) e.currentTarget.src = r.url; }}
+                />
                 <span>{r.name}</span>
               </button>
             ))}
           </div>
-          <p className="section-copy fine">
-            {kind === "crest" ? "Crests from TheSportsDB" : "Logos from Wikimedia Commons"}. Club crests and brand logos are
-            trademarks of their owners: use them for your own designs.
-          </p>
-        </>
+          {credit && <p className="section-copy fine">{credit}</p>}
+        </div>
       )}
     </div>
   );

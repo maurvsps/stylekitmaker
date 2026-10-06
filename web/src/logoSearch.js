@@ -1,12 +1,13 @@
 // Find real logos by name, fetched from public sources in the viewer's browser (nothing is bundled with the app):
 //   crests: football club badges from TheSportsDB (free public API key "3");
-//   brands: logo files on Wikimedia Commons (kit makers, sponsors), as PNG thumbnails of their SVGs.
+//   kit brands: technical apparel makers on Wikimedia Commons;
+//   sponsors: shirt sponsors on Wikimedia Commons.
 // The search APIs send CORS headers, but image hosts may not (TheSportsDB's badge storage does not), and the design
 // needs the pixels. So a chosen logo is downloaded directly when the host allows it, else through the public wsrv.nl
 // image proxy, which adds CORS headers.
 // Each search resolves to [{ name, thumb, url }]; fetchLogo(url, name) resolves to a File for uploadImage.
 
-const SPORTSDB = "https://www.thesportsdb.com/api/v1/json/3/searchteams.php?t=";
+const SPORTSDB = "https://www.thesportsDB.com/api/v1/json/3/searchteams.php?t=";
 const COMMONS = "https://commons.wikimedia.org/w/api.php";
 
 export async function searchCrests(query) {
@@ -15,27 +16,79 @@ export async function searchCrests(query) {
   const { teams } = await res.json();
   return (teams || [])
     .filter((t) => t.strBadge && (t.strSport || "Soccer") === "Soccer")
-    .slice(0, 12)
+    .slice(0, 15)
     .map((t) => ({ name: t.strTeam, thumb: `${t.strBadge}/small`, url: t.strBadge }));
 }
 
-export async function searchBrands(query) {
+const KIT_FILTER_REGEX = /(?:kit[\s_-]?(?:body|shorts|socks|left|right|arm|sleeve)|flag[\s_-]of|jersey)/i;
+
+function cleanLogoTitle(title) {
+  return title
+    .replace(/^File:/, "")
+    .replace(/\.[a-z0-9]+$/i, "")
+    .replace(/[\-_]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Search kit maker brands (Puma, Nike, Adidas, Kappa...) on Wikimedia, filtering out Wikipedia kit template files. */
+export async function searchKitBrands(query) {
+  const qStr = `${query.trim()} logo -kit -shorts -socks filetype:drawing|bitmap`;
   const params = new URLSearchParams({
     action: "query", format: "json", origin: "*",
-    generator: "search", gsrnamespace: "6", gsrlimit: "16",
-    gsrsearch: `${query.trim()} logo filetype:drawing|bitmap`,
+    generator: "search", gsrnamespace: "6", gsrlimit: "24",
+    gsrsearch: qStr,
     prop: "imageinfo", iiprop: "url|mime", iiurlwidth: "960",
   });
   const res = await fetch(`${COMMONS}?${params}`);
-  if (!res.ok) throw new Error(`logo search failed (${res.status})`);
+  if (!res.ok) throw new Error(`brand search failed (${res.status})`);
   const { query: q } = await res.json();
   return Object.values(q?.pages || {})
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((p) => ({ p, info: p.imageinfo?.[0] }))
-    .filter(({ info }) => info?.thumburl && /^image\/(svg\+xml|png|jpeg|webp)$/.test(info.mime))
-    .slice(0, 12)
-    .map(({ p, info }) => ({ name: p.title.replace(/^File:/, "").replace(/\.[a-z]+$/i, ""), thumb: info.thumburl, url: info.thumburl }));
+    .filter(({ p, info }) =>
+      info?.thumburl &&
+      /^image\/(svg\+xml|png|jpeg|webp)$/.test(info.mime) &&
+      !KIT_FILTER_REGEX.test(p.title)
+    )
+    .slice(0, 15)
+    .map(({ p, info }) => ({
+      name: cleanLogoTitle(p.title),
+      thumb: info.thumburl,
+      url: info.thumburl,
+    }));
 }
+
+/** Search shirt sponsors (commercial brands, companies) on Wikimedia Commons. */
+export async function searchSponsors(query) {
+  const qStr = `${query.trim()} logo -kit -shorts -socks filetype:drawing|bitmap`;
+  const params = new URLSearchParams({
+    action: "query", format: "json", origin: "*",
+    generator: "search", gsrnamespace: "6", gsrlimit: "24",
+    gsrsearch: qStr,
+    prop: "imageinfo", iiprop: "url|mime", iiurlwidth: "960",
+  });
+  const res = await fetch(`${COMMONS}?${params}`);
+  if (!res.ok) throw new Error(`sponsor search failed (${res.status})`);
+  const { query: q } = await res.json();
+  return Object.values(q?.pages || {})
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .map((p) => ({ p, info: p.imageinfo?.[0] }))
+    .filter(({ p, info }) =>
+      info?.thumburl &&
+      /^image\/(svg\+xml|png|jpeg|webp)$/.test(info.mime) &&
+      !KIT_FILTER_REGEX.test(p.title)
+    )
+    .slice(0, 15)
+    .map(({ p, info }) => ({
+      name: cleanLogoTitle(p.title),
+      thumb: info.thumburl,
+      url: info.thumburl,
+    }));
+}
+
+// Keep searchBrands for backwards compatibility
+export const searchBrands = searchSponsors;
 
 const PROXY = "https://wsrv.nl/?output=png&w=1024&we&url=";
 
