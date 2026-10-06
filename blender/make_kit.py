@@ -1252,7 +1252,11 @@ def blender_draco_available():
         from io_scene_gltf2.io.com import gltf2_io_draco_compression_extension as draco
         return draco.dll_exists(quiet=True)
     except Exception:
-        return False
+        try:
+            from io_scene_gltf2 import is_draco_available  # Blender 5.x moved the availability check
+            return is_draco_available()
+        except Exception:
+            return False
 
 
 def gltf_transform_cmd():

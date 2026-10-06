@@ -3,8 +3,8 @@ Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj
 
     .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|v_wide|scoop|wide] [--name shirt_clo]
 
---collar picks the neck (see COLLARS): crew keeps CLO's band; v, v_wide and scoop cut a deeper neckline into the front
-panel and wide keeps CLO's; all of them then sew on a new rib band. Each builds its own template (shirt_clo_v, ...).
+--collar picks the neck (see COLLARS): v, v_wide and scoop cut a deeper neckline into the front panel. Every variant
+replaces CLO's standing strip with a flat rib binding. Each builds its own template (shirt_clo_v, ...).
 
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
 millimetres, Y up). The flat pieces are exactly what a UV frame in metres wants, so the islands come straight from
@@ -33,16 +33,16 @@ WELD = 0.0006           # metres: vertices this close (where CLO sewed two piece
 SEAM = 0.004            # metres: vertices this close across two pieces count as sewn together
 
 # Collar variants built from the same garment: (template suffix, label, neckline cut, band width in metres).
-# "crew" keeps CLO's own collar band; the others cut a new neckline into the front panel (or keep CLO's) and sew
-# a new rib band along it.
+# The original CLO strip stands too far into the opening. Rebuild each variant with a smooth rib binding that lies
+# on the shirt outside the neck edge, as on a sewn football jersey.
 COLLARS = {
-    "crew": ("", "Crew neck (realistic)", None, None),
-    "v": ("_v", "V-neck (realistic)", "v", 0.006),
-    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.016),
+    "crew": ("", "Crew neck (realistic)", None, 0.010),
+    "v": ("_v", "V-neck (realistic)", "v", 0.010),
+    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.018),
     "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.015),
-    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.02),
+    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.019),
 }
-NECK_DEPTH = {"v": 0.065, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
+NECK_DEPTH = {"v": 0.050, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -352,10 +352,9 @@ def neck_marks(ps, collar):
 
 
 def sew_band(part, neck_ids, width, rows=4, samples=160):
-    """A rib band along the neck opening, `width` metres wide: it carries on from the shirt's surface past the
-    neckline (standing up round the back of the neck, lying on the chest down a V) and tucks 3 mm under the
-    neckline so no gap shows. Its UVs are the collar island's frame: p around from the front centre (both ways),
-    q up the band."""
+    """A flat rib binding along the neck opening. It overlaps the shirt outside the cut edge and wraps 3 mm into
+    the opening, so it reads as sewn fabric without forming a high standing collar. Its UVs are the collar island's
+    frame: p around from the front centre (both ways), q across the binding."""
     V = np.array([tuple(v) for v in part.verts])
     other = {}
     for ids, _, _ in part.faces:
@@ -369,7 +368,7 @@ def sew_band(part, neck_ids, width, rows=4, samples=160):
         e = V[b] - V[a]
         m = (V[a] + V[b]) / 2 - V[c]
         m -= e * (m @ e) / (e @ e)
-        away.append(m / np.linalg.norm(m))
+        away.append(-m / np.linalg.norm(m))  # toward the shirt, not into the neck opening
     away = np.array(away)
     centre = mid[:, :2].mean(0)
     # Order the neckline round the neck (top view), starting at the front centre (-y) and running towards +x.
@@ -387,7 +386,7 @@ def sew_band(part, neck_ids, width, rows=4, samples=160):
         c = (np.roll(c, 1, 0) + 2 * c + np.roll(c, -1, 0)) / 4
         d = (np.roll(d, 1, 0) + 2 * d + np.roll(d, -1, 0)) / 4
     d /= np.linalg.norm(d, axis=1)[:, None]
-    # Lift the band a millimetre off the shirt where it lies on it.
+    # Lift the binding a millimetre off the shirt so its outer edge does not flicker against the fabric.
     tangent = np.roll(c, -1, 0) - np.roll(c, 1, 0)
     normal = np.cross(tangent, d)
     normal /= np.linalg.norm(normal, axis=1)[:, None]

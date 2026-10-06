@@ -333,7 +333,7 @@ function makeFabric(name, map, ao) {
     fs = fs.replace(
       "#include <map_fragment>",
       `#ifdef USE_INNER
-	vec4 innerColor = vec4( textureLod( map, vMapUv, 10.0 ).rgb * 0.8, 1.0 );
+	vec4 innerColor = vec4( vec3( 0.045 ), 1.0 );
 	#ifdef USE_RIB
 		// Rib trims (collar band, cuffs) are the same knit on both faces: show their own colour inside too.
 		vec2 innerUv = ( reliefUv * vec3( vMapUv, 1.0 ) ).xy;
