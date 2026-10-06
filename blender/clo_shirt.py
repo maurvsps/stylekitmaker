@@ -36,13 +36,13 @@ SEAM = 0.004            # metres: vertices this close across two pieces count as
 # The original CLO strip stands too far into the opening. Rebuild each variant with a smooth rib binding that lies
 # on the shirt outside the neck edge, as on a sewn football jersey.
 COLLARS = {
-    "crew": ("", "Crew neck (realistic)", None, 0.010),
-    "v": ("_v", "V-neck (realistic)", "v", 0.010),
-    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.018),
-    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.015),
-    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.019),
+    "crew": ("", "Crew neck (realistic)", None, 0.009),
+    "v": ("_v", "V-neck (realistic)", "v", 0.009),
+    "v_wide": ("_v_wide", "V-neck, wide trim (realistic)", "v", 0.014),
+    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.012),
+    "wide": ("_wide", "Crew neck, wide band (realistic)", None, 0.016),
 }
-NECK_DEPTH = {"v": 0.050, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
+NECK_DEPTH = {"v": 0.025, "scoop": 0.04}  # metres the new neckline drops below CLO's at the front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -293,9 +293,14 @@ def cut_neckline(front, collar, shape, depth):
     ps = np.abs(nb[:, 0]).max()
     qs = nb[np.abs(nb[:, 0]) > 0.9 * ps, 1].min()
     qv = nb[np.abs(nb[:, 0]) < 0.03, 1].min() - depth
-    a = np.clip(np.abs(uv[:, 0]) / ps, 0, 1)
+    span = ps * (0.7 if shape == "v" else 1.0)
+    if shape == "v":
+        # Join the straight V arms to the existing crew curve before they reach the shoulders.
+        at_join = nb[np.abs(np.abs(nb[:, 0]) - span) < ps * 0.05, 1]
+        qs = float(np.median(at_join)) if len(at_join) else qs
+    a = np.clip(np.abs(uv[:, 0]) / span, 0, 1)
     line = qv + (qs - qv) * (a if shape == "v" else 1 - np.sqrt(1 - a * a))
-    f = np.where(np.abs(uv[:, 0]) < ps, line - uv[:, 1], 1.0)  # >= 0: keep
+    f = np.where(np.abs(uv[:, 0]) < span, line - uv[:, 1], 1.0)  # >= 0: keep
     keys = ("P", "R", "uv")
     extra = {k: [] for k in keys}
     made = {}
@@ -351,8 +356,8 @@ def neck_marks(ps, collar):
         p["neck"] = mark
 
 
-def sew_band(part, neck_ids, width, rows=4, samples=160):
-    """A flat rib binding along the neck opening. It overlaps the shirt outside the cut edge and wraps 3 mm into
+def sew_band(part, neck_ids, width, rows=4, samples=160, pointed=False):
+    """A flat rib binding along the neck opening. It overlaps the shirt outside the cut edge and wraps 1.5 mm into
     the opening, so it reads as sewn fabric without forming a high standing collar. Its UVs are the collar island's
     frame: p around from the front centre (both ways), q across the binding."""
     V = np.array([tuple(v) for v in part.verts])
@@ -382,9 +387,15 @@ def sew_band(part, neck_ids, width, rows=4, samples=160):
         ext_v = np.concatenate([values, values, values])
         return np.stack([np.interp(t, ext_a, ext_v[:, k]) for k in range(values.shape[1])], 1)
     c, d = ring(pts), ring(dirs)
-    for _ in range(3):
+    for _ in range(2):
         c = (np.roll(c, 1, 0) + 2 * c + np.roll(c, -1, 0)) / 4
         d = (np.roll(d, 1, 0) + 2 * d + np.roll(d, -1, 0)) / 4
+    if pointed:
+        # Keep a true centre-front corner: smoothing the sampled ring turns a V neck into a U.
+        candidates = {v for (a, b), _ in edges for v in (a, b)}
+        front = [v for v in candidates if abs(V[v, 0] - centre[0]) < 0.015]
+        apex = min(front or candidates, key=lambda v: V[v, 1])
+        c[samples // 2] = V[apex]
     d /= np.linalg.norm(d, axis=1)[:, None]
     # Lift the binding a millimetre off the shirt so its outer edge does not flicker against the fabric.
     tangent = np.roll(c, -1, 0) - np.roll(c, 1, 0)
@@ -392,7 +403,7 @@ def sew_band(part, neck_ids, width, rows=4, samples=160):
     normal /= np.linalg.norm(normal, axis=1)[:, None]
     outwards = c - np.c_[np.tile(centre, (samples, 1)), c[:, 2]]
     normal *= np.sign((normal * outwards).sum(1))[:, None]
-    tuck = 0.003
+    tuck = 0.0015
     grid = []
     for r in range(rows):
         q = -tuck + (width + tuck) * r / (rows - 1)
@@ -487,7 +498,8 @@ def clo_part(path, collar_kind="crew"):
                 part.face(vids, uv, name)
 
     if band:
-        sew_band(part, {p["ids"][i] for p in ps if "neck" in p for i in np.nonzero(p["neck"])[0]}, band)
+        sew_band(part, {p["ids"][i] for p in ps if "neck" in p for i in np.nonzero(p["neck"])[0]},
+                 band, pointed=cut == "v")
     print(f"[clo] {len(ps)} pieces -> {[p['role'] for p in ps]}, {len(part.verts)} verts, "
           f"collar {circ:.3f} m round")
     return part

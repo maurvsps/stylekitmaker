@@ -328,12 +328,16 @@ function makeFabric(name, map, ao) {
     shader.uniforms.ribRects = ribRects;
     shader.uniforms.ribPeriod = ribPeriod;
     let fs = shader.fragmentShader;
-    // The inside of the shirt (USE_INNER): plain fabric in the design's overall colour, a little darker (no mirrored
-    // stripes, names or numbers).
+    // The inside is the reverse of the printed fabric. Keep its colour visible in the neck opening.
     fs = fs.replace(
       "#include <map_fragment>",
       `#ifdef USE_INNER
-	vec4 innerColor = vec4( vec3( 0.045 ), 1.0 );
+	vec4 innerColor = vec4( 0.65, 0.65, 0.65, 1.0 );
+	#ifdef USE_MAP
+		vec3 fabricInside = texture2D( map, vMapUv ).rgb;
+		float fabricLight = dot( fabricInside, vec3( 0.2126, 0.7152, 0.0722 ) );
+		innerColor.rgb = max( mix( fabricInside, vec3( fabricLight ), 0.15 ) * 0.82, vec3( 0.14 ) );
+	#endif
 	#ifdef USE_RIB
 		// Rib trims (collar band, cuffs) are the same knit on both faces: show their own colour inside too.
 		vec2 innerUv = ( reliefUv * vec3( vMapUv, 1.0 ) ).xy;

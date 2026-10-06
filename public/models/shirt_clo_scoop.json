@@ -22,40 +22,40 @@
       "rect": [
         0.02,
         0.02,
-        0.406766,
-        0.592538
+        0.408437,
+        0.594972
       ],
       "pmin": -0.243237,
       "qmax": 0.70865,
-      "scale": 0.836151
+      "scale": 0.839585
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.446766,
+        0.448437,
         0.02,
-        0.406766,
-        0.686631
+        0.408437,
+        0.689451
       ],
       "pmin": -0.243237,
       "qmax": 0.821181,
-      "scale": 0.836151
+      "scale": 0.839585
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.389706,
-        0.726631,
-        0.349706,
-        0.218286
+        0.391142,
+        0.729451,
+        0.351142,
+        0.219183
       ],
       "pmin": -0.138327,
       "qmax": 0.0,
-      "scale": 0.836151,
+      "scale": 0.839585,
       "length": 0.2611
     },
     "sleeve_right": {
@@ -64,13 +64,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.726631,
-        0.349706,
-        0.218318
+        0.729451,
+        0.351142,
+        0.219214
       ],
       "pmin": -0.279906,
       "qmax": 0.0,
-      "scale": 0.836151,
+      "scale": 0.839585,
       "length": 0.2611
     },
     "collar": {
@@ -79,13 +79,13 @@
       "frame": "p: metres around from the front centre, q: metres up the band",
       "rect": [
         0.02,
-        0.964949,
-        0.553042,
-        0.015051
+        0.968666,
+        0.555829,
+        0.011334
       ],
-      "pmin": -0.331318,
-      "qmax": 0.015,
-      "scale": 0.836151
+      "pmin": -0.331661,
+      "qmax": 0.012,
+      "scale": 0.839585
     }
   }
 }
