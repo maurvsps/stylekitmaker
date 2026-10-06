@@ -156,15 +156,30 @@ export default function App() {
     setSizeKey((n) => n + 1);
   }, [renderer, prefs.textureSize]);
 
-  // Repaint the garments whose layers (or what they use) changed, at most once per frame (colour pickers fire
-  // continuously).
-  useEffect(() => {
-    if (!kits) return;
-    const frame = requestAnimationFrame(() => {
-      if (renderer.render(project, templates, models, images, fontsReady).mapsChanged) setMaps({ ...renderer.maps });
+  // Repaint the garments whose layers changed at display refresh rate.
+  // We keep a project reference and queue frames without cancelling in-flight frames,
+  // preventing frame starvation during rapid slider dragging or color picking.
+  const projectRef = useRef(project);
+  projectRef.current = project;
+  const scheduledRef = useRef(false);
+
+  const scheduleRender = useCallback(() => {
+    if (!kits || scheduledRef.current) return;
+    scheduledRef.current = true;
+    requestAnimationFrame(() => {
+      scheduledRef.current = false;
+      const cur = projectRef.current;
+      const res = renderer.render(cur, templates, models, images, fontsReady);
+      if (res.mapsChanged) setMaps({ ...renderer.maps });
+      if (projectRef.current !== cur) {
+        scheduleRender();
+      }
     });
-    return () => cancelAnimationFrame(frame);
-  }, [project, kits, templates, models, renderer, images, fontsReady, sizeKey]);
+  }, [kits, renderer, templates, models, images, fontsReady]);
+
+  useEffect(() => {
+    scheduleRender();
+  }, [project, scheduleRender, sizeKey]);
 
   useEffect(() => {
     setSaveStatus("saving");
@@ -340,7 +355,7 @@ export default function App() {
 }
 
 function readPrefs() {
-  const prefs = { textureSize: MOBILE && Math.min(screen.width, screen.height) < 500 ? 1024 : 2048, lighting: "studio", transparent: false };
+  const prefs = { textureSize: 1024, lighting: "studio", transparent: false };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;

@@ -58,6 +58,8 @@ const Viewer = forwardRef(function Viewer(
     // Soft shadows from the key light: sleeves on the torso, the collar on the chest, the shirt on the shorts.
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
@@ -86,11 +88,14 @@ const Viewer = forwardRef(function Viewer(
 
     const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+    controls.enableDamping = false;
     controls.enablePan = false; // keep the kit in frame; orbit and zoom still work
     controls.minDistance = 0.6;
     controls.maxDistance = 8;
     controls.target.set(0, CENTRE_Y, 0);
+    controls.addEventListener("change", () => {
+      dirty = true;
+    });
     camera.position.set(0.26, CENTRE_Y + 0.05, 1); // direction only: the distance is fitted below
 
     let fitted = false;
@@ -178,6 +183,7 @@ const Viewer = forwardRef(function Viewer(
         t.kit.traverse((o) => {
           if (o.isMesh && o.material) t.materials.push(o.material);
         });
+        t.renderer.shadowMap.needsUpdate = true;
         t.invalidate();
       }),
     ).then(() => !cancelled && onLoaded?.(), (err) => {
@@ -224,6 +230,7 @@ const Viewer = forwardRef(function Viewer(
     t.scene.environmentIntensity = preset.env;
     t.scene.background = new THREE.Color(BACKGROUND);
     t.renderer.toneMappingExposure = preset.exposure ?? 0.9;
+    t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
   }, [lighting]);
 

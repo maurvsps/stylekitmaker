@@ -14,11 +14,11 @@ import { GARMENTS, hasFinish, walk } from "./project.js";
 //                     (a palette change never touches them).
 
 export class KitRenderer {
-  constructor(size = 2048, materialScale = 1) {
+  constructor(size = 2048, materialScale = 0.5) {
     this.size = size;
     this.materialScale = materialScale;
     this.textures = Object.fromEntries(GARMENTS.map((g) => [g, makeTexture(size, size)]));
-    this.collar = makeTexture(collarWidth(size), 64);
+    this.collar = makeTexture(collarWidth(size), 64, THREE.SRGBColorSpace, false);
     this.maps = Object.fromEntries(GARMENTS.map((g) => [g, null]));
     this.store = {}; // garment -> { height, normal, orm } kept once created
     this.painted = {}; // garment -> the inputs of its last repaint
@@ -111,12 +111,12 @@ export class KitRenderer {
 
   mapStore(g) {
     if (!this.store[g]) {
-      const n = Math.max(256, Math.min(1024, Math.round(this.size * (this.materialScale || 0.5))));
+      const n = Math.max(256, Math.min(512, Math.round(this.size * (this.materialScale || 0.5))));
       const height = document.createElement("canvas");
       height.width = height.height = n;
       height.getContext("2d", { willReadFrequently: true }); // read back by heightToNormal
-      const normal = makeTexture(n, n, THREE.NoColorSpace);
-      const orm = makeTexture(n, n, THREE.NoColorSpace);
+      const normal = makeTexture(n, n, THREE.NoColorSpace, false);
+      const orm = makeTexture(n, n, THREE.NoColorSpace, false);
       this.store[g] = { height, normal, orm };
     }
     return this.store[g];
@@ -140,12 +140,16 @@ function usage(layers) {
   return { text, assets, finish };
 }
 
-function makeTexture(w, h, colorSpace = THREE.SRGBColorSpace) {
+function makeTexture(w, h, colorSpace = THREE.SRGBColorSpace, mipmaps = true) {
   const canvas = document.createElement("canvas"); // hidden: only the 3D view and the downloads show it
   canvas.width = w;
   canvas.height = h;
   const texture = new THREE.CanvasTexture(canvas);
   texture.flipY = false; // glTF UVs: canvas top = texture v 0
   texture.colorSpace = colorSpace;
+  if (!mipmaps) {
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+  }
   return texture;
 }
