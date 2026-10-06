@@ -111,7 +111,7 @@ export class KitRenderer {
 
   mapStore(g) {
     if (!this.store[g]) {
-      const n = Math.max(256, Math.round(this.size * this.materialScale));
+      const n = Math.max(256, Math.min(1024, Math.round(this.size * (this.materialScale || 0.5))));
       const height = document.createElement("canvas");
       height.width = height.height = n;
       height.getContext("2d", { willReadFrequently: true }); // read back by heightToNormal
@@ -125,8 +125,8 @@ export class KitRenderer {
 
 const same = (a, b) => !!a && a.length === b.length && a.every((v, i) => v === b[i]);
 
-// The collar texture: twice the garment width (at most 4096), so the thin collar band gets about five times the pixels.
-const collarWidth = (size) => Math.min(4096, size * 2);
+// The collar texture: capped at 1536 to keep redraw overhead minimal while preserving fine rib detail.
+const collarWidth = (size) => Math.min(1536, size);
 
 function usage(layers) {
   const assets = [];

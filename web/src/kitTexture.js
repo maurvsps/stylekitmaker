@@ -399,7 +399,8 @@ function finishLayer(h, o, layer, env, alpha) {
     ctx.drawImage(scratch, 0, 0);
     ctx.restore();
   };
-  if (layer.texture === "smooth") {
+  const hasCustomOrm = f.roughness !== null || f.metalness !== null || f.stitch;
+  if (layer.texture === "smooth" && !hasCustomOrm) {
     silhouette();
     sctx.fillStyle = ormColor(f.roughness ?? FABRIC_ROUGHNESS, f.metalness ?? 0, 0);
     sctx.fillRect(0, 0, env.S, env.S);
@@ -412,7 +413,7 @@ function finishLayer(h, o, layer, env, alpha) {
     sctx.fillRect(0, 0, env.S, env.S);
     lay(h);
   }
-  if (f.roughness !== null || f.metalness !== null || f.stitch) {
+  if (hasCustomOrm) {
     silhouette();
     sctx.fillStyle = ormColor(f.roughness ?? (f.stitch ? 0.6 : FABRIC_ROUGHNESS), f.metalness ?? 0, layer.texture === "smooth" ? 0 : 255);
     sctx.fillRect(0, 0, env.S, env.S);
@@ -469,49 +470,65 @@ function stitchPattern(ctx, S, g) {
   return ctx.createPattern(stitches.get(key), "repeat");
 }
 
+// Typed array buffer pooling to avoid megabytes of garbage collection on every render
+let poolA = null;
+let poolTmp = null;
+let poolBlurred = null;
+
+function getBlurBuffers(len) {
+  if (!poolA || poolA.length < len) {
+    poolA = new Float32Array(len);
+    poolTmp = new Float32Array(len);
+    poolBlurred = new Float32Array(len);
+  }
+  return [poolA, poolTmp, poolBlurred];
+}
+
 /**
  * Turn a height canvas into a tangent-space normal map on `out` (same size). x follows texture u, y texture v
  * (the canvas is not flipped: its rows run down v). The heights are softened first so raised edges read as a bevel.
  */
 export function heightToNormal(height, out, strength = 1) {
   const S = height.width;
+  const len = S * S;
+  const [a, tmp, blurred] = getBlurBuffers(len);
   const src = height.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, S, S).data;
-  let a = new Float32Array(S * S);
-  for (let i = 0; i < a.length; i++) a[i] = src[i * 4] / 255;
+  for (let i = 0; i < len; i++) a[i] = src[i * 4] / 255;
   const r = Math.max(1, Math.round(S / 1024));
-  a = boxBlur(a, S, r);
+  boxBlur(a, S, r, tmp, blurred);
   const k = strength * (S / 1024) * 1.6; // the slope a full step makes, independent of the resolution
-  const img = out.getContext("2d").createImageData(S, S);
+  const outCtx = out.getContext("2d");
+  const img = outCtx.createImageData(S, S);
   const d = img.data;
   for (let y = 0; y < S; y++) {
-    const y0 = y > 0 ? y - 1 : y;
-    const y1 = y < S - 1 ? y + 1 : y;
+    const y0 = (y > 0 ? y - 1 : y) * S;
+    const y1 = (y < S - 1 ? y + 1 : y) * S;
+    const yRow = y * S;
     for (let x = 0; x < S; x++) {
       const x0 = x > 0 ? x - 1 : x;
       const x1 = x < S - 1 ? x + 1 : x;
-      const dx = (a[y * S + x1] - a[y * S + x0]) * k;
-      const dy = (a[y1 * S + x] - a[y0 * S + x]) * k;
-      const inv = 1 / Math.hypot(dx, dy, 1);
-      const i = (y * S + x) * 4;
-      d[i] = 128 + 127 * -dx * inv;
-      d[i + 1] = 128 + 127 * -dy * inv;
-      d[i + 2] = 128 + 127 * inv;
+      const dx = (blurred[yRow + x1] - blurred[yRow + x0]) * k;
+      const dy = (blurred[y1 + x] - blurred[y0 + x]) * k;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+      const i = (yRow + x) * 4;
+      d[i] = (128 - 127 * dx * inv) | 0;
+      d[i + 1] = (128 - 127 * dy * inv) | 0;
+      d[i + 2] = (128 + 127 * inv) | 0;
       d[i + 3] = 255;
     }
   }
-  out.getContext("2d").putImageData(img, 0, 0);
+  outCtx.putImageData(img, 0, 0);
 }
 
-function boxBlur(a, S, r) {
-  const tmp = new Float32Array(a.length);
-  const out = new Float32Array(a.length);
+function boxBlur(a, S, r, tmp, out) {
   const n = 2 * r + 1;
   for (let y = 0; y < S; y++) {
+    const yRow = y * S;
     let sum = 0;
-    for (let x = -r; x <= r; x++) sum += a[y * S + Math.min(S - 1, Math.max(0, x))];
+    for (let x = -r; x <= r; x++) sum += a[yRow + Math.min(S - 1, Math.max(0, x))];
     for (let x = 0; x < S; x++) {
-      tmp[y * S + x] = sum / n;
-      sum += a[y * S + Math.min(S - 1, x + r + 1)] - a[y * S + Math.max(0, x - r)];
+      tmp[yRow + x] = sum / n;
+      sum += a[yRow + Math.min(S - 1, x + r + 1)] - a[yRow + Math.max(0, x - r)];
     }
   }
   for (let x = 0; x < S; x++) {
@@ -522,5 +539,4 @@ function boxBlur(a, S, r) {
       sum += tmp[Math.min(S - 1, y + r + 1) * S + x] - tmp[Math.max(0, y - r) * S + x];
     }
   }
-  return out;
 }

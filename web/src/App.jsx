@@ -95,7 +95,7 @@ export default function App() {
   const [previewHeight, setPreviewHeight] = useState(null);
   const app = useRef(null);
   const viewer = useRef(null);
-  const renderer = useMemo(() => new KitRenderer(prefs.textureSize, MOBILE ? 0.5 : 1), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const renderer = useMemo(() => new KitRenderer(prefs.textureSize, 0.5), []); // eslint-disable-line react-hooks/exhaustive-deps
   const textures = renderer.textures;
   const [maps, setMaps] = useState(renderer.maps); // garment -> material maps, replaced when one appears or goes
 
@@ -167,12 +167,16 @@ export default function App() {
   }, [project, kits, templates, models, renderer, images, fontsReady, sizeKey]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeProject(project)));
-      setSaveStatus("saved");
-    } catch {
-      setSaveStatus("unavailable");
-    }
+    setSaveStatus("saving");
+    const timeout = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeProject(project)));
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("unavailable");
+      }
+    }, 500);
+    return () => clearTimeout(timeout);
   }, [project]);
 
   const [loaded, setLoaded] = useState(false);
@@ -251,7 +255,7 @@ export default function App() {
         {kits && (
           <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
             onLoading={onLoading}
-            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={MOBILE ? 1.5 : 2} />
+            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} />
         )}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">

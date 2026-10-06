@@ -72,10 +72,10 @@ const Viewer = forwardRef(function Viewer(
     const fill = new THREE.DirectionalLight(0xffffff, 0);
     const rim = new THREE.DirectionalLight(0xffffff, 0);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(1024, 1024);
     Object.assign(key.shadow.camera, { left: -1.15, right: 1.15, top: 1.15, bottom: -1.15, near: 0.5, far: 7 });
-    key.shadow.radius = 5;
-    key.shadow.blurSamples = 12;
+    key.shadow.radius = 4;
+    key.shadow.blurSamples = 8;
     key.shadow.bias = -0.0004;
     key.shadow.normalBias = 0.006; // the cloth is thin: keep it from shadowing itself in stripes
     scene.add(key, fill, rim);
@@ -124,7 +124,7 @@ const Viewer = forwardRef(function Viewer(
     });
 
     three.current = {
-      renderer, scene, camera, controls, kit, garments: {}, lights: { key, fill, rim, hemi },
+      renderer, scene, camera, controls, kit, garments: {}, materials: [], lights: { key, fill, rim, hemi },
       invalidate: () => (dirty = true),
     };
     if (import.meta.env.DEV) window.__kit = three.current; // for screenshots and debugging in the dev server
@@ -174,6 +174,10 @@ const Viewer = forwardRef(function Viewer(
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
         t.garments[garment] = { name, object };
         t.kit.add(object);
+        t.materials = [];
+        t.kit.traverse((o) => {
+          if (o.isMesh && o.material) t.materials.push(o.material);
+        });
         t.invalidate();
       }),
     ).then(() => !cancelled && onLoaded?.(), (err) => {
@@ -264,11 +268,12 @@ const Viewer = forwardRef(function Viewer(
 /** Sum of the versions of every texture the kit's materials draw: it changes whenever one is repainted. */
 function textureStamp(t) {
   let s = 0;
-  t.kit.traverse((o) => {
-    const m = o.isMesh && o.material;
-    if (!m) return;
+  const mats = t.materials;
+  if (!mats || mats.length === 0) return 0;
+  for (let i = 0; i < mats.length; i++) {
+    const m = mats[i];
     s += (m.map?.version || 0) + (m.userData.relief?.value?.version || 0) + (m.roughnessMap?.version || 0);
-  });
+  }
   return s;
 }
 
