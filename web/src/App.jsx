@@ -118,6 +118,8 @@ export default function App() {
   const [error, setError] = useState(null);
   const [sheet, setSheet] = useState(null); // { kind: "image" | "json", title, url | text, filename }
   const [confirmReset, setConfirmReset] = useState(false);
+  const [busyNote, setBusyNote] = useState(null); // shown over the stage while a big render runs
+  const shooting = useRef(false);
   const [saveStatus, setSaveStatus] = useState("saving");
   const [previewHeight, setPreviewHeight] = useState(null);
   const app = useRef(null);
@@ -238,14 +240,40 @@ export default function App() {
   }, []);
 
   const actions = {
-    screenshot: (aspect) =>
-      setSheet({
-        kind: "image",
-        title: aspect ? `Preview ${aspect}` : "Preview screenshot",
-        url: viewer.current.screenshot(aspect, { transparent: prefs.transparent }),
-        filename: `kit${aspect ? `-${aspect.replace(":", "x")}` : ""}${prefs.transparent ? "-transparent" : ""}.png`,
-        preview: true,
-      }),
+    // 4K (3840 px on the long side; 2048 on phones): the garment texture is repainted at 4096 for the shot, then
+    // put back, so the cloth, prints and logos are as sharp as the output.
+    screenshot: async (aspect) => {
+      if (shooting.current) return;
+      shooting.current = true;
+      const prior = renderer.size;
+      const hi = MOBILE ? 2048 : 4096;
+      const boost = prior < hi;
+      setBusyNote(MOBILE ? "Rendering high quality image…" : "Rendering 4K image…");
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 40))); // let the note show first
+      try {
+        if (boost) {
+          renderer.resize(hi);
+          renderer.render(projectRef.current, templates, models, imagesRef.current, fontsReadyRef.current);
+        }
+        const url = viewer.current.screenshot(aspect, { transparent: prefs.transparent, long: MOBILE ? 2048 : 3840 });
+        setSheet({
+          kind: "image",
+          title: `${aspect ? `Preview ${aspect}` : "Preview screenshot"} (${MOBILE ? "2K" : "4K"})`,
+          url,
+          filename: `kit${aspect ? `-${aspect.replace(":", "x")}` : ""}${MOBILE ? "-2k" : "-4k"}${prefs.transparent ? "-transparent" : ""}.png`,
+          preview: true,
+        });
+      } catch {
+        setError("Could not render the image at this size. Try a smaller texture resolution or another browser.");
+      } finally {
+        if (boost) {
+          renderer.resize(prior);
+          setSizeKey((n) => n + 1);
+        }
+        setBusyNote(null);
+        shooting.current = false;
+      }
+    },
     /** kind: "color" (the texture), "normal" or "orm" (material maps, when the garment has them). */
     texture: (garment, kind = "color") => {
       const canvas = kind === "color" ? textures[garment].image : renderer.maps[garment]?.[kind]?.image;
@@ -355,7 +383,8 @@ export default function App() {
             ))}
           </select>}
         </div>
-        {!loaded && !error && <div className="stage-note">Loading kit…</div>}
+        {busyNote && <div className="stage-note" role="status">{busyNote}</div>}
+        {!loaded && !error && !busyNote && <div className="stage-note">Loading kit…</div>}
         {error && (
           <div className="stage-note error" role="alert" onClick={() => setError(null)}>
             {error}

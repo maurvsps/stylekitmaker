@@ -1050,16 +1050,16 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
       {tab === "export" && <Section title="Export" eyebrow="06">
         <KitChecklist items={checklist} onGo={goItem} />
-        <p className="section-copy">Takes a picture of the current 3D view. You can preview it before downloading.</p>
+        <p className="section-copy">Takes a 4K picture of the current 3D view (2K on phones). You can preview it before downloading.</p>
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
-            Screenshot of current view (PNG)
+            4K screenshot (PNG)
           </button>
         </div>
         <span className="group-label">Social media crop</span>
         <div className="row">
           {[["1:1", "Square"], ["16:9", "Wide"], ["9:16", "Story"]].map(([a, name]) => (
-            <button key={a} type="button" className="quiet" onClick={() => actions.screenshot(a)} title={`${name} ${a} image, 2048 px long side`}>
+            <button key={a} type="button" className="quiet" onClick={() => actions.screenshot(a)} title={`${name} ${a} image, 4K (3840 px on the long side)`}>
               {name} <small>{a}</small>
             </button>
           ))}

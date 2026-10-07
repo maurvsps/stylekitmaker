@@ -248,12 +248,12 @@ const Viewer = forwardRef(function Viewer(
      * (long side 2048 px), framing the whole kit from the current camera direction. `transparent` leaves out the
      * background.
      */
-    screenshot(aspect, { transparent = false } = {}) {
+    screenshot(aspect, { transparent = false, long = 3840 } = {}) {
       const t = three.current;
       const background = t.scene.background;
       t.scene.background = transparent ? null : new THREE.Color(BACKGROUND);
       try {
-        return capture(t, aspect);
+        return capture(t, aspect, long);
       } finally {
         t.scene.background = background;
         t.invalidate();
@@ -292,33 +292,52 @@ function textureStamp(t) {
   return s;
 }
 
-function capture(t, aspect) {
-  if (!aspect) {
-    t.renderer.render(t.scene, t.camera);
-    return t.renderer.domElement.toDataURL("image/png");
+/**
+ * Render the scene to a PNG data URL, `long` pixels on the long side (clamped to what the GPU allows). Without an
+ * aspect it keeps the view as framed on screen; with one it frames the whole shirt. The key light's shadow map is
+ * enlarged for the shot, so shadows stay crisp at 4K.
+ */
+function capture(t, aspect, long = 3840) {
+  const { renderer, camera, controls, lights } = t;
+  const max = Math.min(long, renderer.capabilities.maxTextureSize || long, 8192);
+  let cam = camera;
+  let ratio = camera.aspect;
+  if (aspect) {
+    const [aw, ah] = aspect.split(":").map(Number);
+    ratio = aw / ah;
+    cam = camera.clone();
+    cam.aspect = ratio;
+    cam.updateProjectionMatrix();
+    const centre = new THREE.Vector3(0, CENTRE_Y, 0); // the whole shirt, even after a close-up
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
+    cam.lookAt(centre);
   }
-  const [aw, ah] = aspect.split(":").map(Number);
-  const long = 2048;
-  const w = aw >= ah ? long : Math.round((long * aw) / ah);
-  const h = aw >= ah ? Math.round((long * ah) / aw) : long;
-  const { renderer, camera, controls } = t;
-  const cam = camera.clone();
-  cam.aspect = w / h;
-  cam.updateProjectionMatrix();
-  const centre = new THREE.Vector3(0, CENTRE_Y, 0); // the whole shirt, even after a close-up
-  const dir = camera.position.clone().sub(controls.target).normalize();
-  cam.position.copy(centre).addScaledVector(dir, fitDistance(cam, controls, false));
-  cam.lookAt(centre);
-  const ratio = renderer.getPixelRatio();
+  const w = ratio >= 1 ? max : Math.round(max * ratio);
+  const h = ratio >= 1 ? Math.round(max / ratio) : max;
+
+  const key = lights.key;
+  const shadowSize = key.shadow.mapSize.x;
+  const resizeShadow = (n) => {
+    key.shadow.mapSize.set(n, n);
+    key.shadow.map?.dispose();
+    key.shadow.map = null;
+    renderer.shadowMap.needsUpdate = true;
+  };
+  const pixelRatio = renderer.getPixelRatio();
   const size = renderer.getSize(new THREE.Vector2());
-  renderer.setPixelRatio(1);
-  renderer.setSize(w, h, false);
-  renderer.render(t.scene, cam);
-  const url = renderer.domElement.toDataURL("image/png");
-  renderer.setPixelRatio(ratio);
-  renderer.setSize(size.x, size.y, false);
-  renderer.render(t.scene, camera);
-  return url;
+  try {
+    resizeShadow(Math.min(4096, renderer.capabilities.maxTextureSize || 2048));
+    renderer.setPixelRatio(1);
+    renderer.setSize(w, h, false);
+    renderer.render(t.scene, cam);
+    return renderer.domElement.toDataURL("image/png");
+  } finally {
+    resizeShadow(shadowSize);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(size.x, size.y, false);
+    renderer.render(t.scene, camera);
+  }
 }
 
 // ---------------------------------------------------------------- fabric material
