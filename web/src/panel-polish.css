@@ -382,3 +382,7 @@
 .flat-view figure { flex: 1 1 0; max-width: 360px; }
 .flat-view canvas { width: 100%; height: auto; max-height: calc(100dvh - 210px); object-fit: contain; }
 .panel .palette-card > span:last-child { white-space: normal; line-height: 1.2; }
+
+.kit-image-more > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0; }
+.kit-image-more[open] > summary { color: var(--text); }
+.kit-image-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 10px; }

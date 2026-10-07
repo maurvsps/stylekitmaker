@@ -447,6 +447,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
   };
 
+  const patchImageLayer = (id, fields) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, id, (l) => ({ ...l, ...fields }))));
   const setLayerSize = (id, size) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, id, (l) => ({ ...l, size }))));
   const removeImageLayer = (id) => setProject((p) => editLayers(p, "shirt", (ls) => ls.filter((l) => l.id !== id)));
 
@@ -1037,6 +1038,19 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                       <SliderField label="Size" value={Math.round(l.size * 100)} unit="cm" min={2} max={Math.max(150, Math.round(l.size * 100))} step={1}
                         onChange={(cm) => setLayerSize(l.id, cm / 100)} />
                     )}
+                    <details className="kit-image-more">
+                      <summary>Print texture{l.fit === "texture" ? "" : " & border"}</summary>
+                      <div className="kit-image-options">
+                        <FinishSelector finish={l.finish} texture={l.texture}
+                          onChange={(fin) => patchImageLayer(l.id, { finish: { ...fin.finish }, texture: fin.texture })} />
+                        {l.fit !== "texture" && (
+                          <>
+                            <TintPicker value={l.tint} palette={project.palette} onChange={(tint) => patchImageLayer(l.id, { tint })} />
+                            <StrokeField stroke={l.stroke} palette={project.palette} onChange={(stroke) => patchImageLayer(l.id, { stroke })} />
+                          </>
+                        )}
+                      </div>
+                    </details>
                   </li>
                 );
               })}
