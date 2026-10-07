@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
 import ColorButton from "./ColorPicker.jsx";
-import LayersPanel from "./LayersPanel.jsx";
+import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
 import { prepareLogo } from "./logoImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
@@ -204,6 +204,12 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     const layer = slotLayer(slot);
     if (!layer) return;
     setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, tint }))));
+  };
+
+  const setSlotStroke = (slot, stroke) => {
+    const layer = slotLayer(slot);
+    if (!layer) return;
+    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, stroke }))));
   };
 
   const setSlotFinish = (slot, finishItem) => {
@@ -537,6 +543,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     onChange={(tint) => setSlotTint(brandSlot, tint)}
                   />
 
+                  <StrokeField stroke={brandLayer.stroke} palette={project.palette} onChange={(s) => setSlotStroke(brandSlot, s)} />
+
                   <FinishSelector
                     finish={brandLayer.finish}
                     texture={brandLayer.texture}
@@ -609,6 +617,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     palette={project.palette}
                     onChange={(tint) => setSlotTint(activeSponsorSlot, tint)}
                   />
+
+                  <StrokeField stroke={slotLayer(activeSponsorSlot).stroke} palette={project.palette} onChange={(s) => setSlotStroke(activeSponsorSlot, s)} />
 
                   <FinishSelector
                     finish={slotLayer(activeSponsorSlot).finish}
@@ -723,6 +733,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     step={0.5}
                     onChange={(cm) => setSlotSize(crestSlot, cm / 100)}
                   />
+
+                  <StrokeField stroke={crestLayer.stroke} palette={project.palette} onChange={(s) => setSlotStroke(crestSlot, s)} />
 
                   <FinishSelector
                     finish={crestLayer.finish}

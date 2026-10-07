@@ -303,7 +303,47 @@ function placeImage(ctx, layer, env, frame, x, y) {
   const k = layer.size / Math.max(iw, ih); // metres per image pixel
   const w = iw * k * t.scaleX * frame.s;
   const h = ih * k * t.scaleY * frame.s;
-  ctx.drawImage(layer.tint ? tinted(image, env.color(layer.tint)) : image, x - w / 2, y - h / 2, w, h);
+  const src = layer.tint ? tinted(image, env.color(layer.tint)) : image;
+  const stroke = layer.stroke;
+  if (stroke && stroke.width > 0) {
+    const r = Math.min(MAX_STROKE_PX, stroke.width / k); // stroke radius in image pixels
+    const framed = outlined(src, image, env.color(stroke.color), r);
+    const s = w / iw; // canvas pixels per image pixel
+    ctx.drawImage(framed.canvas, x - w / 2 - framed.pad * s, y - h / 2 - framed.pad * s, framed.canvas.width * s, framed.canvas.height * s);
+    return;
+  }
+  ctx.drawImage(src, x - w / 2, y - h / 2, w, h);
+}
+
+// A border around a logo's shape: its silhouette in the stroke colour stamped around a circle, the logo on top.
+// Kept per image, stroke colour and radius, on a canvas padded by the radius.
+const MAX_STROKE_PX = 90;
+const strokes = new WeakMap();
+function outlined(src, image, color, r) {
+  let byKey = strokes.get(src);
+  if (!byKey) strokes.set(src, (byKey = new Map()));
+  const key = `${color}|${r.toFixed(1)}`;
+  let hit = byKey.get(key);
+  if (!hit) {
+    const pad = Math.ceil(r) + 1;
+    const iw = image.naturalWidth || image.width || 1;
+    const ih = image.naturalHeight || image.height || 1;
+    const canvas = document.createElement("canvas");
+    canvas.width = iw + pad * 2;
+    canvas.height = ih + pad * 2;
+    const g = canvas.getContext("2d");
+    const silhouette = tinted(image, color);
+    for (const ring of [r, r * 0.5]) {
+      const steps = Math.max(16, Math.ceil(ring * 1.5));
+      for (let i = 0; i < steps; i++) {
+        const a = (i / steps) * Math.PI * 2;
+        g.drawImage(silhouette, pad + Math.cos(a) * ring, pad + Math.sin(a) * ring, iw, ih);
+      }
+    }
+    g.drawImage(src, pad, pad, iw, ih);
+    byKey.set(key, (hit = { canvas, pad }));
+  }
+  return hit;
 }
 
 // One-colour versions of logos (a white brand mark, a sponsor in the trim colour), kept per image and colour.

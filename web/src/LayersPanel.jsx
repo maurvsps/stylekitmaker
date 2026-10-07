@@ -471,6 +471,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
           <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
           <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
+          <StrokeField stroke={layer.stroke} palette={palette} onChange={(stroke) => patch({ stroke })} />
         </>
       )}
 
@@ -768,6 +769,19 @@ function AssetPicker({ project, value, onChange, uploadImage }) {
         const asset = file && (await uploadImage(file));
         if (asset) onChange(asset.id);
       }} />
+    </div>
+  );
+}
+
+/** Border around a logo: width in mm (0 = none) and its colour. `stroke` is { color, width (metres) } or null. */
+export function StrokeField({ stroke, palette, onChange }) {
+  const mm = stroke ? Math.round(stroke.width * 2000) / 2 : 0;
+  const color = stroke?.color ?? "#ffffff";
+  return (
+    <div className="stroke-field">
+      <Slider label="Border" unit="mm" value={mm} min={0} max={8} step={0.5}
+        onChange={(v) => onChange(v > 0 ? { color, width: v / 1000 } : null)} />
+      {mm > 0 && <ColorField label="Border colour" value={color} palette={palette} onChange={(c) => onChange({ color: c ?? "#ffffff", width: mm / 1000 })} />}
     </div>
   );
 }

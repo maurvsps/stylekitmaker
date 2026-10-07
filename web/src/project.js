@@ -25,7 +25,7 @@
 //   base     { design, colors: { <slot>: colour } }          opaque ground, or the trims (library.js BASE_DESIGNS)
 //   pattern  { pattern, colors: [colour..., background|null] }   pattern space moved by transform
 //   graphic  { shape, color, size, surface }                  transform x/y = centre in the surface's frame (metres)
-//   image    { asset, size, surface }                         size = longer side in metres before scaling
+//   image    { asset, size, surface, tint, stroke }           size = longer side in metres before scaling; stroke = { color, width (metres) } or null
 //   text     { text, bind, font, color, size, maxWidth, outline, surface }   size = capital height in metres
 //   material { effect }                                       fabric finish over its mask (library.js MATERIALS)
 //   group    { children: [layers...] }
@@ -110,7 +110,7 @@ export function makeLayer(type, garment, fields = {}) {
       return { name: p.label, pattern: p.id, colors: defaultPatternColors(p) };
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
-    image: () => ({ ...placed, asset: null, size: 0.085, tint: null, texture: "kit" }), // texture: kit fabric or a smooth print
+    image: () => ({ ...placed, asset: null, size: 0.085, tint: null, stroke: null, texture: "kit" }), // texture: kit fabric or a smooth print
     text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true, texture: "kit" }),
     material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
@@ -290,6 +290,7 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.size = num(l.size, 0.005, 1, d.size);
       layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
       layer.texture = l.texture === "smooth" ? "smooth" : "kit";
+      layer.stroke = sanitizeStroke(l.stroke);
       break;
     case "text":
       layer.text = str(l.text, 40, "");
@@ -315,6 +316,12 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       break;
   }
   return layer;
+}
+
+function sanitizeStroke(s) {
+  if (!s || typeof s !== "object") return null;
+  const width = num(s.width, 0, 0.012, 0);
+  return width > 0 ? { color: color(s.color, "#ffffff"), width } : null;
 }
 
 function sanitizeMask(m, garment) {

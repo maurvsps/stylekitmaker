@@ -32,6 +32,7 @@ export default function ClubPickerModal({
   const [onlineResults, setOnlineResults] = useState(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
   const [pickingId, setPickingId] = useState(null);
+  const [broken, setBroken] = useState(() => new Set()); // clubs whose crest image failed to load: hidden, not shown blank
 
   const searchInputRef = useRef(null);
 
@@ -57,7 +58,7 @@ export default function ClubPickerModal({
 
   // Filter clubs from catalog
   const filteredClubs = useMemo(() => {
-    let list = CLUBS_CATALOG;
+    let list = CLUBS_CATALOG.filter((c) => !broken.has(c.name));
     const q = search.trim().toLowerCase();
 
     // League tab filter
@@ -80,7 +81,7 @@ export default function ClubPickerModal({
     }
 
     return list;
-  }, [search, activeTab]);
+  }, [search, activeTab, broken]);
 
   // Search Wikimedia online fallback
   const handleSearchOnline = async () => {
@@ -247,8 +248,10 @@ export default function ClubPickerModal({
                         className="club-modal-badge-img"
                         loading="lazy"
                         onError={(e) => {
-                          if (e.currentTarget.src !== club.colorUrl) {
+                          if (club.colorUrl && e.currentTarget.src !== club.colorUrl) {
                             e.currentTarget.src = club.colorUrl;
+                          } else {
+                            setBroken((prev) => new Set(prev).add(club.name));
                           }
                         }}
                       />}

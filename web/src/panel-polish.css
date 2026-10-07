@@ -272,3 +272,5 @@
   .stage-tools > * { flex: 0 0 auto; }
   .viewer { top: 58px; bottom: 58px; }
 }
+
+.stroke-field { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr); }
