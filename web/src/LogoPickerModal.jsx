@@ -23,12 +23,14 @@ export default function LogoPickerModal({
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
   const [pickingId, setPickingId] = useState(null);
+  const [group, setGroup] = useState("All");
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return undefined;
     setQuery("");
     setResults(null);
+    setGroup("All");
     setSource(hasLibrary ? "library" : "link");
     const focus = setTimeout(() => inputRef.current?.focus(), 50);
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
@@ -76,7 +78,8 @@ export default function LogoPickerModal({
   };
 
   const q = query.trim().toLowerCase();
-  const shownPresets = q ? presets.filter((p) => p.name.toLowerCase().includes(q)) : presets;
+  const groups = ["All", ...new Set(presets.map((p) => p.group).filter(Boolean))];
+  const shownPresets = presets.filter((p) => (group === "All" || p.group === group) && (!q || p.name.toLowerCase().includes(q)));
 
   return createPortal(
     <div className="sheet-backdrop club-modal-backdrop" onClick={onClose}>
@@ -105,31 +108,40 @@ export default function LogoPickerModal({
         <div className="club-modal-body">
           {source === "library" && (
             <>
-              {onSearch && (
+              {(onSearch || presets.length > 0) && (
                 <form className="club-modal-toolbar" onSubmit={search}>
                   <div className="club-modal-search">
                     <input ref={inputRef} value={query} onChange={(e) => { setQuery(e.target.value); setResults(null); }}
                       placeholder={placeholder} aria-label="Search logos" />
                     {query && <button type="button" className="quiet club-search-clear" onClick={() => { setQuery(""); setResults(null); }}>Clear</button>}
                   </div>
-                  <button type="submit" disabled={busy || !query.trim()}>{busy ? "Searching..." : "Search online"}</button>
+                  {onSearch && <button type="submit" disabled={busy || !query.trim()}>{busy ? "Searching..." : "Search online"}</button>}
                 </form>
               )}
 
               {presets.length > 0 && (
                 <div className="logo-modal-group">
                   <span className="group-label">{presetsTitle}</span>
+                  {groups.length > 2 && (
+                    <div className="club-modal-tabs" role="tablist" aria-label="Group">
+                      {groups.map((g) => (
+                        <button key={g} type="button" role="tab" aria-selected={group === g} className={`club-tab-btn${group === g ? " active" : ""}`} onClick={() => setGroup(g)}>{g}</button>
+                      ))}
+                    </div>
+                  )}
                   {shownPresets.length > 0 ? (
                     <div className="club-modal-grid">
                       {shownPresets.map((p) => (
                         <button key={p.id} type="button" className="club-modal-card" disabled={pickingId === p.id} onClick={() => pickPreset(p)}>
-                          <div className="club-modal-badge-box preset-svg" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                          {p.url
+                            ? <div className="club-modal-badge-box patch-thumb"><img src={p.url} alt="" className="club-modal-badge-img" loading="lazy" /></div>
+                            : <div className="club-modal-badge-box preset-svg" dangerouslySetInnerHTML={{ __html: p.svg }} />}
                           <span className="club-modal-badge-name">{p.name}</span>
                         </button>
                       ))}
                     </div>
                   ) : (
-                    <p className="section-copy">No saved match. Press Search online to look further.</p>
+                    <p className="section-copy">{onSearch ? "No saved match. Press Search online to look further." : "No patches match."}</p>
                   )}
                 </div>
               )}

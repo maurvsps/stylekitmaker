@@ -1,0 +1,248 @@
+[
+ {
+  "id": "premier-league",
+  "name": "Premier League",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/f/f2/Premier_League_Logo.svg"
+ },
+ {
+  "id": "laliga",
+  "name": "LaLiga",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/5/54/LaLiga_EA_Sports_2023_Vertical_Logo.svg"
+ },
+ {
+  "id": "bundesliga",
+  "name": "Bundesliga",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/d/df/Bundesliga_logo_%282017%29.svg"
+ },
+ {
+  "id": "serie-a",
+  "name": "Serie A",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/a/ab/Serie_A_ENILIVE_logo.svg"
+ },
+ {
+  "id": "ligue-1",
+  "name": "Ligue 1",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Logo_Ligue_1_McDonald%27s_2024.svg"
+ },
+ {
+  "id": "mls",
+  "name": "MLS",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/c/c7/Major_League_Soccer_logo.svg"
+ },
+ {
+  "id": "liga-mx",
+  "name": "Liga MX",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/2/22/Liga_MX_logo.svg"
+ },
+ {
+  "id": "eredivisie",
+  "name": "Eredivisie",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/8/81/VriendenLoterij_Eredivisie_Logo.png"
+ },
+ {
+  "id": "primeira-liga",
+  "name": "Liga Portugal",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/d/d5/Liga_Portugal_Betclic_logo.svg"
+ },
+ {
+  "id": "super-lig",
+  "name": "Super Lig",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/0/0f/Turkish_S%C3%BCper_Lig_logo_%282024%29.svg"
+ },
+ {
+  "id": "scottish-premiership",
+  "name": "Scottish Premiership",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/e/ea/Scottish_Premiership_logo.svg"
+ },
+ {
+  "id": "championship",
+  "name": "EFL Championship",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/0/0f/EFL_Championship_Logo.svg"
+ },
+ {
+  "id": "saudi-pro-league",
+  "name": "Saudi Pro League",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/7/75/Roshn_Saudi_League_Logo.svg"
+ },
+ {
+  "id": "brasileirao",
+  "name": "Brasileirao",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/2/2b/Campeonato_Brasileiro_S%C3%A9rie_A_logo_%282024%29.svg"
+ },
+ {
+  "id": "liga-profesional",
+  "name": "Liga Profesional",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/6/64/Liga_Profesional_de_F%C3%BAtbol_%28Argentina%29_logo.svg"
+ },
+ {
+  "id": "j1-league",
+  "name": "J1 League",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/b/bc/J1_league_logo_2026.svg"
+ },
+ {
+  "id": "k-league-1",
+  "name": "K League 1",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/2/2d/K_League_1.svg"
+ },
+ {
+  "id": "a-league",
+  "name": "A-League",
+  "group": "Leagues",
+  "url": "https://upload.wikimedia.org/wikipedia/en/9/98/Isuzu_UTE_A-League_Men.svg"
+ },
+ {
+  "id": "champions-league",
+  "name": "Champions League",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/en/f/f5/UEFA_Champions_League.svg"
+ },
+ {
+  "id": "europa-league",
+  "name": "Europa League",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/1/1b/UEFA_Europa_League_logo_%282024_version%29.svg"
+ },
+ {
+  "id": "conference-league",
+  "name": "Conference League",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/4/4b/UEFA_Conference_League_full_logo_%282024_version%29.svg"
+ },
+ {
+  "id": "uefa-super-cup",
+  "name": "UEFA Super Cup",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/en/0/0b/UEFA_Super_Cup_logo.svg"
+ },
+ {
+  "id": "women-champions-league",
+  "name": "Women's Champions League",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/en/1/18/UEFA_Women%27s_Champions_League_logo_%282021%29.svg"
+ },
+ {
+  "id": "nations-league",
+  "name": "Nations League",
+  "group": "Europe",
+  "url": "https://upload.wikimedia.org/wikipedia/en/8/80/UEFA_Nations_League.svg"
+ },
+ {
+  "id": "world-cup",
+  "name": "FIFA World Cup",
+  "group": "International",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/0/0d/FIFA_World_Cup_wordmark_%282023%29.svg"
+ },
+ {
+  "id": "club-world-cup",
+  "name": "Club World Cup",
+  "group": "International",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/4/4e/FIFA_Club_World_Cup_logo.svg"
+ },
+ {
+  "id": "copa-america",
+  "name": "Copa America",
+  "group": "International",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/5/55/Copa_America_wordmark.svg"
+ },
+ {
+  "id": "afcon",
+  "name": "Africa Cup of Nations",
+  "group": "International",
+  "url": "https://upload.wikimedia.org/wikipedia/en/c/cf/Africa_Cup_of_Nation_official_logo.png"
+ },
+ {
+  "id": "gold-cup",
+  "name": "CONCACAF Gold Cup",
+  "group": "International",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/b/b5/Concacaf_Gold_Cup_2021.svg"
+ },
+ {
+  "id": "copa-libertadores",
+  "name": "Copa Libertadores",
+  "group": "South America",
+  "url": "https://upload.wikimedia.org/wikipedia/en/a/a1/Copa_Libertadores_logo.svg"
+ },
+ {
+  "id": "copa-sudamericana",
+  "name": "Copa Sudamericana",
+  "group": "South America",
+  "url": "https://upload.wikimedia.org/wikipedia/en/c/c2/CONMEBOL_Sudamericana_logo_%282017%29.svg"
+ },
+ {
+  "id": "afc-champions-league",
+  "name": "AFC Champions League",
+  "group": "Asia",
+  "url": "https://upload.wikimedia.org/wikipedia/en/d/d7/AFC_Champions_League_Elite_logo.svg"
+ },
+ {
+  "id": "fa-cup",
+  "name": "FA Cup",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/d/d5/FA_Cup_logo_%282020%29.svg"
+ },
+ {
+  "id": "efl-cup",
+  "name": "Carabao Cup",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/0/0c/EFL_%28Carabao%29_Cup_Logo.svg"
+ },
+ {
+  "id": "community-shield",
+  "name": "Community Shield",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/d/d6/FA_Community_Shield_logo.svg"
+ },
+ {
+  "id": "copa-del-rey",
+  "name": "Copa del Rey",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/7/7b/Copa_del_Rey_logo_%282021%29.svg"
+ },
+ {
+  "id": "supercopa",
+  "name": "Supercopa de Espana",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/f/fa/Supercopa-de-Espa%C3%B1a-RFEF.svg"
+ },
+ {
+  "id": "dfb-pokal",
+  "name": "DFB-Pokal",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/7/76/DFB-Pokal_Logo_2026.svg"
+ },
+ {
+  "id": "coppa-italia",
+  "name": "Coppa Italia",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Logo_of_Coppa_Italia_Frecciarossa_%282024-2025%29.svg"
+ },
+ {
+  "id": "coupe-de-france",
+  "name": "Coupe de France",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/7/70/Coupe_de_France_logo_%282022%29.svg"
+ },
+ {
+  "id": "knvb-cup",
+  "name": "KNVB Cup",
+  "group": "Cups",
+  "url": "https://upload.wikimedia.org/wikipedia/en/f/f1/KNVB_Cup_logo.png"
+ }
+]

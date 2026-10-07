@@ -9,6 +9,7 @@ import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import ClubPickerModal from "./ClubPickerModal.jsx";
 import LogoPickerModal from "./LogoPickerModal.jsx";
+import PATCHES from "./patches.json";
 import DesignStep from "./DesignStep.jsx";
 import ColorsStep from "./ColorsStep.jsx";
 import PlacementMap from "./PlacementMap.jsx";
@@ -40,7 +41,7 @@ const savedTab = () => {
 const savedLogoSubTab = () => {
   try {
     const t = localStorage.getItem(LOGO_SUBTAB_KEY);
-    return ["crest", "brand", "sponsors", "all"].includes(t) ? t : "brand";
+    return ["crest", "brand", "sponsors", "patches", "all"].includes(t) ? t : "brand";
   } catch {
     return "brand";
   }
@@ -76,7 +77,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
   const [clubModalOpen, setClubModalOpen] = useState(false);
-  const [logoModal, setLogoModal] = useState(null); // "brand" | "sponsor"
+  const [logoModal, setLogoModal] = useState(null); // "brand" | "sponsor" | "patch"
+  const [activePatchSlotId, setActivePatchSlotId] = useState("sleeve-left");
 
   useEffect(() => {
     try {
@@ -147,8 +149,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     { id: "brand", label: "Kit maker brand", category: "brand", garment: "shirt", surface: "front", x: -0.095, y: 0.555 },
     { id: "shirt-sponsor", label: "Front sponsor", category: "sponsor", garment: "shirt", surface: "front", x: 0, y: 0.38 },
     { id: "back-sponsor", label: "Back sponsor", category: "sponsor", garment: "shirt", surface: "back", x: 0, y: 0.42 },
-    { id: "sleeve-left", label: "Left sleeve", category: "sponsor", garment: "shirt", surface: "sleeve_left", x: 0, y: 0.42 },
-    { id: "sleeve-right", label: "Right sleeve", category: "sponsor", garment: "shirt", surface: "sleeve_right", x: 0, y: 0.42 },
+    { id: "sleeve-left", label: "Left sleeve", category: "patch", garment: "shirt", surface: "sleeve_left", x: 0, y: 0.42 },
+    { id: "sleeve-right", label: "Right sleeve", category: "patch", garment: "shirt", surface: "sleeve_right", x: 0, y: 0.42 },
   ];
 
   const slotLayer = (slot) => findRole(project.garments[slot.garment].layers, slot.id === "crest" ? "crest" : `logo-${slot.id}`);
@@ -281,6 +283,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const brandSlot = logoSlots.find((s) => s.id === "brand");
   const sponsorSlots = logoSlots.filter((s) => s.category === "sponsor");
   const activeSponsorSlot = sponsorSlots.find((s) => s.id === activeSponsorSlotId) || sponsorSlots[0];
+  const patchSlots = logoSlots.filter((s) => s.category === "patch");
+  const activePatchSlot = patchSlots.find((s) => s.id === activePatchSlotId) || patchSlots[0];
 
   const crestLayer = slotLayer(crestSlot);
   const crestPos = !crestLayer?.transform ? "left" : Math.abs(crestLayer.transform.x) < 0.03 ? "center" : "left";
@@ -452,7 +456,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
 
   // ---- logo placement map: which spots are filled, and tapping one opens the right editor or library
   const filledSlots = Object.fromEntries(logoSlots.map((s) => [s.id, !!slotLayer(s)]));
-  const activeSpotId = logoSubTab === "crest" ? "crest" : logoSubTab === "brand" ? "brand" : logoSubTab === "sponsors" ? activeSponsorSlotId : null;
+  const activeSpotId = logoSubTab === "crest" ? "crest" : logoSubTab === "brand" ? "brand" : logoSubTab === "sponsors" ? activeSponsorSlotId : logoSubTab === "patches" ? activePatchSlotId : null;
   const pickSpot = (id) => {
     if (id === "crest") {
       setLogoSubTab("crest");
@@ -460,6 +464,10 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     } else if (id === "brand") {
       setLogoSubTab("brand");
       if (!filledSlots.brand) setLogoModal("brand");
+    } else if (id.startsWith("sleeve")) {
+      setLogoSubTab("patches");
+      setActivePatchSlotId(id);
+      if (!filledSlots[id]) setLogoModal("patch");
     } else {
       setLogoSubTab("sponsors");
       setActiveSponsorSlotId(id);
@@ -486,10 +494,21 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const openSlot = (slot) => {
     if (slot.id === "crest") setClubModalOpen(true);
     else if (slot.id === "brand") setLogoModal("brand");
-    else {
+    else if (slot.category === "patch") {
+      setActivePatchSlotId(slot.id);
+      setLogoModal("patch");
+    } else {
       setActiveSponsorSlotId(slot.id);
       setLogoModal("sponsor");
     }
+  };
+
+  /** Open a logo's layer in the advanced editor (position, scale, blending, mask, finish). */
+  const editSlot = (slot) => {
+    const layer = slotLayer(slot);
+    if (!layer) return;
+    select(layer.id, slot.garment);
+    setTab("layers");
   };
 
   /** A pasted link as a File, so it goes through the same clean-up as an upload. */
@@ -597,6 +616,15 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             <button
               type="button"
               role="tab"
+              aria-selected={logoSubTab === "patches"}
+              className={logoSubTab === "patches" ? "on" : ""}
+              onClick={() => setLogoSubTab("patches")}
+            >
+              <span>Patches</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={logoSubTab === "all"}
               className={logoSubTab === "all" ? "on" : ""}
               onClick={() => setLogoSubTab("all")}
@@ -620,6 +648,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 project={project}
                 onAdd={() => openSlot(brandSlot)}
                 onRemove={() => removeLogo(brandSlot)}
+                onEdit={() => editSlot(brandSlot)}
               />
 
               {brandLayer && (
@@ -715,6 +744,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 project={project}
                 onAdd={() => openSlot(activeSponsorSlot)}
                 onRemove={() => removeLogo(activeSponsorSlot)}
+                onEdit={() => editSlot(activeSponsorSlot)}
               />
 
               {slotLayer(activeSponsorSlot) && (
@@ -767,6 +797,57 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </div>
           )}
 
+          {/* PATCHES: competition badges on the sleeves */}
+          {logoSubTab === "patches" && (
+            <div className="category-pane">
+              <div className="pane-intro">
+                <strong>Competition patches</strong>
+                <p>League, Champions League, cup and tournament badges for the sleeves.</p>
+              </div>
+
+              <span className="group-label">Sleeve</span>
+              <div className="sponsor-slot-selector">
+                {patchSlots.map((s) => (
+                  <button key={s.id} type="button" className={`sponsor-pill${s.id === activePatchSlot.id ? " active" : ""}${slotLayer(s) ? " populated" : ""}`}
+                    onClick={() => setActivePatchSlotId(s.id)}>
+                    <span>{s.label}</span>
+                    {slotLayer(s) && <span className="dot" title="Has a patch" />}
+                  </button>
+                ))}
+              </div>
+
+              <SlotCard
+                slot={activePatchSlot}
+                layer={slotLayer(activePatchSlot)}
+                project={project}
+                onAdd={() => openSlot(activePatchSlot)}
+                onRemove={() => removeLogo(activePatchSlot)}
+                onEdit={() => editSlot(activePatchSlot)}
+              />
+
+              {slotLayer(activePatchSlot) && (
+                <div className="slot-customizer">
+                  <SliderField
+                    label="Patch size"
+                    value={Math.round((slotLayer(activePatchSlot).size || DEFAULT_SLOT_SIZES["sleeve-left"]) * 100)}
+                    unit="cm"
+                    min={3}
+                    max={14}
+                    step={0.5}
+                    onChange={(cm) => setSlotSize(activePatchSlot, cm / 100)}
+                  />
+                  <TintPicker value={slotLayer(activePatchSlot).tint} palette={project.palette} onChange={(tint) => setSlotTint(activePatchSlot, tint)} />
+                  <StrokeField stroke={slotLayer(activePatchSlot).stroke} palette={project.palette} onChange={(st) => setSlotStroke(activePatchSlot, st)} />
+                  <FinishSelector finish={slotLayer(activePatchSlot).finish} texture={slotLayer(activePatchSlot).texture} onChange={(fin) => setSlotFinish(activePatchSlot, fin)} />
+                </div>
+              )}
+
+              <button type="button" className="add-image-btn" onClick={() => openSlot(activePatchSlot)}>
+                {slotLayer(activePatchSlot) ? "Change patch" : "Choose a patch"}
+              </button>
+            </div>
+          )}
+
           {/* 3. CLUB CREST */}
           {logoSubTab === "crest" && (
             <div className="category-pane">
@@ -782,6 +863,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 project={project}
                 onAdd={() => openSlot(crestSlot)}
                 onRemove={() => removeLogo(crestSlot)}
+                onEdit={() => editSlot(crestSlot)}
               />
 
               {crestLayer && (
@@ -906,6 +988,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   project={project}
                   onAdd={() => openSlot(crestSlot)}
                   onRemove={() => removeLogo(crestSlot)}
+                  onEdit={() => editSlot(crestSlot)}
                   onSelect={() => setLogoSubTab("crest")}
                 />
                 <SlotCard
@@ -914,6 +997,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   project={project}
                   onAdd={() => openSlot(brandSlot)}
                   onRemove={() => removeLogo(brandSlot)}
+                  onEdit={() => editSlot(brandSlot)}
                   onSelect={() => setLogoSubTab("brand")}
                 />
               </div>
@@ -928,9 +1012,29 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     project={project}
                     onAdd={() => openSlot(s)}
                     onRemove={() => removeLogo(s)}
+                    onEdit={() => editSlot(s)}
                     onSelect={() => {
                       setActiveSponsorSlotId(s.id);
                       setLogoSubTab("sponsors");
+                    }}
+                  />
+                ))}
+              </div>
+
+              <span className="group-label">Sleeve patches</span>
+              <div className="all-slots-grid">
+                {patchSlots.map((s) => (
+                  <SlotCard
+                    key={s.id}
+                    slot={s}
+                    layer={slotLayer(s)}
+                    project={project}
+                    onAdd={() => openSlot(s)}
+                    onRemove={() => removeLogo(s)}
+                    onEdit={() => editSlot(s)}
+                    onSelect={() => {
+                      setActivePatchSlotId(s.id);
+                      setLogoSubTab("patches");
                     }}
                   />
                 ))}
@@ -1179,6 +1283,22 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         onError={onError}
       />
       <LogoPickerModal
+        isOpen={logoModal === "patch"}
+        onClose={() => setLogoModal(null)}
+        title="Add patch"
+        subtitle="League, Champions League, cup and tournament badges, or your own"
+        targets={patchSlots}
+        targetId={activePatchSlot.id}
+        onTarget={setActivePatchSlotId}
+        presets={PATCHES}
+        presetsTitle="Competition patches"
+        placeholder="Filter patches (e.g. Champions, Premier, Copa)..."
+        onPickPreset={async (p) => uploadLogo(await fetchLogo(p.url, p.name), activePatchSlot, 0.07, {}, strict)}
+        onPickFile={slotFile(activePatchSlot)}
+        onPickLink={slotLink(activePatchSlot)}
+        onError={onError}
+      />
+      <LogoPickerModal
         isOpen={imageModal}
         onClose={() => setImageModal(false)}
         title="Add image"
@@ -1212,7 +1332,7 @@ function hideAt(layers, slot, role) {
 }
 
 /** Card showing an individual logo slot with preview, replace, and clear buttons */
-function SlotCard({ slot, layer, project, onAdd, onRemove, onSelect }) {
+function SlotCard({ slot, layer, project, onAdd, onRemove, onEdit, onSelect }) {
   const asset = layer && project.assets[layer.asset];
   return (
     <div className={`logo-slot-card${layer ? " populated" : ""}`} onClick={onSelect}>
@@ -1229,6 +1349,9 @@ function SlotCard({ slot, layer, project, onAdd, onRemove, onSelect }) {
         <button type="button" className="quiet slot-act-btn" onClick={onAdd} title="Upload, paste a link or pick from the library">
           {asset ? "Change" : "Add"}
         </button>
+        {layer && onEdit && (
+          <button type="button" className="quiet slot-act-btn" onClick={onEdit} title="Open in the advanced editor">Edit</button>
+        )}
         {layer && (
           <button
             type="button"
