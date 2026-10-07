@@ -22,40 +22,40 @@
       "rect": [
         0.02,
         0.02,
-        0.402559,
-        0.586425
+        0.404377,
+        0.589096
       ],
       "pmin": -0.243237,
-      "qmax": 0.708669,
-      "scale": 0.827502
+      "qmax": 0.708696,
+      "scale": 0.83124
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.442559,
+        0.444377,
         0.02,
-        0.402559,
-        0.679529
+        0.404377,
+        0.682599
       ],
       "pmin": -0.243237,
       "qmax": 0.821181,
-      "scale": 0.827502
+      "scale": 0.83124
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.386089,
-        0.719529,
-        0.346089,
-        0.216029
+        0.387652,
+        0.722599,
+        0.347652,
+        0.217004
       ],
       "pmin": -0.138327,
       "qmax": 0.0,
-      "scale": 0.827502,
+      "scale": 0.83124,
       "length": 0.2611
     },
     "sleeve_right": {
@@ -64,13 +64,13 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.719529,
-        0.346089,
-        0.21606
+        0.722599,
+        0.347652,
+        0.217036
       ],
       "pmin": -0.279906,
       "qmax": 0.0,
-      "scale": 0.827502,
+      "scale": 0.83124,
       "length": 0.2611
     },
     "collar": {
@@ -79,13 +79,13 @@
       "frame": "p: metres around from the front centre, q: metres up the band",
       "rect": [
         0.02,
-        0.955589,
-        0.51381,
-        0.024411
+        0.959635,
+        0.496902,
+        0.020365
       ],
-      "pmin": -0.311765,
-      "qmax": 0.028,
-      "scale": 0.827502
+      "pmin": -0.299414,
+      "qmax": 0.023,
+      "scale": 0.83124
     }
   }
 }

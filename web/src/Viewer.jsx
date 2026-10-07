@@ -42,7 +42,7 @@ const loadAo = (name) => {
  * template (where the ribbed trims are). The ref exposes screenshot() and view().
  */
 const Viewer = forwardRef(function Viewer(
-  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2 },
+  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2, handTool = false },
   ref,
 ) {
   const host = useRef(null);
@@ -143,6 +143,14 @@ const Viewer = forwardRef(function Viewer(
       three.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const controls = three.current?.controls;
+    if (!controls) return;
+    controls.enablePan = handTool;
+    controls.mouseButtons.LEFT = handTool ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+    controls.touches.ONE = handTool ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
+  }, [handTool]);
 
   // Garment models: (re)load whichever changed and paint them with their texture.
   useEffect(() => {
@@ -269,7 +277,7 @@ const Viewer = forwardRef(function Viewer(
     },
   }));
 
-  return <div className="viewer" ref={host} />;
+  return <div className={`viewer${handTool ? " hand-tool" : ""}`} ref={host} />;
 });
 
 /** Sum of the versions of every texture the kit's materials draw: it changes whenever one is repainted. */
@@ -329,6 +337,12 @@ function makeFabric(name, map, ao) {
     aoMap: ao, aoMapIntensity: sleeve ? 0.45 : 1,
     normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
   });
+  if (name === "shirt_collar") {
+    // The trim sits on the same cloth at the shoulder seam; keep tiny depth ties from showing shirt fragments.
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = -1;
+    material.polygonOffsetUnits = -1;
+  }
   if (inner) material.defines = { ...material.defines, USE_INNER: "" }; // its own shader program
   const relief = { value: null };
   const reliefUv = { value: new THREE.Matrix3() };

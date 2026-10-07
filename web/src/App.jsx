@@ -32,6 +32,17 @@ export default function App() {
   const setPref = (k, v) => setPrefs((p) => ({ ...p, [k]: v }));
   const [garment, setGarment] = useState("shirt");
   const [view, setView] = useState("3d"); // "3d" | "texture"
+  const [handTool, setHandTool] = useState(false);
+
+  useEffect(() => {
+    const onHandKey = (e) => {
+      if (view !== "3d" || e.key.toLowerCase() !== "m" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+      e.preventDefault();
+      setHandTool((active) => !active);
+    };
+    addEventListener("keydown", onHandKey);
+    return () => removeEventListener("keydown", onHandKey);
+  }, [view]);
 
   // Undo / redo: every project change is a step; changes less than half a second apart (a slider being dragged,
   // typing) merge into one.
@@ -270,7 +281,7 @@ export default function App() {
         {kits && (
           <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
             onLoading={onLoading}
-            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} />
+            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool} />
         )}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
@@ -284,6 +295,11 @@ export default function App() {
               Texture
             </button>
           </div>
+          {view === "3d" && <div className="seg" role="group" aria-label="3D navigation">
+            <button type="button" className={handTool ? "on" : ""} aria-pressed={handTool}
+              aria-label="Hand tool" title="Hand tool (M): drag to move the view"
+              onClick={() => setHandTool((active) => !active)}>✋</button>
+          </div>}
           <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting">
             {LIGHTING_PRESETS.map((l) => (
               <option key={l} value={l}>

@@ -394,7 +394,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               {!choices.length && <p className="hint">No matching designs.</p>}
             </div>
             <div className="slot-colors">
-              {design.slots.map(([k, label, def]) => (
+              {design.slots.filter(([k]) => k !== "vAccent" || template?.islands?.collar?.layered_v).map(([k, label, def]) => (
                 <ColorField key={k} label={label} value={layer.colors[k] ?? def} palette={palette}
                   onChange={(c) => patch({ colors: { ...layer.colors, [k]: c } })} />
               ))}

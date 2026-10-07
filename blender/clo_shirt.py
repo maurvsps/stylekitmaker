@@ -1,9 +1,9 @@
 """
 Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj).
 
-    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|scoop|wide] [--name shirt_clo]
+    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|wide|cross] [--name shirt_clo]
 
---collar picks the neck (see COLLARS): v, scoop and wide reshape the front neckline. Every variant
+--collar picks the neck (see COLLARS): v and wide reshape the front neckline. Every variant
 replaces CLO's standing strip with a flat rib binding. Each builds its own template (shirt_clo_v, ...).
 
 A .zprj keeps every pattern piece twice: flat (the 2D pattern, millimetres) and draped on CLO's avatar (3D,
@@ -37,11 +37,11 @@ SEAM = 0.004            # metres: vertices this close across two pieces count as
 # on the shirt outside the neck edge, as on a sewn football jersey.
 COLLARS = {
     "crew": ("", "Crew neck (narrow binding)", None, 0.008),
-    "v": ("_v", "V-neck (curved)", "v", 0.010),
-    "scoop": ("_scoop", "Deep round neck (realistic)", "scoop", 0.012),
-    "wide": ("_wide", "Crew neck (wide band)", "wide", 0.028),
+    "v": ("_v", "V-neck", "v", 0.010),
+    "wide": ("_wide", "Crew neck (wide band)", "wide", 0.023),
+    "cross": ("_cross", "Double V-neck", "v", 0.032),
 }
-NECK_DEPTH = {"v": 0.018, "scoop": 0.04, "wide": 0.012}  # extra drop at front centre
+NECK_DEPTH = {"v": 0.055, "wide": 0.010}  # extra drop at front centre
 
 
 # ---------------------------------------------------------------- reading the .zprj
@@ -280,9 +280,30 @@ def stitch(ps, reach=0.006):
         done.append((p, edges))
 
 
+def soften_sleeve_caps(ps):
+    """Relax the first interior rows of the sleeve cap without moving its sewn outline."""
+    for p in ps:
+        if p["role"] not in ("sleeve_left", "sleeve_right"):
+            continue
+        neighbours = [set() for _ in p["V"]]
+        for a, b, c in p["F"]:
+            neighbours[a].update((b, c))
+            neighbours[b].update((a, c))
+            neighbours[c].update((a, b))
+        seam = set(np.unique(boundary(p["F"])))
+        row = set().union(*(neighbours[i] for i in seam)) - seam
+        cap = p["V"][:, 2].max() - 0.09
+        for _ in range(2):
+            old = p["V"].copy()
+            for i in row:
+                if old[i, 2] > cap:
+                    p["V"][i] = old[i] * 0.7 + np.mean(old[list(neighbours[i])], axis=0) * 0.3
+            row = set().union(*(neighbours[i] for i in row)) - seam
+
+
 def cut_neckline(front, collar, shape, depth):
-    """Cut a deeper neckline into the front panel, in its flat frame (p across, q up): a soft V or a round
-    scoop from CLO's neck corners down to `depth` below its front centre. Triangles crossing the line are clipped."""
+    """Cut a deeper neckline into the front panel, in its flat frame (p across, q up): a soft V or a
+    rounded curve from CLO's neck corners down to `depth` below its front centre. Triangles crossing the line are clipped."""
     P, uv = front["P"], front["uv"]
     C = np.concatenate([c["P"] for c in collar])
     outline = np.unique(boundary(front["F"]))
@@ -291,13 +312,13 @@ def cut_neckline(front, collar, shape, depth):
     ps = np.abs(nb[:, 0]).max()
     qs = nb[np.abs(nb[:, 0]) > 0.9 * ps, 1].min()
     qv = nb[np.abs(nb[:, 0]) < 0.03, 1].min() - depth
-    span = ps * (0.85 if shape == "v" else 1.0)
+    span = ps * (0.95 if shape == "v" else 1.0)
     if shape == "v":
         # Join the curved V arms to the existing crew curve before they reach the shoulders.
         at_join = nb[np.abs(np.abs(nb[:, 0]) - span) < ps * 0.05, 1]
         qs = float(np.median(at_join)) if len(at_join) else qs
     a = np.clip(np.abs(uv[:, 0]) / span, 0, 1)
-    line = qv + (qs - qv) * (a ** 0.75 if shape == "v" else 1 - np.sqrt(1 - a * a))
+    line = qv + (qs - qv) * (a if shape == "v" else a ** 2)
     f = np.where(np.abs(uv[:, 0]) < span, line - uv[:, 1], 1.0)  # >= 0: keep
     keys = ("P", "R", "uv")
     extra = {k: [] for k in keys}
@@ -358,7 +379,12 @@ def sew_band(part, neck_ids, width, rows=4, samples=160, pointed=False):
     """A flat rib binding along the neck opening. It overlaps the shirt outside the cut edge and wraps 1.5 mm into
     the opening, so it reads as sewn fabric without forming a high standing collar. Its UVs are the collar island's
     frame: p around from the front centre (both ways), q across the binding."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+
     V = np.array([tuple(v) for v in part.verts])
+    cloth = BVHTree.FromPolygons([Vector(v) for v in part.verts],
+                                [ids for ids, _, _ in part.faces], all_triangles=True)
     other = {}
     for ids, _, _ in part.faces:
         for j in range(3):
@@ -385,29 +411,60 @@ def sew_band(part, neck_ids, width, rows=4, samples=160, pointed=False):
         ext_v = np.concatenate([values, values, values])
         return np.stack([np.interp(t, ext_a, ext_v[:, k]) for k in range(values.shape[1])], 1)
     c, d = ring(pts), ring(dirs)
-    for _ in range(2):
+    for _ in range(20 if width > 0.02 and not pointed else 2):
         c = (np.roll(c, 1, 0) + 2 * c + np.roll(c, -1, 0)) / 4
+    for _ in range(2):
         d = (np.roll(d, 1, 0) + 2 * d + np.roll(d, -1, 0)) / 4
     if pointed:
         # Keep a true centre-front corner: smoothing the sampled ring turns a V neck into a U.
         candidates = {v for (a, b), _ in edges for v in (a, b)}
         front = [v for v in candidates if abs(V[v, 0] - centre[0]) < 0.015]
-        apex = min(front or candidates, key=lambda v: V[v, 1])
+        apex = min(front or candidates, key=lambda v: V[v, 2])
         c[samples // 2] = V[apex]
+    # The CLO seam triangles can point the local "into shirt" vector sideways at the shoulder.
+    # Use a consistent outward-and-down direction, projected onto the local cloth tangent.
+    for i in range(samples):
+        radial = Vector((c[i, 0] - centre[0], c[i, 1] - centre[1], 0)).normalized()
+        direction = radial * 0.6 + Vector((0, 0, -0.8))
+        _, surface_normal, _, _ = cloth.find_nearest(Vector(c[i]), 0.02)
+        if surface_normal is not None:
+            direction -= surface_normal * direction.dot(surface_normal)
+        if direction.length > 1e-6:
+            d[i] = direction.normalized()
+    for _ in range(2):
+        d = (np.roll(d, 1, 0) + 2 * d + np.roll(d, -1, 0)) / 4
     d /= np.linalg.norm(d, axis=1)[:, None]
-    # Lift the binding a millimetre off the shirt so its outer edge does not flicker against the fabric.
+    # The binding follows the actual body and sleeve surface, including their shoulder seam.
     tangent = np.roll(c, -1, 0) - np.roll(c, 1, 0)
     normal = np.cross(tangent, d)
     normal /= np.linalg.norm(normal, axis=1)[:, None]
     outwards = c - np.c_[np.tile(centre, (samples, 1)), c[:, 2]]
     normal *= np.sign((normal * outwards).sum(1))[:, None]
     tuck = 0.0015
+    # Taper the binding where the neck opening meets the sleeve; a full-width edge overhangs there.
+    band_width = np.full(samples, width)
+    if width > 0.02:
+        band_width -= 0.005 * np.sin(t) ** 6
     grid = []
     for r in range(rows):
-        q = -tuck + (width + tuck) * r / (rows - 1)
-        # A broad rib knit has a little loft; keep its outer edge above the curved body fabric.
-        lift = 0.001 + max(0.0, width - 0.012) * 0.25 * max(0.0, q / width)
-        grid.append([part.vert(c[i] + d[i] * q + normal[i] * lift) for i in range(samples)])
+        q = -tuck + (band_width + tuck) * r / (rows - 1)
+        row = []
+        for i in range(samples):
+            point = Vector(c[i] + d[i] * q[i])
+            outward = Vector(normal[i])
+            # Ray-cast from outside so the binding sits over whichever panel is visible here.
+            surface, _, _, _ = cloth.ray_cast(point + outward * 0.03, -outward, 0.06)
+            if surface is None or (surface - point).length > 0.012:
+                surface, _, _, distance = cloth.find_nearest(point, 0.012)
+                if surface is None or distance > 0.012:
+                    surface = point
+            row.append(tuple(surface + outward * 0.001))
+        row = np.array(row)
+        if not pointed:
+            # Bridge tiny bumps at the shoulder seam instead of copying them into the ribbed edge.
+            for _ in range(2):
+                row = (np.roll(row, 1, 0) + 2 * row + np.roll(row, -1, 0)) / 4
+        grid.append([part.vert(p) for p in row])
     seg = np.linalg.norm(np.roll(c, -1, 0) - c, axis=1)
     s = np.concatenate([[0], np.cumsum(seg)])
     k0 = samples // 2  # t = 0: the front centre
@@ -447,7 +504,7 @@ def clo_part(path, collar_kind="crew"):
     collar = [p for p in ps if p["island"] == "collar"]
     neck = np.concatenate([p["P"] for p in collar])
     if cut:
-        cut_neckline(front, collar, cut, NECK_DEPTH[cut])
+        cut_neckline(front, collar, cut, 0.015 if collar_kind == "cross" else NECK_DEPTH[cut])
     hem = front["P"][:, 1].min()
     for p in ps:
         p["V"] = to_ours(p["P"], hem, (neck[:, 0].min() + neck[:, 0].max()) / 2,
@@ -470,9 +527,12 @@ def clo_part(path, collar_kind="crew"):
                     "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
                     length=round(float(-uv[:, 1].min()), 4))
     part.island("collar", "shirt_collar", "collar", "p: metres around from the front centre, q: metres up the band")
+    if collar_kind == "cross":
+        part.islands["collar"]["layered_v"] = True
     part.layout_order = ["front", "back", "sleeve_right", "sleeve_left", "collar"]
 
     stitch(ps)
+    soften_sleeve_caps(ps)
 
     # Weld what CLO sewed: one vertex where pieces meet, so the seams shade smoothly and thicken as one surface.
     allV = np.concatenate([p["V"] for p in ps])

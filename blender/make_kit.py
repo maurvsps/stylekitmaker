@@ -1392,8 +1392,14 @@ def write_manifest():
                      "label": data.get("label") or labels.get(data["name"], data["name"]), "params": data["params"]})
     order = ["shirt_clo"] + list(labels)  # the artist-made shirt (blender/clo_shirt.py) leads the selector
     kits.sort(key=lambda k: (k["garment"], order.index(k["name"]) if k["name"] in order else len(order), k["name"]))
-    with open(os.path.join(MODELS_DIR, "kits.json"), "w") as fh:
-        json.dump({"kits": kits}, fh, indent=2)
+    manifest = os.path.join(MODELS_DIR, "kits.json")
+    content = json.dumps({"kits": kits}, indent=2)
+    if os.path.exists(manifest):
+        with open(manifest) as fh:
+            if fh.read() == content:
+                return
+    with open(manifest, "w") as fh:
+        fh.write(content)
 
 
 def main():

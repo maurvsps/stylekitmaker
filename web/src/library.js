@@ -83,9 +83,22 @@ export const BASE_DESIGNS = {
       id: "trim",
       trim: true,
       label: "Collar & cuffs",
-      slots: [["collar", "Collar", "@2"], ["cuffs", "Cuffs", "@2"]],
-      paint(ctx, { kind, isl, frame }, c) {
-        if (kind === "collar") return fillIsland(ctx, frame, c.collar);
+      slots: [["collar", "Collar", "@2"], ["cuffs", "Cuffs", "@2"], ["vAccent", "Double V piping", "#079aa6"]],
+      paint(ctx, { kind, isl, frame }, c, env) {
+        if (kind === "collar") {
+          if (!isl.layered_v) return fillIsland(ctx, frame, c.collar);
+          // Two distinct V outlines enclose the shirt-colour inset. The wide white
+          // facing and its lower piping stay visible against the shirt fabric.
+          fillIsland(ctx, frame, env.color("@1"));
+          frame.local(ctx);
+          ctx.fillStyle = c.vAccent;
+          ctx.fillRect(frame.p0 - 1, -0.002, frame.p1 - frame.p0 + 2, 0.0065);
+          ctx.fillStyle = env.color("@0");
+          ctx.fillRect(frame.p0 - 1, 0.0045, frame.p1 - frame.p0 + 2, 0.014);
+          ctx.fillStyle = c.vAccent;
+          ctx.fillRect(frame.p0 - 1, 0.029, frame.p1 - frame.p0 + 2, 0.004);
+          return;
+        }
         if (kind !== "sleeve") return;
         frame.local(ctx);
         ctx.fillStyle = c.cuffs;

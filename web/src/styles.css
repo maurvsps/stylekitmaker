@@ -29,6 +29,8 @@ body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: v
 .stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bg); grid-column: 2; grid-row: 1; }
 .viewer { position: absolute; inset: 0; }
 .viewer canvas { display: block; touch-action: none; }
+.viewer.hand-tool canvas { cursor: grab; }
+.viewer.hand-tool canvas:active { cursor: grabbing; }
 .stage-note {
   position: absolute; left: 16px; bottom: 16px; padding: 8px 12px; border-radius: 8px;
   background: var(--chip); color: var(--chip-text);
@@ -733,4 +735,36 @@ body, .app {
 }
 .text-sponsor-card .label {
   color: var(--muted);
+}
+
+/* FCLOGO club badge thumbnails & mono indicator */
+.club-badge-thumb {
+  max-width: 28px;
+  max-height: 28px;
+  object-fit: contain;
+}
+
+.logo-result-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mono-pill {
+  display: inline-block;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-text);
+  line-height: 1.2;
+  flex-shrink: 0;
 }

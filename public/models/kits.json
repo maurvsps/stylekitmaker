@@ -12,11 +12,11 @@
       }
     },
     {
-      "name": "shirt_clo_scoop",
+      "name": "shirt_clo_cross",
       "garment": "shirt",
-      "label": "Deep round neck (realistic)",
+      "label": "Double V-neck",
       "params": {
-        "collar": "crew",
+        "collar": "v-neck",
         "sleeves": "short",
         "fit": "regular",
         "source": "clo"
@@ -25,7 +25,7 @@
     {
       "name": "shirt_clo_v",
       "garment": "shirt",
-      "label": "V-neck (curved)",
+      "label": "V-neck",
       "params": {
         "collar": "v-neck",
         "sleeves": "short",

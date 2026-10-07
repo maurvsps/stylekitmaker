@@ -1,7 +1,7 @@
 {
   "template": "shirt",
   "name": "shirt_clo_v",
-  "label": "V-neck (curved)",
+  "label": "V-neck",
   "params": {
     "collar": "v-neck",
     "sleeves": "short",
@@ -23,10 +23,10 @@
         0.02,
         0.02,
         0.409184,
-        0.596123
+        0.596116
       ],
       "pmin": -0.243237,
-      "qmax": 0.708725,
+      "qmax": 0.708717,
       "scale": 0.84112
     },
     "back": {
@@ -80,10 +80,10 @@
       "rect": [
         0.02,
         0.970327,
-        0.511465,
+        0.554776,
         0.009673
       ],
-      "pmin": -0.304713,
+      "pmin": -0.328467,
       "qmax": 0.01,
       "scale": 0.84112
     }

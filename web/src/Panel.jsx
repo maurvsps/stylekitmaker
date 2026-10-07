@@ -146,7 +146,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
    * Places or updates an image in a specific kit slot.
    * Fixed slots stay strictly at their designated coordinates rather than wandering.
    */
-  const uploadLogo = async (file, slot, customSize = null) => {
+  const uploadLogo = async (file, slot, customSize = null, extraProps = {}) => {
     const asset = await uploadImage(file);
     if (!asset) return;
     const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
@@ -160,6 +160,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       texture: slot.id === "crest" || slot.id === "brand" ? "smooth" : "kit",
       size: standardSize,
       transform: { ...IDENTITY, x: slot.x, y: slot.y },
+      ...extraProps,
     });
 
     const existing = findRole(project.garments[slot.garment].layers, role);
@@ -172,6 +173,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           asset: asset.id,
           // When a custom size is specified (e.g. from preset), use it; otherwise maintain layer size
           size: customSize || l.size || standardSize,
+          ...extraProps,
         }));
       }
       return [...cleared, fresh];
@@ -179,6 +181,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     setGarment(slot.garment);
     select(existing?.id || fresh.id, slot.garment);
   };
+
 
   const removeLogo = (slot) => {
     const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
@@ -255,17 +258,101 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     await uploadLogo(file, targetSlot, preset.size || DEFAULT_SLOT_SIZES[targetSlot.id]);
   };
 
+  const crestSlot = logoSlots.find((s) => s.id === "crest");
+  const brandSlot = logoSlots.find((s) => s.id === "brand");
+  const sponsorSlots = logoSlots.filter((s) => s.category === "sponsor");
+  const activeSponsorSlot = sponsorSlots.find((s) => s.id === activeSponsorSlotId) || sponsorSlots[0];
+
+  const crestLayer = slotLayer(crestSlot);
+  const crestPos = !crestLayer?.transform ? "left" : Math.abs(crestLayer.transform.x) < 0.03 ? "center" : "left";
+  const crestStyle = crestLayer?.crestStyle || (crestLayer?.tint ? "mono" : "color");
+
   const pickPopularClub = async (club) => {
     try {
-      const results = await searchCrests(club.query);
-      if (results && results[0]) {
-        const file = await fetchLogo(results[0].url, results[0].name);
-        await uploadLogo(file, logoSlots.find((s) => s.id === "crest"));
-      } else {
-        onError(`Could not find crest for ${club.name}.`);
-      }
+      const isMono = crestStyle === "mono";
+      const targetUrl = isMono && club.monoUrl ? club.monoUrl : (club.colorUrl || club.url);
+      const file = await fetchLogo(targetUrl, `${club.name}${isMono ? "-mono" : ""}`);
+      await uploadLogo(file, crestSlot, DEFAULT_SLOT_SIZES.crest, {
+        crestStyle: isMono ? "mono" : "color",
+        tint: isMono ? (crestLayer?.tint || "@trim") : null,
+        clubData: {
+          name: club.name,
+          colorUrl: club.colorUrl || club.url,
+          monoUrl: club.monoUrl || null,
+        },
+      });
     } catch (err) {
       onError(`Could not load crest (${err.message}).`);
+    }
+  };
+
+  const setCrestStyleMode = async (mode) => {
+    const layer = slotLayer(crestSlot);
+    if (!layer) return;
+
+    if (mode === "color") {
+      if (layer.clubData?.colorUrl) {
+        try {
+          const file = await fetchLogo(layer.clubData.colorUrl, layer.clubData.name);
+          const asset = await uploadImage(file);
+          if (asset) {
+            setProject((p) =>
+              editLayers(p, "shirt", (ls) =>
+                mapLayer(ls, layer.id, (l) => ({
+                  ...l,
+                  asset: asset.id,
+                  crestStyle: "color",
+                  tint: null,
+                }))
+              )
+            );
+            return;
+          }
+        } catch {
+          /* fallback */
+        }
+      }
+      setProject((p) =>
+        editLayers(p, "shirt", (ls) =>
+          mapLayer(ls, layer.id, (l) => ({
+            ...l,
+            crestStyle: "color",
+            tint: null,
+          }))
+        )
+      );
+    } else {
+      const defaultTint = layer.tint || "@trim";
+      if (layer.clubData?.monoUrl) {
+        try {
+          const file = await fetchLogo(layer.clubData.monoUrl, `${layer.clubData.name}-mono`);
+          const asset = await uploadImage(file);
+          if (asset) {
+            setProject((p) =>
+              editLayers(p, "shirt", (ls) =>
+                mapLayer(ls, layer.id, (l) => ({
+                  ...l,
+                  asset: asset.id,
+                  crestStyle: "mono",
+                  tint: defaultTint,
+                }))
+              )
+            );
+            return;
+          }
+        } catch {
+          /* fallback */
+        }
+      }
+      setProject((p) =>
+        editLayers(p, "shirt", (ls) =>
+          mapLayer(ls, layer.id, (l) => ({
+            ...l,
+            crestStyle: "mono",
+            tint: defaultTint,
+          }))
+        )
+      );
     }
   };
 
@@ -274,13 +361,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     logoInput.current?.click();
   };
 
-  const crestSlot = logoSlots.find((s) => s.id === "crest");
-  const brandSlot = logoSlots.find((s) => s.id === "brand");
-  const sponsorSlots = logoSlots.filter((s) => s.category === "sponsor");
-  const activeSponsorSlot = sponsorSlots.find((s) => s.id === activeSponsorSlotId) || sponsorSlots[0];
-
-  const crestLayer = slotLayer(crestSlot);
-  const crestPos = !crestLayer?.transform ? "left" : Math.abs(crestLayer.transform.x) < 0.03 ? "center" : "left";
 
   const brandLayer = slotLayer(brandSlot);
   const brandPos = !brandLayer?.transform
@@ -593,6 +673,34 @@ export default function Panel({ project, setProject, garment, setGarment, templa
               {crestLayer && (
                 <div className="slot-customizer">
                   <div className="customizer-row">
+                    <span className="group-label">Badge style</span>
+                    <div className="seg">
+                      <button
+                        type="button"
+                        className={crestStyle === "color" ? "on" : ""}
+                        onClick={() => setCrestStyleMode("color")}
+                      >
+                        Full color
+                      </button>
+                      <button
+                        type="button"
+                        className={crestStyle === "mono" ? "on" : ""}
+                        onClick={() => setCrestStyleMode("mono")}
+                      >
+                        Monochrome
+                      </button>
+                    </div>
+                  </div>
+
+                  {crestStyle === "mono" && (
+                    <TintPicker
+                      value={crestLayer.tint || "@trim"}
+                      palette={project.palette}
+                      onChange={(tint) => setSlotTint(crestSlot, tint)}
+                    />
+                  )}
+
+                  <div className="customizer-row">
                     <span className="group-label">Crest position</span>
                     <div className="seg">
                       <button
@@ -631,30 +739,54 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Popular Clubs quick-pick without emojis */}
+              {/* Popular Clubs quick-pick */}
               <div className="preset-section">
-                <span className="group-label">Popular football clubs</span>
+                <span className="group-label">Popular football clubs (FCLOGO SVGs)</span>
                 <div className="preset-grid clubs-grid">
                   {POPULAR_CLUBS.map((c) => (
                     <button
                       key={c.name}
                       type="button"
                       className="preset-card club-card"
+                      title={`${c.name} (Official vector + monochrome)`}
                       onClick={() => pickPopularClub(c)}
                     >
+                      <div className="preset-icon">
+                        <img
+                          src={crestStyle === "mono" && c.monoUrl ? c.monoUrl : c.colorUrl}
+                          alt=""
+                          className="club-badge-thumb"
+                          loading="lazy"
+                        />
+                      </div>
                       <span className="preset-label">{c.name}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Search TheSportsDB */}
+              {/* Search FCLOGO & Wikimedia */}
               <SearchBlock
-                placeholder="Search club (e.g. Arsenal, Real Madrid, Boca)..."
+                placeholder="Search club (e.g. Real Madrid, Arsenal, Boca, Milan)..."
                 onSearch={searchCrests}
-                onPick={(r) => uploadLogo(r, crestSlot)}
+                onPick={async (file, r) => {
+                  const isMono = crestStyle === "mono";
+                  let targetFile = file;
+                  if (isMono && r?.monoUrl) {
+                    try {
+                      targetFile = await fetchLogo(r.monoUrl, `${r.name}-mono`);
+                    } catch {
+                      /* fallback to downloaded file */
+                    }
+                  }
+                  await uploadLogo(targetFile, crestSlot, DEFAULT_SLOT_SIZES.crest, {
+                    crestStyle: isMono ? "mono" : "color",
+                    tint: isMono ? (crestLayer?.tint || "@trim") : null,
+                    clubData: r ? { name: r.name, colorUrl: r.url, monoUrl: r.monoUrl || null } : null,
+                  });
+                }}
                 onError={onError}
-                credit="Crests from TheSportsDB"
+                credit="Vector crests from FCLOGO & Wikimedia"
               />
             </div>
           )}
@@ -996,7 +1128,7 @@ function SearchBlock({ placeholder, onSearch, onPick, onError, credit }) {
     setBusy(true);
     try {
       const file = await fetchLogo(r.url, r.name);
-      await onPick(file);
+      await onPick(file, r);
     } catch (err) {
       onError(`Could not download image (${err.message}). Try uploading a file.`);
     } finally {
@@ -1035,7 +1167,10 @@ function SearchBlock({ placeholder, onSearch, onPick, onError, credit }) {
                   loading="lazy"
                   onError={(e) => { if (e.currentTarget.src !== r.url) e.currentTarget.src = r.url; }}
                 />
-                <span>{r.name}</span>
+                <span className="logo-result-name">
+                  {r.name}
+                  {r.hasMono && <span className="mono-pill">Mono</span>}
+                </span>
               </button>
             ))}
           </div>

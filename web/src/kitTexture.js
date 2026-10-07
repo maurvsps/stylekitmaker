@@ -203,7 +203,7 @@ function paintBase(ctx, layer, env) {
     ctx.fillRect(0, 0, env.S, env.S);
     ctx.restore();
   }
-  eachIsland(ctx, env, layer, null, (island) => design.paint(ctx, island, colors));
+  eachIsland(ctx, env, layer, null, (island) => design.paint(ctx, island, colors, env));
 }
 
 // ---------------------------------------------------------------- patterns
