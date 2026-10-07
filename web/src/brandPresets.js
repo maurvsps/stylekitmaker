@@ -119,298 +119,219 @@ export const KIT_BRANDS = [
 export const POPULAR_CLUBS = [
   {
     name: "Real Madrid",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/001_Real%20Madrid/svg/Real-Madrid-CF-v2002.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/001_Real%20Madrid/svg/Real-Madrid-CF-v2002-mono-fill.svg",
     aliases: ["real", "madrid", "los blancos", "merengues"],
   },
   {
     name: "FC Barcelona",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/006_Barcelona/svg/FC-Barcelona-v2002.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/006_Barcelona/svg/FC-Barcelona-v2002-mono.svg",
     aliases: ["barca", "barça", "blaugrana", "culers"],
   },
   {
     name: "Manchester City",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/002_Man%20City/svg/Manchester-City-v2016.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/002_Man%20City/svg/Manchester-City-v2016-mono.svg",
     aliases: ["man city", "city", "citizens", "sky blues"],
   },
   {
     name: "Arsenal",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/003_Arsenal/svg/Arsenal-FC-v2002.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/003_Arsenal/svg/Arsenal-FC-v2002-mono.svg",
     aliases: ["gunners", "arsenal fc"],
   },
   {
     name: "Liverpool",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/004_Liverpool/svg/Liverpool-Football-Club-v1999.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/004_Liverpool/svg/Liverpool-Football-Club-v1999-mono.svg",
     aliases: ["reds", "liverpool fc", "anfield"],
   },
   {
     name: "Manchester United",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/014_Man%20United/svg/Manchester-United-Football-Club-v1998.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/014_Man%20United/svg/Manchester-United-Football-Club-v1998-mono.svg",
     aliases: ["man united", "united", "red devils", "man u"],
   },
   {
     name: "Chelsea",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/001_Chelsea/svg/Chelsea-FC-v2006.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/001_Chelsea/svg/Chelsea-FC-v2006-mono.svg",
     aliases: ["blues", "chelsea fc", "stamford bridge"],
   },
   {
     name: "Bayern München",
+    league: "Bundesliga",
+    nation: "GER",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/DFB/clubs/001_Bayern%20Munich/svg/FC-Bayern-Munchen-v2024.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/DFB/clubs/001_Bayern%20Munich/svg/FC-Bayern-Munchen-v2024-mono.svg",
     aliases: ["bayern", "bayern munich", "bavaria", "munchen"],
   },
   {
     name: "PSG",
+    league: "Ligue 1",
+    nation: "FRA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FFF/clubs/001_%20Paris/svg/Paris-Saint-Germain-v2013.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FFF/clubs/001_%20Paris/svg/Paris-Saint-Germain-v2013-mono.svg",
     aliases: ["paris", "paris saint germain", "paris sg"],
   },
   {
     name: "Juventus",
+    league: "Serie A",
+    nation: "ITA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/001_Juventus/svg/Juventus-FC-v2017.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/001_Juventus/svg/Juventus-FC-v2017.svg",
     aliases: ["juve", "bianconeri", "vecchia signora"],
   },
   {
     name: "Inter Milan",
+    league: "Serie A",
+    nation: "ITA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/002_Intel%20Milan/svg/FC-Inter-Milan-v2021.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/002_Intel%20Milan/svg/FC-Inter-Milan-v2021-mono.svg",
     aliases: ["inter", "internazionale", "nerazzurri"],
   },
   {
     name: "AC Milan",
+    league: "Serie A",
+    nation: "ITA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/013_AC%20Milan/svg/AC-Milan-v2009.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/FIGC/clubs/013_AC%20Milan/svg/AC-Milan-v2009-mono.svg",
     aliases: ["milan", "rossoneri", "diavolo"],
   },
   {
     name: "Atletico Madrid",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/002_Atletico%20Madrid/svg/Atletico-Madrid-v2024.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/002_Atletico%20Madrid/svg/Atletico-Madrid-v2024-mono.svg",
     aliases: ["atleti", "colchoneros", "atletico"],
   },
   {
     name: "Borussia Dortmund",
+    league: "Bundesliga",
+    nation: "GER",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/DFB/clubs/002_Dortmund/svg/Borussia-Dortmund-v1993.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/DFB/clubs/002_Dortmund/svg/Borussia-Dortmund-v1993-mono.svg",
     aliases: ["bvb", "dortmund", "schwarzgelben"],
   },
   {
     name: "Boca Juniors",
+    league: "Liga Profesional",
+    nation: "ARG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/AFA/clubs/001_Boca%20Juniors/svg/Club-Atletico-Boca-Juniors-v1996-70.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/AFA/clubs/001_Boca%20Juniors/svg/Club-Atletico-Boca-Juniors-v1996-70-mono.svg",
     aliases: ["boca", "xeneize", "cabj", "bombonera"],
   },
   {
     name: "River Plate",
+    league: "Liga Profesional",
+    nation: "ARG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/AFA/clubs/002_River%20Plate/svg/Club-Atletico-River-Plate-v2022.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/AFA/clubs/002_River%20Plate/svg/Club-Atletico-River-Plate-v2022-mono.svg",
     aliases: ["river", "millonario", "carp", "monumental"],
   },
   {
     name: "Athletic Bilbao",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/004_Athletic%20Bilbao/svg/Athletic-Club-Bilbao-v2008.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/004_Athletic%20Bilbao/svg/Athletic-Club-Bilbao-v2008-mono.svg",
     aliases: ["athletic", "bilbao", "leones", "san mames"],
   },
   {
     name: "Sevilla",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/018_Sevilla/svg/Sevilla-Futbol-Club-v1995.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/018_Sevilla/svg/Sevilla-Futbol-Club-v1995-mono.svg",
     aliases: ["sevilla fc", "sevillistas", "nervion"],
   },
   {
     name: "Valencia",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/019_Valencia/svg/Valencia-Club-de-Futbol-v2012.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/019_Valencia/svg/Valencia-Club-de-Futbol-v2012-mono.svg",
     aliases: ["valencia cf", "che", "mestalla"],
   },
   {
     name: "Villarreal",
+    league: "La Liga",
+    nation: "ESP",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/021_Villarreal/svg/Villarreal-Club-de-Futbol-v2009.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/021_Villarreal/svg/Villarreal-Club-de-Futbol-v2009-mono.svg",
     aliases: ["submarino amarillo", "villarreal cf", "ceramica"],
   },
   {
     name: "Aston Villa",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/005_Aston%20Villa/svg/Aston-Villa-Football-Club-v2024.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/005_Aston%20Villa/svg/Aston-Villa-Football-Club-v2024-mono.svg",
     aliases: ["villa", "villans", "villa park"],
   },
   {
     name: "Tottenham Hotspur",
+    league: "Premier League",
+    nation: "ENG",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/018_Hotspur/svg/Tottenham-Hotspur-Football-Club-v2024.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/018_Hotspur/svg/Tottenham-Hotspur-Football-Club-v2024-silh.svg",
     aliases: ["spurs", "tottenham", "coys"],
   },
   {
     name: "Flamengo",
+    league: "Brasileirão",
+    nation: "BRA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/CBF/clubs/002_Flamengo/svg/Clube-de-Regatas-do-Flamengo-v2018.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/CBF/clubs/002_Flamengo/svg/Clube-de-Regatas-do-Flamengo-v2018-mono.svg",
     aliases: ["mengao", "mengo", "rubro-negro", "crf"],
   },
   {
     name: "Inter Miami",
+    league: "MLS",
+    nation: "USA",
     colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/013_Inter%20Miami%20CF/svg/Club-Internacional-de-Futbol-Miami-v2018.svg",
     monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/013_Inter%20Miami%20CF/svg/Club-Internacional-de-Futbol-Miami-v2018-mono.svg",
     aliases: ["miami", "messi", "inter miami cf", "herons"],
   },
 ];
 
-// Additional indexed clubs from FCLOGO available for instant search
-export const FCLOGO_CLUBS = [
-  ...POPULAR_CLUBS,
-  {
-    name: "Newcastle United",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/015_Newcastle/svg/Newcastle-United-Football-Club-v1988.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/015_Newcastle/svg/Newcastle-United-Football-Club-v1988-mono.svg",
-    aliases: ["newcastle", "magpies", "toon"],
-  },
-  {
-    name: "Everton",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/010_Everton/svg/Everton-Football-Club-v2014.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/010_Everton/svg/Everton-Football-Club-v2014-mono.svg",
-    aliases: ["toffees", "everton fc", "goodison"],
-  },
-  {
-    name: "West Ham United",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/019_West%20Ham/svg/West-Ham-United-Football-Club-v2016.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/019_West%20Ham/svg/West-Ham-United-Football-Club-v2016-mono.svg",
-    aliases: ["west ham", "hammers", "irons"],
-  },
-  {
-    name: "Wolverhampton Wanderers",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/020_Wolves/svg/Wolverhampton-Wanderers-FC-v2002.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/020_Wolves/svg/Wolverhampton-Wanderers-FC-v2002-mono.svg",
-    aliases: ["wolves", "wolverhampton"],
-  },
-  {
-    name: "Brighton & Hove Albion",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/008_Brighton/svg/Brighton-Hove-Albion-v2011.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/008_Brighton/svg/Brighton-Hove-Albion-v2011-mono.svg",
-    aliases: ["brighton", "seagulls"],
-  },
-  {
-    name: "Crystal Palace",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/009_Crystal%20Palace/svg/Crystal-Palace-Football-Club-v2022.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/009_Crystal%20Palace/svg/Crystal-Palace-Football-Club-v2022-mono-2.svg",
-    aliases: ["palace", "eagles"],
-  },
-  {
-    name: "Fulham",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/011_Fulham/svg/Fulham-Football-Club-v2001.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/011_Fulham/svg/Fulham-Football-Club-v2001-mono.svg",
-    aliases: ["cottagers", "fulham fc"],
-  },
-  {
-    name: "Brentford",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/007_Brentford/svg/Brentford-Football-Club-v2017.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/007_Brentford/svg/Brentford-Football-Club-v2017-mono.svg",
-    aliases: ["bees", "brentford fc"],
-  },
-  {
-    name: "Bournemouth",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/006_Bournemouth/svg/AFC-Bournemouth-v2013.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/006_Bournemouth/svg/AFC-Bournemouth-v2013-mono.svg",
-    aliases: ["cherries", "afc bournemouth"],
-  },
-  {
-    name: "Leeds United",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/021_Leeds%20United/svg/Leeds-United-v2002.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/theFA/clubs/021_Leeds%20United/svg/Leeds-United-v2002-mono.svg",
-    aliases: ["leeds", "whites", "elland road"],
-  },
-  {
-    name: "Celta de Vigo",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/007_Celta/svg/RC-Celta-de-Vigo-v2010.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/007_Celta/svg/RC-Celta-de-Vigo-v2010-mono.svg",
-    aliases: ["celta", "celestes"],
-  },
-  {
-    name: "Girona",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/008_Girona/svg/Girona-Futbol-Club-v2021.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/008_Girona/svg/Girona-Futbol-Club-v2021-mono-2.svg",
-    aliases: ["girona fc", "blanquivermells"],
-  },
-  {
-    name: "Real Sociedad",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/017_Real%20Sociedad/svg/Real-Sociedad-de-Futbol-v1990.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/017_Real%20Sociedad/svg/Real-Sociedad-de-Futbol-v1990-mono.svg",
-    aliases: ["la real", "txuri-urdin", "sociedad"],
-  },
-  {
-    name: "Deportivo Alavés",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/005_Alav%C3%A9s/svg/Deportivo-Alaves-v2020.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/005_Alav%C3%A9s/svg/Deportivo-Alaves-v2020-mono.svg",
-    aliases: ["alaves", "babazorros"],
-  },
-  {
-    name: "Mallorca",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/013_Mallorca/svg/RCD-Mallorca-v2017.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/013_Mallorca/svg/RCD-Mallorca-v2017-mono.svg",
-    aliases: ["rcd mallorca", "bermellones"],
-  },
-  {
-    name: "Osasuna",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/014_Osasuna/svg/Club-Atletico-Osasuna-v2019.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/014_Osasuna/svg/Club-Atletico-Osasuna-v2019-mono.svg",
-    aliases: ["osasuna", "rojillos"],
-  },
-  {
-    name: "Rayo Vallecano",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/015_Vallecano/svg/Rayo-Vallecano-de-Madrid-v2009.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/015_Vallecano/svg/Rayo-Vallecano-de-Madrid-v2009-mono.svg",
-    aliases: ["rayo", "vallecas", "franjirrojos"],
-  },
-  {
-    name: "Getafe",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/012_Getafe/svg/Getafe-Club-de-Futbol-v2018.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/012_Getafe/svg/Getafe-Club-de-Futbol-v2018-mono.svg",
-    aliases: ["getafe cf", "azulones"],
-  },
-  {
-    name: "Espanyol",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/009_Espanyol/svg/RCD-Espanyol-de-Barcelona-v2005.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/009_Espanyol/svg/RCD-Espanyol-de-Barcelona-v2005-mono.svg",
-    aliases: ["espanyol", "pericos"],
-  },
-  {
-    name: "Las Palmas",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/010_Las%20Palmas/svg/UD-Las-Palmas-v2014.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/010_Las%20Palmas/svg/UD-Las-Palmas-v2014-mono.svg",
-    aliases: ["las palmas", "pio pio", "amarillos"],
-  },
-  {
-    name: "Leganés",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/011_Legan%C3%A9s/svg/CD-Leganes-v2013.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/011_Legan%C3%A9s/svg/CD-Leganes-v2013-mono.svg",
-    aliases: ["leganes", "pepineros"],
-  },
-  {
-    name: "Real Valladolid",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/020_Real%20Valladolid/svg/Real-Valladolid-Club-de-Futbol-v2024.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/020_Real%20Valladolid/svg/Real-Valladolid-Club-de-Futbol-v2024-mono.svg",
-    aliases: ["valladolid", "pucela", "pucelanos"],
-  },
-  {
-    name: "LA Galaxy",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/011_LA%20Galaxy/svg/LA-Galaxy-v2007.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/011_LA%20Galaxy/svg/LA-Galaxy-v2007-mono.svg",
-    aliases: ["galaxy", "la galaxy"],
-  },
-  {
-    name: "Los Angeles FC",
-    colorUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/012_LA%20FC/svg/Los-Angeles-Football-Club-v2018.svg",
-    monoUrl: "https://cdn.jsdelivr.net/gh/FCLOGO/fclogo.top@main/src/data/logos/USSF/clubs/012_LA%20FC/svg/Los-Angeles-Football-Club-v2018-mono.svg",
-    aliases: ["lafc", "black and gold"],
-  },
+import clubsData from "./clubsData.json";
+
+// Set of lowercase names and aliases from POPULAR_CLUBS to avoid duplication
+const popularNames = new Set(POPULAR_CLUBS.map((p) => p.name.toLowerCase()));
+for (const p of POPULAR_CLUBS) {
+  if (p.aliases) p.aliases.forEach((a) => popularNames.add(a.toLowerCase()));
+}
+
+// Complete catalog of 390+ football clubs from FCLOGO
+export const CLUBS_CATALOG = [
+  ...POPULAR_CLUBS.map((c) => ({ ...c, isPopular: true })),
+  ...clubsData.filter((c) => {
+    const n = c.name.toLowerCase();
+    const fn = (c.fullName || "").toLowerCase();
+    return !popularNames.has(n) && !popularNames.has(fn);
+  }).map((c) => ({ ...c, isPopular: false })),
 ];
+
+// Re-export FCLOGO_CLUBS for instant search compatibility
+export const FCLOGO_CLUBS = CLUBS_CATALOG;
+
 
 /** Convert a vector SVG string into a File object ready for uploadImage / prepareLogo */
 export function presetToFile(preset) {

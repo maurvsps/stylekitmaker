@@ -6,6 +6,7 @@ import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRo
 import { prepareLogo } from "./logoImage.js";
 import { fetchLogo, searchCrests, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
+import ClubPickerModal from "./ClubPickerModal.jsx";
 
 // The sidebar: one section at a time, so the panel stays short.
 const TABS = [
@@ -67,6 +68,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const [tab, setTab] = useState(savedTab);
   const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
+  const [clubModalOpen, setClubModalOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -267,9 +269,10 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const crestPos = !crestLayer?.transform ? "left" : Math.abs(crestLayer.transform.x) < 0.03 ? "center" : "left";
   const crestStyle = crestLayer?.crestStyle || (crestLayer?.tint ? "mono" : "color");
 
-  const pickPopularClub = async (club) => {
+  const pickPopularClub = async (club, explicitStyleMode) => {
     try {
-      const isMono = crestStyle === "mono";
+      const mode = explicitStyleMode || crestStyle;
+      const isMono = mode === "mono";
       const targetUrl = isMono && club.monoUrl ? club.monoUrl : (club.colorUrl || club.url);
       const file = await fetchLogo(targetUrl, `${club.name}${isMono ? "-mono" : ""}`);
       await uploadLogo(file, crestSlot, DEFAULT_SLOT_SIZES.crest, {
@@ -739,27 +742,53 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Popular Clubs quick-pick */}
-              <div className="preset-section">
-                <span className="group-label">Popular football clubs (FCLOGO SVGs)</span>
-                <div className="preset-grid clubs-grid">
-                  {POPULAR_CLUBS.map((c) => (
+              {/* Club Catalog Modal Trigger Banner */}
+              <div className="club-catalog-banner">
+                <div className="club-catalog-banner-info">
+                  <span className="banner-title">Club crest catalog</span>
+                  <span className="banner-desc">
+                    {crestLayer?.clubData?.name
+                      ? `Active: ${crestLayer.clubData.name}`
+                      : "Choose from 390+ vector badges with monochrome variants"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="browse-catalog-btn"
+                  onClick={() => setClubModalOpen(true)}
+                >
+                  {crestLayer ? "Change club" : "Browse catalog"}
+                </button>
+              </div>
+
+              {/* Quick Picks for top clubs */}
+              <div className="quick-clubs-section">
+                <div className="quick-clubs-header">
+                  <span className="group-label">Quick picks</span>
+                  <button
+                    type="button"
+                    className="link"
+                    onClick={() => setClubModalOpen(true)}
+                  >
+                    View all (390+)
+                  </button>
+                </div>
+                <div className="quick-clubs-row">
+                  {POPULAR_CLUBS.slice(0, 8).map((c) => (
                     <button
                       key={c.name}
                       type="button"
-                      className="preset-card club-card"
+                      className="quick-club-btn"
                       title={`${c.name} (Official vector + monochrome)`}
                       onClick={() => pickPopularClub(c)}
                     >
-                      <div className="preset-icon">
-                        <img
-                          src={crestStyle === "mono" && c.monoUrl ? c.monoUrl : c.colorUrl}
-                          alt=""
-                          className="club-badge-thumb"
-                          loading="lazy"
-                        />
-                      </div>
-                      <span className="preset-label">{c.name}</span>
+                      <img
+                        src={crestStyle === "mono" && c.monoUrl ? c.monoUrl : c.colorUrl}
+                        alt=""
+                        className="quick-club-thumb"
+                        loading="lazy"
+                      />
+                      <span>{c.name}</span>
                     </button>
                   ))}
                 </div>
@@ -972,6 +1001,15 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
       </div>
       </div>
+
+      <ClubPickerModal
+        isOpen={clubModalOpen}
+        onClose={() => setClubModalOpen(false)}
+        onSelectClub={pickPopularClub}
+        currentClub={crestLayer?.clubData}
+        activeCrestStyle={crestStyle}
+        palette={project.palette}
+      />
     </aside>
   );
 }
