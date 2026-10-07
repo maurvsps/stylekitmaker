@@ -395,6 +395,7 @@ function decodeImage(src) {
   if (!decoded.has(src)) {
     decoded.set(src, new Promise((resolve, reject) => {
       const img = new Image();
+      if (!src.startsWith("data:")) img.crossOrigin = "anonymous"; // linked images must allow canvas use
       img.onload = () => resolve(img);
       img.onerror = reject;
       img.src = src;

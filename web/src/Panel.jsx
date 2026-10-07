@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
 import ColorButton from "./ColorPicker.jsx";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
-import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
-import { prepareLogo } from "./logoImage.js";
+import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
+import { prepareArtwork, prepareLogo } from "./logoImage.js";
+import { imageSize, resolveRemoteImage } from "./remoteImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import ClubPickerModal from "./ClubPickerModal.jsx";
@@ -13,6 +14,7 @@ import LogoPickerModal from "./LogoPickerModal.jsx";
 const TABS = [
   { id: "kit", label: "Kit", icon: "M8 4 4 6.5 5.5 10 7 9.3V20h10V9.3l1.5.7L20 6.5 16 4c-.5 1.6-2.1 2.7-4 2.7S8.5 5.6 8 4Z" },
   { id: "logos", label: "Logos", icon: "M12 3 5 5.5V11c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V5.5L12 3Z" },
+  { id: "images", label: "Images", icon: "M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 3-3L20 16M9 9.5h.01" },
   { id: "layers", label: "Layers", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" },
   { id: "player", label: "Player", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" },
   { id: "export", label: "Export", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
@@ -95,7 +97,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const shirtRole = (role) => findRole(project.garments.shirt.layers, role);
 
   /** Read an image file into project assets */
-  const uploadImage = async (file) => {
+  const uploadImage = async (file, { artwork = false } = {}) => {
     if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
       onError("Images must be PNG, SVG, JPEG or WebP files.");
       return null;
@@ -106,7 +108,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
     let src;
     try {
-      src = await prepareLogo(file);
+      src = artwork ? await prepareArtwork(file) : await prepareLogo(file);
     } catch {
       onError("That image could not be read.");
       return null;
@@ -117,7 +119,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
     const id = newId("img");
     setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src, name: file.name } } }));
-    return { id, name: file.name };
+    return { id, name: file.name, src };
   };
 
   // Text sponsor
@@ -369,6 +371,79 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
   };
 
+  // ---- Kit images: a file or a link, placed freely, filling a panel, or stretched over the whole texture
+  const [imageUrl, setImageUrl] = useState("");
+  const [imageFit, setImageFit] = useState("front"); // free | front | back | texture
+  const [imageBusy, setImageBusy] = useState(false);
+  const artworkInput = useRef(null);
+  const template = templates[models[garment]];
+  const imageLayers = [];
+  walk(project.garments.shirt.layers, (l) => l.type === "image" && !l.role && imageLayers.push(l));
+
+  /** Add an image layer for asset `assetId` using the chosen fit. */
+  const placeArtwork = async (assetId, src, name) => {
+    const label = (name || "Image").replace(/\.\w+$/, "").slice(0, 40) || "Image";
+    let fields = { asset: assetId, name: label, texture: "smooth" };
+    if (imageFit === "texture") {
+      fields = { ...fields, fit: "texture", surface: "front" };
+    } else if (imageFit === "front" || imageFit === "back") {
+      const isl = template?.islands?.[imageFit];
+      const dim = await imageSize(src).catch(() => null);
+      if (isl && dim) {
+        const w = isl.rect[2] / isl.scale;
+        const h = isl.rect[3] / isl.scale;
+        const k = Math.max(w / dim.width, h / dim.height); // metres per pixel so the image covers the panel
+        fields = {
+          ...fields, surface: imageFit, size: Math.min(2.5, k * Math.max(dim.width, dim.height)),
+          transform: { ...IDENTITY, x: isl.pmin + w / 2, y: isl.qmax - h / 2 },
+        };
+      } else {
+        fields.surface = imageFit;
+      }
+    } else {
+      fields = { ...fields, surface: "front", size: 0.2, transform: { ...IDENTITY, x: 0, y: 0.35 } };
+    }
+    const layer = makeLayer("image", "shirt", fields);
+    // Fills sit above the base design and trims but below the text and logos; free images go on top.
+    setProject((p) => editLayers(p, "shirt", (ls) => {
+      if (imageFit === "free") return [...ls, layer];
+      const at = ls.findIndex((l) => l.type !== "base" && l.type !== "pattern");
+      return at < 0 ? [...ls, layer] : [...ls.slice(0, at), layer, ...ls.slice(at)];
+    }));
+    setGarment("shirt");
+    select(layer.id, "shirt");
+    actions.view(imageFit === "back" ? "back" : "front");
+  };
+
+  const addArtworkFile = async (file) => {
+    setImageBusy(true);
+    try {
+      const asset = await uploadImage(file, { artwork: true });
+      if (asset) await placeArtwork(asset.id, asset.src, asset.name);
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const addArtworkLink = async (e) => {
+    e.preventDefault();
+    setImageBusy(true);
+    try {
+      const found = await resolveRemoteImage(imageUrl);
+      const id = newId("img");
+      setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: found.src, name: found.name } } }));
+      await placeArtwork(id, found.src, found.name);
+      setImageUrl("");
+    } catch (err) {
+      onError(err.message);
+    } finally {
+      setImageBusy(false);
+    }
+  };
+
+  const setLayerSize = (id, size) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, id, (l) => ({ ...l, size }))));
+  const removeImageLayer = (id) => setProject((p) => editLayers(p, "shirt", (ls) => ls.filter((l) => l.id !== id)));
+
   const triggerUpload = (slot) => {
     setPendingLogo(slot);
     logoInput.current?.click();
@@ -433,7 +508,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       {tab === "kit" && <div className="kit-next">
         <div>
           <strong>Stripes, patterns & trims</strong>
-          <p>Change the kit design in Layers. Crests and sponsors live in Logos.</p>
+          <p>Stripes live in Layers, your own pictures in Images, crests and sponsors in Logos.</p>
         </div>
         <button type="button" className="quiet" onClick={() => setTab("layers")}>Open Layers</button>
       </div>}
@@ -870,7 +945,60 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </Section>
       )}
 
-      {tab === "layers" && <Section title="Design layers" eyebrow="03">
+      {tab === "images" && <Section title="Kit images" eyebrow="03">
+        <p className="section-copy">Add your own artwork or a full texture. Upload a file, or paste a link: links have no size limit and keep your saved design small.</p>
+        <span className="group-label">How should it fit?</span>
+        <div className="fit-options" role="radiogroup" aria-label="Image fit">
+          {[
+            ["front", "Fill front", "Covers the front of the shirt"],
+            ["back", "Fill back", "Covers the back of the shirt"],
+            ["texture", "Whole texture", "Stretched over the full kit texture, like the downloaded shirt texture"],
+            ["free", "Free image", "A smaller image you move and resize"],
+          ].map(([id, label, hint]) => (
+            <button key={id} type="button" role="radio" aria-checked={imageFit === id} className={`fit-card${imageFit === id ? " active" : ""}`} onClick={() => setImageFit(id)}>
+              <strong>{label}</strong><span>{hint}</span>
+            </button>
+          ))}
+        </div>
+        <span className="group-label">Add from a link</span>
+        <form className="row" onSubmit={addArtworkLink}>
+          <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://i.ibb.co/xxxx/texture.png" aria-label="Image link" spellCheck={false} />
+          <button type="submit" disabled={imageBusy || !imageUrl.trim()}>{imageBusy ? "Loading..." : "Add"}</button>
+        </form>
+        <p className="section-copy fine">Use the direct image address (ends in .png, .jpg or .webp). On imgbb, copy the "Direct link".</p>
+        <span className="group-label">Or upload a file</span>
+        <button type="button" className="quiet" disabled={imageBusy} onClick={() => artworkInput.current?.click()}>Upload image (PNG, JPG, WebP, SVG)</button>
+        <input ref={artworkInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
+          if (e.target.files[0]) addArtworkFile(e.target.files[0]);
+          e.target.value = "";
+        }} />
+        {imageLayers.length > 0 && (
+          <>
+            <span className="group-label">Images on the kit</span>
+            <ul className="kit-images">
+              {imageLayers.map((l) => {
+                const a = project.assets[l.asset];
+                return (
+                  <li key={l.id} className={`kit-image${l.id === selected ? " selected" : ""}`}>
+                    <div className="kit-image-head">
+                      <span className="kit-image-thumb">{a && <img src={a.src} alt="" />}</span>
+                      <span className="kit-image-name">{l.name}<small>{l.fit === "texture" ? "Whole texture" : (l.surface || "front").replace("_", " ")}</small></span>
+                      <button type="button" className="quiet slot-act-btn" onClick={() => { select(l.id, "shirt"); setTab("layers"); }}>Edit</button>
+                      <button type="button" className="quiet slot-act-btn danger" aria-label={`Remove ${l.name}`} onClick={() => removeImageLayer(l.id)}>x</button>
+                    </div>
+                    {l.fit !== "texture" && (
+                      <SliderField label="Size" value={Math.round(l.size * 100)} unit="cm" min={2} max={Math.max(150, Math.round(l.size * 100))} step={1}
+                        onChange={(cm) => setLayerSize(l.id, cm / 100)} />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </Section>}
+
+      {tab === "layers" && <Section title="Design layers" eyebrow="04">
         <LayersPanel
           project={project}
           setProject={setProject}
@@ -884,7 +1012,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         />
       </Section>}
 
-      {tab === "player" && <Section title="Player details" eyebrow="04">
+      {tab === "player" && <Section title="Player details" eyebrow="05">
         <div className="row">
           <label className="field grow">
             <span>Name</span>
@@ -910,7 +1038,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </label>
       </Section>}
 
-      {tab === "export" && <Section title="Export" eyebrow="05">
+      {tab === "export" && <Section title="Export" eyebrow="06">
         <p className="section-copy">Takes a picture of the current 3D view. You can preview it before downloading.</p>
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
@@ -960,7 +1088,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         )}
       </Section>}
 
-      {tab === "export" && <Section title="Save & load" eyebrow="06">
+      {tab === "export" && <Section title="Save & load" eyebrow="07">
         <p className={`save-status ${actions.saveStatus === "unavailable" ? "warning" : ""}`} role="status">
           {actions.saveStatus === "saved" ? "Saved on this device" : actions.saveStatus === "unavailable" ? "Browser storage unavailable. Export a JSON copy to keep your design." : "Saving..."}
         </p>

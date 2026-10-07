@@ -471,6 +471,14 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
           <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
           <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
+          <label className="field">
+            <span>Fit</span>
+            <select value={layer.fit || "free"} onChange={(e) => patch({ fit: e.target.value })}>
+              <option value="free">Placed on a part (move and resize)</option>
+              <option value="texture">Whole kit texture (stretched over the UV layout)</option>
+            </select>
+          </label>
+          {layer.fit === "texture" && <p className="hint">Fills the whole shirt texture. Use opacity and blend below to mix it with the kit.</p>}
           <StrokeField stroke={layer.stroke} palette={palette} onChange={(stroke) => patch({ stroke })} />
         </>
       )}
@@ -486,7 +494,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
-      {placed && (
+      {placed && !(layer.type === "image" && layer.fit === "texture") && (
         <>
           <label className="field">
             <span>Placed on</span>
@@ -512,8 +520,8 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               </>
             );
           })()}
-          {layer.type !== "image" && (
-            <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : 60} step={0.5}
+          {(
+            <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : layer.type === "image" ? Math.max(150, round(layer.size * 100)) : 60} step={layer.type === "image" ? 1 : 0.5}
               value={round(layer.size * 100)} onChange={(v) => patch({ size: v / 100 })} />
           )}
           {layer.type === "text" && (
@@ -523,7 +531,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
-      {(placed || layer.type === "pattern") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern"} />}
+      {(placed || layer.type === "pattern") && !(layer.type === "image" && layer.fit === "texture") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern"} />}
 
       {layer.type === "material" && (
         <>

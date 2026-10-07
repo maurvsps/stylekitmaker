@@ -25,7 +25,7 @@
 //   base     { design, colors: { <slot>: colour } }          opaque ground, or the trims (library.js BASE_DESIGNS)
 //   pattern  { pattern, colors: [colour..., background|null] }   pattern space moved by transform
 //   graphic  { shape, color, size, surface }                  transform x/y = centre in the surface's frame (metres)
-//   image    { asset, size, surface, tint, stroke }           size = longer side in metres before scaling; stroke = { color, width (metres) } or null
+//   image    { asset, size, surface, fit, tint, stroke }           size = longer side in metres before scaling; stroke = { color, width (metres) } or null
 //   text     { text, bind, font, color, size, maxWidth, outline, surface }   size = capital height in metres
 //   material { effect }                                       fabric finish over its mask (library.js MATERIALS)
 //   group    { children: [layers...] }
@@ -73,7 +73,7 @@ export const hasFinish = (l) =>
 export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
 const HEX = /^#[0-9a-f]{6}$/i;
-const IMAGE_SRC = /^data:image\/(png|svg\+xml|jpeg|webp);/;
+const IMAGE_SRC = /^(data:image\/(png|svg\+xml|jpeg|webp);|(https:\/\/|http:\/\/localhost[:\/])[^\s"<>]{4,1900}$)/; // an upload or a link
 const MAX_LAYERS = 200;
 const MAX_DEPTH = 4;
 
@@ -110,7 +110,7 @@ export function makeLayer(type, garment, fields = {}) {
       return { name: p.label, pattern: p.id, colors: defaultPatternColors(p) };
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
-    image: () => ({ ...placed, asset: null, size: 0.085, tint: null, stroke: null, texture: "kit" }), // texture: kit fabric or a smooth print
+    image: () => ({ ...placed, asset: null, size: 0.085, fit: "free", tint: null, stroke: null, texture: "kit" }), // texture: kit fabric or a smooth print
     text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true, texture: "kit" }),
     material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
@@ -287,7 +287,8 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       break;
     case "image":
       layer.asset = typeof l.asset === "string" && assets[l.asset] ? l.asset : null;
-      layer.size = num(l.size, 0.005, 1, d.size);
+      layer.size = num(l.size, 0.005, 2.5, d.size);
+      layer.fit = l.fit === "texture" ? "texture" : "free"; // texture: stretched over the whole garment texture
       layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
       layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       layer.stroke = sanitizeStroke(l.stroke);

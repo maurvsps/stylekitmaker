@@ -122,3 +122,41 @@ function decode(src) {
     img.src = src;
   });
 }
+
+/**
+ * A picture or texture for the kit as it is: no background removal, no trimming. At most ART_SIDE pixels on the long
+ * side, kept as PNG when it has transparency and fits `maxBytes`, else JPEG at the best quality that fits.
+ */
+const ART_SIDE = 2048;
+export async function prepareArtwork(file, maxBytes = 1.5 * 1024 * 1024) {
+  if (file.type === "image/svg+xml" || /\.svg$/i.test(file.name || "")) return prepareLogo(file);
+  const img = await decode(await readDataUrl(file));
+  let side = Math.min(ART_SIDE, Math.max(img.naturalWidth, img.naturalHeight));
+  const bytes = (url) => url.length * 0.75;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const k = side / Math.max(img.naturalWidth, img.naturalHeight);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * k));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const alpha = hasAlpha(ctx, canvas);
+    if (alpha) {
+      const png = canvas.toDataURL("image/png");
+      if (bytes(png) <= maxBytes) return png;
+    } else {
+      for (const q of [0.92, 0.82, 0.7]) {
+        const jpg = canvas.toDataURL("image/jpeg", q);
+        if (bytes(jpg) <= maxBytes) return jpg;
+      }
+    }
+    side = Math.round(side * 0.75);
+  }
+  throw new Error("too large");
+}
+
+function hasAlpha(ctx, canvas) {
+  const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 3; i < data.length; i += 4 * 16) if (data[i] < 250) return true;
+  return false;
+}

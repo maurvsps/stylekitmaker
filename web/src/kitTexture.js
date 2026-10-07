@@ -114,8 +114,10 @@ function paintLayer(ctx, layer, env, depth) {
       return paintBase(ctx, layer, env);
     case "pattern":
       return paintPattern(ctx, layer, env);
-    case "text":
     case "image":
+      if (layer.fit === "texture") return paintTexture(ctx, layer, env);
+      return paintPlaced(ctx, layer, env);
+    case "text":
     case "graphic":
       return paintPlaced(ctx, layer, env);
     default:
@@ -259,6 +261,17 @@ function paintPlaced(ctx, layer, env) {
     if (layer.type === "text") placeText(ctx, layer, env, frame, ox, oy);
     else if (layer.type === "image") placeImage(ctx, layer, env, frame, ox, oy);
     else placeGraphic(ctx, layer, env, frame, ox, oy);
+  });
+}
+
+/** An image stretched over the whole texture (made on the UV layout), clipped to each island and the layer's masks. */
+function paintTexture(ctx, layer, env) {
+  const image = env.images[layer.asset];
+  if (!image) return;
+  if (env.islands.length === 1 && env.islands[0].name === "collar") return; // the collar's own canvas is not the atlas
+  eachIsland(ctx, env, layer, null, () => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(image, 0, 0, env.S, env.H);
   });
 }
 
