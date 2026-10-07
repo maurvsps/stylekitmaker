@@ -1,0 +1,144 @@
+/* ---------------------------------------------------------------- Panel UI polish (loaded after styles.css) */
+
+:root {
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --r-sm: 10px;
+  --r-md: 14px;
+}
+
+/* Header */
+.panel-header { padding: 2px 2px 16px; gap: 12px; }
+.brand-mark {
+  width: 38px; height: 38px; border-radius: 12px; font-size: 18px; font-weight: 800;
+  background: linear-gradient(145deg, #fff, #c9c9ce); color: #0b0b0c;
+  box-shadow: 0 6px 18px rgba(255, 255, 255, .14), inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+.panel-header h1 { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+.panel-header p { font-size: 11.5px; letter-spacing: .01em; }
+.panel .header-action {
+  width: 36px; height: 36px; border-radius: 11px; font-size: 20px !important; font-weight: 400;
+}
+.panel .header-action:hover { transform: rotate(90deg); border-color: var(--line-strong); }
+
+/* Side navigation */
+.panel-body { grid-template-columns: 60px minmax(0, 1fr); gap: 14px; }
+.panel-nav { padding: 6px; gap: 3px; border-radius: 18px; top: 4px; }
+.panel .panel-nav button {
+  position: relative; padding: 10px 2px 8px; gap: 4px; border-radius: 12px; font-size: 10px;
+}
+.panel .panel-nav button:hover { transform: translateY(-1px); }
+.panel .panel-nav button.on {
+  background: linear-gradient(160deg, #fff, #dcdce0);
+  box-shadow: 0 6px 16px rgba(255, 255, 255, .12), inset 0 1px 0 #fff !important;
+}
+.panel-nav svg { width: 21px; height: 21px; }
+
+/* Sections */
+.panel-content { animation: panel-in .28s var(--ease); }
+@keyframes panel-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .panel-content { animation: none; } .panel * { transition: none !important; } }
+.section { padding: 16px 0; gap: 12px; }
+.section h2 { gap: 10px; font-size: 12px; letter-spacing: .1em; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.section-index {
+  display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 7px;
+  background: var(--field); border: 1px solid var(--line); color: var(--text); font-size: 10px; letter-spacing: 0;
+}
+.group-label { margin: 6px 0 -6px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.section-copy, .hint { line-height: 1.5; }
+
+/* Fields */
+.panel select, .panel input:not([type]), .panel input[inputmode] {
+  padding: 10px 12px; border-radius: var(--r-sm); font-size: 13.5px;
+  transition: border-color .15s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease);
+}
+.panel select {
+  appearance: none; -webkit-appearance: none; padding-right: 34px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+.panel input:not([type]):focus, .panel input[inputmode]:focus, .panel select:focus {
+  border-color: var(--line-strong); background-color: var(--hover); box-shadow: 0 0 0 3px rgba(255, 255, 255, .07);
+}
+.field > span, .slider > span { font-size: 12px; font-weight: 500; }
+
+/* Kit colours */
+.colors { gap: 10px; }
+.color { gap: 6px; font-size: 11.5px; font-weight: 500; }
+.panel .kit-color { height: 46px; border-radius: 12px; transition: transform .15s var(--ease); }
+.panel .kit-color:hover { transform: translateY(-2px); }
+
+/* Buttons */
+.panel button { transition: background .15s var(--ease), border-color .15s var(--ease), transform .12s var(--ease), filter .15s var(--ease); }
+.panel button:not(:disabled):active { transform: scale(.97); }
+.panel button.quiet:not(:disabled):hover { border-color: var(--line-strong); }
+.row > button { padding: 10px 14px; }
+
+/* Cards & grids */
+.panel .design-card, .panel .graphic-card, .panel .logo-slot, .panel .logo-result, .panel .preset-card, .panel .quick-club-btn, .panel .logo-slot-card {
+  transition: border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease), box-shadow .15s var(--ease);
+}
+.panel .design-card:hover, .panel .graphic-card:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+.panel .design-card.active, .panel .graphic-card.active, .panel .patterns button.active, .panel .asset.active {
+  border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 22px rgba(0, 0, 0, .35);
+}
+.design-gallery, .graphic-gallery { gap: 8px; }
+.design-thumb { height: 54px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.panel .design-card, .panel .graphic-card { padding: 8px; font-size: 11.5px; font-weight: 500; }
+.panel .patterns button { border-radius: 11px; transition: border-color .15s var(--ease), transform .15s var(--ease); }
+.panel .patterns button:hover { transform: translateY(-1px); }
+
+/* Logos tab */
+.logo-subnav { padding: 4px; border-radius: 13px; gap: 4px; margin-bottom: 10px; }
+.panel .logo-subnav button { padding: 8px 2px; font-size: 11px; border-radius: 10px; transition: all .15s var(--ease); }
+.panel .logo-subnav button.on { background: var(--hover); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.logo-slot-card { border-radius: 12px; padding: 10px 12px; background: var(--raised); box-shadow: var(--glass-edge); }
+.logo-slot-card:hover, .logo-slot-card.populated { background: var(--hover); }
+.slot-customizer { border-radius: 12px; padding: 12px; background: var(--raised); }
+.panel .sponsor-pill { padding: 9px 12px; border-radius: 10px; transition: all .15s var(--ease); }
+.panel .preset-card, .panel .quick-club-btn { border-radius: 11px; }
+.club-catalog-banner { border-radius: 14px; padding: 14px 16px; box-shadow: var(--glass-edge); }
+.pane-intro strong { font-size: 14px; letter-spacing: -.01em; }
+
+/* Layers */
+.layer-list { border-radius: var(--r-md); }
+.layer-row { min-height: 40px; transition: background .12s var(--ease); }
+.layer-row.selected { background: linear-gradient(90deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .05)); }
+.tabs { padding: 3px; gap: 3px; border-radius: 12px; }
+.panel .tabs button { padding: 8px 4px; border-radius: 9px; font-size: 13px; }
+.panel .tabs button.active { box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* Inspector */
+.inspector { padding: 14px; border-radius: var(--r-md); gap: 12px; }
+.inspector legend { font-size: 12px; letter-spacing: .04em; }
+.sub { padding-top: 12px; }
+.sub > summary { padding: 2px 0; transition: color .15s var(--ease); }
+.sub > summary:hover { color: #fff; }
+
+/* Sliders */
+.slider { gap: 6px; }
+.slider input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .16); cursor: pointer; }
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5); transition: transform .12s var(--ease);
+}
+.slider input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+.slider input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
+
+/* Quick-start card */
+.quick-start { padding: 16px 44px 16px 16px; border-radius: var(--r-md); border-color: var(--line); box-shadow: var(--glass-edge); background: linear-gradient(135deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); }
+.quick-start strong { font-size: 14px; letter-spacing: -.01em; }
+.quick-start p { line-height: 1.5; }
+
+/* Scrollbars */
+.panel, .panel-content, .preset-grid, .inspector .patterns { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .18) transparent; }
+.preset-grid::-webkit-scrollbar, .inspector .patterns::-webkit-scrollbar { width: 6px; }
+.preset-grid::-webkit-scrollbar-thumb, .inspector .patterns::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .16); border-radius: 999px; }
+
+.panel { padding: 20px 18px 28px; border-radius: 24px; }
+
+@media (max-width: 900px) and (orientation: portrait), (max-width: 760px) {
+  .panel-body { gap: 10px; }
+  .panel-nav { padding: 4px; border-radius: 14px; }
+  .panel .panel-nav button { padding: 8px 2px 6px; }
+  .panel-nav svg { width: 20px; height: 20px; }
+}
