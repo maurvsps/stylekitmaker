@@ -255,3 +255,20 @@
 
 /* Mobile: the tab bar must not exceed the panel (older mobile rule forced width: 100% plus margins) */
 .panel-nav { width: auto; box-sizing: border-box; }
+
+/* Panel helpers */
+.kit-next { display: flex; align-items: center; gap: 12px; margin: 6px 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line); box-shadow: var(--glass-edge); flex-wrap: wrap; }
+.kit-next > div { flex: 1 1 150px; min-width: 0; }
+.kit-next strong { font-size: 13px; }
+.kit-next p { margin: 2px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.panel button small { opacity: .6; font-size: 11px; margin-left: 2px; }
+.reset-btn { width: 100%; }
+.stage-tools .seg button { white-space: nowrap; }
+
+/* Phones: one toolbar row that scrolls sideways, and the 3D canvas sits clear of the toolbar and camera buttons */
+@media (max-width: 900px) and (orientation: portrait) {
+  .stage-tools { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; right: 10px; }
+  .stage-tools::-webkit-scrollbar { display: none; }
+  .stage-tools > * { flex: 0 0 auto; }
+  .viewer { top: 58px; bottom: 58px; }
+}

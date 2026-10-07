@@ -10,7 +10,7 @@ import { KitRenderer } from "./kitRenderer.js";
 
 const TEXTURE_SIZES = [1024, 2048, 4096];
 const PREFS_KEY = "kit-maker:prefs"; // view settings of this browser (not part of the design)
-const CAMERAS = [["front", "Front"], ["three-quarter", "3/4"], ["side", "Side"], ["back", "Back"], ["close-up", "Close"]];
+const CAMERAS = [["front", "Front"], ["three-quarter", "3/4"], ["side", "Side"], ["back", "Back"], ["close-up", "Close-up"]];
 const STORAGE_KEY = "kit-maker:design"; // holds a version 1 design in older browsers; migrated on read
 // Pages hosted where downloads are blocked (the claude.ai artifact build) show exports in a sheet instead.
 const CAN_DOWNLOAD = !import.meta.env.VITE_NO_DOWNLOAD;
@@ -172,6 +172,11 @@ export default function App() {
   // preventing frame starvation during rapid slider dragging or color picking.
   const projectRef = useRef(project);
   projectRef.current = project;
+  // Read through refs: a frame queued before an image finished decoding must still paint with the newest images and fonts.
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+  const fontsReadyRef = useRef(fontsReady);
+  fontsReadyRef.current = fontsReady;
   const scheduledRef = useRef(false);
 
   const scheduleRender = useCallback(() => {
@@ -180,7 +185,7 @@ export default function App() {
     requestAnimationFrame(() => {
       scheduledRef.current = false;
       const cur = projectRef.current;
-      const res = renderer.render(cur, templates, models, images, fontsReady);
+      const res = renderer.render(cur, templates, models, imagesRef.current, fontsReadyRef.current);
       if (res.mapsChanged) setMaps({ ...renderer.maps });
       if (projectRef.current !== cur) {
         scheduleRender();
@@ -298,15 +303,15 @@ export default function App() {
           {view === "3d" && <div className="seg" role="group" aria-label="3D navigation">
             <button type="button" className={handTool ? "on" : ""} aria-pressed={handTool}
               aria-label="Hand tool" title="Hand tool (M): drag to move the view"
-              onClick={() => setHandTool((active) => !active)}>✋</button>
+              onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span> Pan</button>
           </div>}
-          <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting">
+          {view === "3d" && <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">
             {LIGHTING_PRESETS.map((l) => (
               <option key={l} value={l}>
-                {l[0].toUpperCase() + l.slice(1)} light
+                {l[0].toUpperCase() + l.slice(1)}
               </option>
             ))}
-          </select>
+          </select>}
         </div>
         {!loaded && !error && <div className="stage-note">Loading kit…</div>}
         {error && (

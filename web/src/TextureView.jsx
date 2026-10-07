@@ -29,9 +29,9 @@ export default function TextureView({ texture, uvSrc }) {
         <canvas ref={canvas} aria-label="Garment texture" />
         {overlay && uvSrc && <img src={uvSrc} alt="" onError={(e) => (e.currentTarget.style.display = "none")} />}
       </div>
-      <label className="texture-toggle">
+      <label className="texture-toggle" title="Outlines where each part of the shirt sits on the texture">
         <input type="checkbox" checked={overlay} onChange={(e) => setOverlay(e.target.checked)} />
-        UV guide
+        UV layout guide
       </label>
     </div>
   );

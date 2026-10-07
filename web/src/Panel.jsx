@@ -184,6 +184,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }));
     setGarment(slot.garment);
     select(existing?.id || fresh.id, slot.garment);
+    // Turn the kit so the change is visible: crest/brand/front sponsor on the chest, back sponsor behind, sleeves from the side.
+    actions.view(slot.surface === "back" ? "back" : slot.surface.startsWith("sleeve") ? "side" : "front");
   };
 
 
@@ -422,6 +424,13 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           ))}
         </div>
       </Section>}
+      {tab === "kit" && <div className="kit-next">
+        <div>
+          <strong>Stripes, patterns & trims</strong>
+          <p>Change the kit design in Layers. Crests and sponsors live in Logos.</p>
+        </div>
+        <button type="button" className="quiet" onClick={() => setTab("layers")}>Open Layers</button>
+      </div>}
 
       {tab === "logos" && (
         <Section title="Emblems & sponsors" eyebrow="02" className="logo-section">
@@ -867,14 +876,16 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <div className="row">
           <label className="field grow">
             <span>Name</span>
-            <input value={project.player.name} onChange={(e) => set({ player: { ...project.player, name: cleanName(e.target.value) } })} />
+            <input value={project.player.name} maxLength={14} autoComplete="off" onChange={(e) => set({ player: { ...project.player, name: cleanName(e.target.value) } })} />
           </label>
           <label className="field number">
             <span>Number</span>
-            <input inputMode="numeric" value={project.player.number}
+            <input inputMode="numeric" maxLength={2} autoComplete="off" value={project.player.number}
               onChange={(e) => set({ player: { ...project.player, number: cleanNumber(e.target.value) } })} />
           </label>
         </div>
+        <p className="hint">Name up to 14 characters, number up to 2 digits. They print on the back; rotate the kit to check.</p>
+        <button type="button" className="quiet" onClick={() => actions.view("back")}>Show back of shirt</button>
         <label className="field">
           <span>Kit font</span>
           <select value={project.font} onChange={(e) => set({ font: e.target.value })}>
@@ -888,16 +899,17 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
 
       {tab === "export" && <Section title="Export" eyebrow="05">
-        <p className="section-copy">Preview the crop before downloading a PNG.</p>
+        <p className="section-copy">Takes a picture of the current 3D view. You can preview it before downloading.</p>
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
-            Screenshot (PNG)
+            Screenshot of current view (PNG)
           </button>
         </div>
+        <span className="group-label">Social media crop</span>
         <div className="row">
-          {["1:1", "16:9", "9:16"].map((a) => (
-            <button key={a} type="button" className="quiet" onClick={() => actions.screenshot(a)} title={`Framed ${a} image, 2048 px long side`}>
-              {a}
+          {[["1:1", "Square"], ["16:9", "Wide"], ["9:16", "Story"]].map(([a, name]) => (
+            <button key={a} type="button" className="quiet" onClick={() => actions.screenshot(a)} title={`${name} ${a} image, 2048 px long side`}>
+              {name} <small>{a}</small>
             </button>
           ))}
         </div>
@@ -906,7 +918,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           Transparent background
         </label>
         <label className="field">
-          <span>Texture resolution</span>
+          <span>Texture resolution (for the downloads below)</span>
           <select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
             {actions.textureSizes.map((s) => (
               <option key={s} value={s}>
@@ -918,7 +930,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <div className="row">
           {SHOWN_GARMENTS.map((g) => (
             <button key={g} type="button" className="quiet" onClick={() => actions.texture(g)}>
-              {g[0].toUpperCase() + g.slice(1)} texture
+              Download {g} texture
             </button>
           ))}
         </div>
@@ -951,10 +963,10 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           <button type="button" onClick={() => designInput.current.click()}>
             Load JSON
           </button>
-          <button type="button" className="quiet" onClick={actions.reset}>
-            Reset
-          </button>
         </div>
+        <button type="button" className="quiet danger reset-btn" onClick={actions.reset}>
+          Reset to starter design
+        </button>
       </Section>}
       </div>
       </div>

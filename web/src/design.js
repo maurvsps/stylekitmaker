@@ -25,7 +25,7 @@ export const DEFAULT_DESIGN = {
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
   pattern: "stripes",
   logo: null, // { src: data URL, name, x: cm, y: cm, scale }
-  sponsor: "SPONSOR",
+  sponsor: "", // empty until the user adds one: a fake "SPONSOR" looked like real content
   name: "VEGA",
   number: "10",
   font: "Oswald",
