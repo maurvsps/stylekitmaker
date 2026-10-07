@@ -424,3 +424,70 @@
 .cp-swatches { grid-template-columns: repeat(8, minmax(0, 1fr)); }
 .cp-row { min-width: 0; }
 .cp-hex { width: 0; }
+
+/* ================================================================ Phones: nothing cut, more room for the panel */
+@media (max-width: 760px), (max-width: 900px) and (orientation: portrait) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: clamp(180px, var(--preview-height, 38dvh), calc(100dvh - 260px)) minmax(0, 1fr); }
+  .preview-resize { top: clamp(180px, var(--preview-height, 38dvh), calc(100dvh - 260px)); }
+  .viewer { top: 52px; bottom: 50px; }
+
+  /* compact header: logo and name on one line, no subtitle */
+  .panel { padding-top: 8px; margin: 0 6px 6px; }
+  .panel-header { padding: 0 10px 8px; gap: 10px; }
+  .brand-mark { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; }
+  .panel-header h1 { font-size: 15px; }
+  .panel-header p { display: none; }
+  .panel .header-action { width: 32px; height: 32px; }
+  .panel-nav { margin: 0 8px 2px; }
+  .panel .panel-nav button { padding: 6px 2px 5px; font-size: 10.5px; }
+  .panel-nav svg { width: 18px; height: 18px; }
+  .panel-sub { padding: 4px 14px 2px; }
+  .panel-content { padding: 2px 10px 12px; }
+  .panel-footer { padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+  .panel-footer button { padding: 9px 12px; min-width: 64px; }
+  .section { padding: 10px 0; }
+
+  /* stage controls fit the width */
+  .stage-tools { gap: 5px; }
+  .stage-tools .seg button, .stage-tools select, .stage-tools .pill { padding-left: 10px; padding-right: 10px; font-size: 13px; }
+  .view-buttons { gap: 4px; max-width: calc(100% - 12px); overflow: visible; }
+  .view-buttons button { padding: 7px 10px; min-height: 36px; font-size: 12.5px; }
+  .fit-options { grid-template-columns: minmax(0, 1fr); }
+  .palette-grid { grid-template-columns: minmax(0, 1fr); }
+  .pattern-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Landscape phones: the panel sits beside the 3D view and keeps its scroll area */
+@media (max-height: 520px) and (orientation: landscape) {
+  .app { grid-template-columns: minmax(280px, 42vw) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100dvh; }
+  .stage { grid-column: 2; grid-row: 1; }
+  .panel { grid-column: 1; grid-row: 1; margin: 6px 0 6px 6px; padding-top: 6px; }
+  .panel-header p { display: none; }
+  .panel-header { padding: 0 10px 6px; }
+  .brand-mark { width: 28px; height: 28px; font-size: 14px; }
+  .panel-sub { display: none; }
+  .panel-footer { padding: 6px 10px; }
+  .viewer { top: 0; bottom: 0; }
+  .view-buttons { bottom: 6px; }
+  .preview-resize { display: none; }
+}
+
+@media (max-width: 340px) {
+  .panel .panel-nav button span { font-size: 9.5px; }
+  .step-dots { display: none; }
+}
+@media (max-width: 420px) { .pan-label { display: none; } }
+@media (max-width: 360px) { .stage-tools select { display: none; } }
+@media (max-height: 650px) and (orientation: portrait) {
+  .app { grid-template-rows: clamp(150px, var(--preview-height, 30dvh), calc(100dvh - 230px)) minmax(0, 1fr); }
+  .preview-resize { top: clamp(150px, var(--preview-height, 30dvh), calc(100dvh - 230px)); }
+  .panel-sub { display: none; }
+}
+
+/* Font gallery */
+.font-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.panel .font-card { display: grid; gap: 4px; justify-items: center; padding: 10px 4px 8px; border-radius: 12px; background: var(--field); color: var(--text); border: 1px solid var(--line); min-width: 0; }
+.panel .font-card:hover { border-color: var(--line-strong); }
+.panel .font-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--hover); }
+.font-sample { font-size: 30px; line-height: 1.1; }
+.font-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; color: var(--muted); font-weight: 400; }

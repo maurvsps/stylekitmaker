@@ -8,6 +8,7 @@ import { LinkPane, SourceTabs, UploadPane } from "./SourcePanes.jsx";
 const LEAGUE_GROUPS = [
   { id: "all", label: "All clubs" },
   { id: "new", label: `${SEASON} promoted`, season: "promoted" },
+  { id: "national", label: "National teams", leagues: ["National teams"] },
   { id: "laliga", label: "La Liga", leagues: ["La Liga"] },
   { id: "premier", label: "Premier League", leagues: ["Premier League"] },
   { id: "seriea", label: "Serie A", leagues: ["Serie A"] },
@@ -144,13 +145,13 @@ export default function ClubPickerModal({
         className="sheet club-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Football Club Crests"
+        aria-label="Club and national team crests"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="sheet-head club-modal-head">
           <div className="club-modal-title">
-            <h2>Football Club Crests</h2>
+            <h2>Club and national team crests</h2>
             <span className="club-modal-subtitle">
               {SEASON} season: top flights updated for promotions and relegations
             </span>
@@ -178,7 +179,7 @@ export default function ClubPickerModal({
                 setSearch(e.target.value);
                 setOnlineResults(null);
               }}
-              placeholder="Search by club name, city, nickname (e.g. Madrid, Arsenal, Boca, Milan)..."
+              placeholder="Search a club or national team (e.g. Arsenal, Boca, Spain, Japan)..."
               aria-label="Search clubs"
             />
             {search && (

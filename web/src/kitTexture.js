@@ -298,11 +298,6 @@ function placeText(ctx, layer, env, frame, x, y) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
-  if (layer.outline) {
-    ctx.lineWidth = Math.max(2, px * 0.06);
-    ctx.strokeStyle = "rgba(0,0,0,.28)";
-    ctx.strokeText(str, x, y);
-  }
   ctx.fillStyle = env.color(layer.color);
   ctx.fillText(str, x, y);
 }

@@ -26,7 +26,7 @@
 //   pattern  { pattern, colors: [colour..., background|null] }   pattern space moved by transform
 //   graphic  { shape, color, size, surface }                  transform x/y = centre in the surface's frame (metres)
 //   image    { asset, size, surface, fit, tint, stroke }           size = longer side in metres before scaling; stroke = { color, width (metres) } or null
-//   text     { text, bind, font, color, size, maxWidth, outline, surface }   size = capital height in metres
+//   text     { text, bind, font, color, size, maxWidth, surface }   size = capital height in metres
 //   material { effect }                                       fabric finish over its mask (library.js MATERIALS)
 //   group    { children: [layers...] }
 // `role` (optional) marks the layers the panel's shortcuts edit: crest, sponsor, name, number.
@@ -111,7 +111,7 @@ export function makeLayer(type, garment, fields = {}) {
     },
     graphic: () => ({ ...placed, shape: "circle", color: "@1", size: 0.1 }),
     image: () => ({ ...placed, asset: null, size: 0.085, fit: "free", tint: null, stroke: null, texture: "kit" }), // texture: kit fabric or a smooth print
-    text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, outline: true, texture: "kit" }),
+    text: () => ({ ...placed, text: "TEXT", bind: null, font: null, color: "@2", size: 0.05, maxWidth: 0.32, texture: "kit" }),
     material: () => ({ name: "Satin", effect: "satin" }),
     group: () => ({ children: [] }),
   }[type]();
@@ -306,7 +306,6 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.color = color(l.color, d.color);
       layer.size = num(l.size, 0.005, 0.6, d.size);
       layer.maxWidth = num(l.maxWidth, 0.01, 1.5, d.maxWidth);
-      layer.outline = l.outline !== false;
       layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       break;
     case "material":

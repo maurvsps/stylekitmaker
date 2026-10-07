@@ -18,6 +18,19 @@ export const FONTS = [
   { id: "Anton", weight: 400 },
   { id: "Teko", weight: 600 },
   { id: "Saira Condensed", weight: 800 },
+  { id: "Barlow Condensed", weight: 700 },
+  { id: "Big Shoulders Display", weight: 800 },
+  { id: "Staatliches", weight: 400 },
+  { id: "Fjalla One", weight: 400 },
+  { id: "Archivo Black", weight: 400 },
+  { id: "Russo One", weight: 400 },
+  { id: "Squada One", weight: 400 },
+  { id: "Racing Sans One", weight: 400 },
+  { id: "Passion One", weight: 900 },
+  { id: "Alfa Slab One", weight: 400 },
+  { id: "Graduate", weight: 400 },
+  { id: "Orbitron", weight: 800 },
+  { id: "Chakra Petch", weight: 700 },
 ];
 
 export const DEFAULT_DESIGN = {

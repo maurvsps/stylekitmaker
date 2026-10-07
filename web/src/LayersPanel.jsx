@@ -460,10 +460,6 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             </select>
           </label>
           <ColorField label="Colour" value={layer.color} palette={palette} onChange={(color) => patch({ color })} />
-          <label className="check">
-            <input type="checkbox" checked={layer.outline} onChange={(e) => patch({ outline: e.target.checked })} />
-            Soft outline
-          </label>
         </>
       )}
 

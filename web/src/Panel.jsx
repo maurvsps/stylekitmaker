@@ -1036,16 +1036,16 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </div>
         <p className="hint">Name up to 14 characters, number up to 2 digits. They print on the back; rotate the kit to check.</p>
         <button type="button" className="quiet" onClick={() => actions.view("back")}>Show back of shirt</button>
-        <label className="field">
-          <span>Kit font</span>
-          <select value={project.font} onChange={(e) => set({ font: e.target.value })}>
-            {fonts.map((f) => (
-              <option key={f.id} value={f.id} style={{ fontFamily: f.id }}>
-                {f.id}
-              </option>
-            ))}
-          </select>
-        </label>
+        <span className="group-label">Number and name font</span>
+        <div className="font-gallery" role="radiogroup" aria-label="Kit font">
+          {fonts.map((f) => (
+            <button key={f.id} type="button" role="radio" aria-checked={project.font === f.id}
+              className={`font-card${project.font === f.id ? " active" : ""}`} onClick={() => set({ font: f.id })}>
+              <span className="font-sample" style={{ fontFamily: `"${f.id}", Impact, sans-serif`, fontWeight: f.weight }}>{project.player.number || "10"}</span>
+              <span className="font-name">{f.id}</span>
+            </button>
+          ))}
+        </div>
       </Section>}
 
       {tab === "export" && <Section title="Export" eyebrow="06">

@@ -345,7 +345,7 @@ export default function App() {
           {view === "3d" && <div className="seg" role="group" aria-label="3D navigation">
             <button type="button" className={handTool ? "on" : ""} aria-pressed={handTool}
               aria-label="Hand tool" title="Hand tool (M): drag to move the view"
-              onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span> Pan</button>
+              onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span><span className="pan-label"> Pan</span></button>
           </div>}
           {view === "3d" && <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">
             {LIGHTING_PRESETS.map((l) => (

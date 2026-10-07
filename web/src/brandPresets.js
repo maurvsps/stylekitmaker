@@ -313,6 +313,7 @@ export const POPULAR_CLUBS = [
 
 import clubsData from "./clubsData.json";
 import { SEASON_EXTRAS, applySeason, norm } from "./season2627.js";
+import nationalTeams from "./nationalTeams.json";
 
 // Set of lowercase names and aliases from POPULAR_CLUBS to avoid duplication
 const popularNames = new Set(POPULAR_CLUBS.map((p) => p.name.toLowerCase()));
@@ -337,6 +338,7 @@ export const CLUBS_CATALOG = [
     return !popularNames.has(n) && !popularNames.has(fn) && !isPopularDuplicate(c);
   }).map((c) => ({ ...c, isPopular: false })),
   ...SEASON_EXTRAS.map((c) => ({ ...c, isPopular: false })),
+  ...nationalTeams.map((c) => ({ ...c, isPopular: false })),
 ].map(applySeason);
 
 export const FCLOGO_CLUBS = CLUBS_CATALOG;
