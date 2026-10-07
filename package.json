@@ -1,0 +1,13 @@
+{
+  "name": "stylekitmaker",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "web"
+  ],
+  "scripts": {
+    "build": "npm --workspace=web run build",
+    "dev": "npm --workspace=web run dev",
+    "preview": "npm --workspace=web run preview"
+  }
+}

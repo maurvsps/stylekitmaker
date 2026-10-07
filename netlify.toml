@@ -1,0 +1,3 @@
+[build]
+  command = "npm --workspace=web run build"
+  publish = "web/dist"
