@@ -19,7 +19,7 @@ export const isTyping = (el) =>
 
 let clipboard = null; // the copied layer (kept while the page is open)
 
-export default function LayersPanel({ project, setProject, garment, setGarment, selected, select, template, fonts, uploadImage }) {
+export default function LayersPanel({ project, setProject, garment, setGarment, selected, select, template, fonts, uploadImage, addLink }) {
   const layers = project.garments[garment].layers;
   const layer = selected ? findLayer(layers, selected) : null;
   const imageInput = useRef(null);
@@ -186,6 +186,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
           fonts={fonts}
           patch={(fields) => patch(layer.id, fields)}
           uploadImage={uploadImage}
+          addLink={addLink}
         />
       )}
     </div>
@@ -360,7 +361,7 @@ const LockIcon = ({ open }) => (
 
 // ---------------------------------------------------------------- inspector
 
-function Inspector({ layer, garment, project, template, fonts, patch, uploadImage }) {
+function Inspector({ layer, garment, project, template, fonts, patch, uploadImage, addLink }) {
   const { palette } = project;
   const [librarySearch, setLibrarySearch] = useState("");
   const locked = layer.locked;
@@ -468,7 +469,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "image" && (
         <>
-          <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} />
+          <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} addLink={addLink} />
           <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
           <label className="field">
@@ -756,26 +757,59 @@ export function ColorField({ label, value, palette, onChange, allowNone = false,
   );
 }
 
-function AssetPicker({ project, value, onChange, uploadImage }) {
+/** The image of the selected layer only: preview, name, and ways to swap it for a file or a link. */
+function AssetPicker({ project, value, onChange, uploadImage, addLink }) {
   const input = useRef(null);
-  const assets = Object.entries(project.assets);
+  const [linking, setLinking] = useState(false);
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(null);
+  const asset = value ? project.assets[value] : null;
+  const remote = asset && !asset.src.startsWith("data:");
+  const broken = failed === asset?.src;
+
+  const submitLink = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const id = await addLink(url);
+      if (id) {
+        onChange(id);
+        setUrl("");
+        setLinking(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="field">
-      <span>Artwork</span>
-      <div className="assets">
-        {assets.map(([id, a]) => (
-          <button key={id} type="button" className={`asset${id === value ? " active" : ""}`} title={a.name} aria-label={a.name}
-            aria-pressed={id === value} onClick={() => onChange(id)}>
-            <img src={a.src} alt="" />
-          </button>
-        ))}
-        <button type="button" className="asset add" onClick={() => input.current.click()} aria-label="Upload image">+</button>
+    <div className="field artwork-picker">
+      <span>Image</span>
+      <div className="artwork-current">
+        <span className="artwork-preview">
+          {asset && !broken ? <img src={asset.src} alt="" onError={() => setFailed(asset.src)} /> : <em>{asset ? "Can't load" : "None"}</em>}
+        </span>
+        <span className="artwork-meta">
+          <strong>{asset ? asset.name : "No image"}</strong>
+          <small>{asset ? (remote ? "From a link" : "Uploaded file") : "Choose a file or paste a link"}</small>
+        </span>
       </div>
+      <div className="row">
+        <button type="button" className="quiet" onClick={() => input.current.click()}>{asset ? "Replace file" : "Upload file"}</button>
+        {addLink && <button type="button" className="quiet" onClick={() => setLinking((v) => !v)} aria-expanded={linking}>{linking ? "Cancel" : "Use a link"}</button>}
+      </div>
+      {linking && (
+        <form className="row" onSubmit={submitLink}>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://i.ibb.co/xxxx/image.png" aria-label="Image link" spellCheck={false} autoFocus />
+          <button type="submit" disabled={busy || !url.trim()}>{busy ? "..." : "Set"}</button>
+        </form>
+      )}
       <input ref={input} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={async (e) => {
         const file = e.target.files[0];
         e.target.value = "";
-        const asset = file && (await uploadImage(file));
-        if (asset) onChange(asset.id);
+        const uploaded = file && (await uploadImage(file));
+        if (uploaded) onChange(uploaded.id);
       }} />
     </div>
   );
@@ -811,7 +845,7 @@ export function Slider({ label, unit, value, onChange, ...range }) {
 }
 
 /** A small shirt-front preview of a pattern, painted by the same code as the texture. */
-function PatternSwatch({ def, colors, ground }) {
+export function PatternSwatch({ def, colors, ground }) {
   const canvas = useRef(null);
   const key = [def.id, ground, ...colors].join();
   useEffect(() => {
@@ -823,12 +857,12 @@ function PatternSwatch({ def, colors, ground }) {
       local: (cx) => cx.setTransform(n / 0.8, 0, 0, -n / 0.8, n / 2, n), // 80 x 80 cm of the front, hem at the bottom
     };
     fillIsland(ctx, frame, ground);
-    paintPattern(ctx, def, colors, { kind: "body", name: "front" });
+    paintPattern(ctx, def, colors, { kind: "body", name: "front", reach: 0.9 });
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={canvas} width="64" height="64" aria-hidden="true" />;
 }
 
-function DesignThumb({ id }) {
+export function DesignThumb({ id }) {
   return <span className={`design-thumb design-${id}`} aria-hidden="true"><i /><b /></span>;
 }
 

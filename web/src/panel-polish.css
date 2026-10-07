@@ -292,3 +292,93 @@
 .kit-image-name { flex: 1 1 auto; min-width: 0; display: grid; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kit-image-name small { color: var(--muted); font-weight: 400; font-size: 11px; text-transform: capitalize; }
 @media (max-width: 380px) { .fit-options { grid-template-columns: minmax(0, 1fr); } }
+
+/* ================================================================ Guided steps */
+.panel-sub { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 18px 4px; font-size: 11.5px; color: var(--muted); }
+.panel-sub span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-sub .link { flex: 0 0 auto; font-size: 11.5px; white-space: nowrap; }
+.panel-footer {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--line);
+  background: linear-gradient(to top, rgba(0, 0, 0, .25), transparent);
+}
+.panel-footer button { min-width: 78px; padding: 10px 14px; }
+.panel-footer button:last-child:not(:first-child) { flex: 1 1 auto; max-width: 190px; }
+.step-dots { display: flex; gap: 5px; }
+.step-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .18); transition: background .2s, transform .2s; }
+.step-dots i.past { background: rgba(255, 255, 255, .5); }
+.step-dots i.on { background: #fff; transform: scale(1.35); }
+@media (max-width: 400px) { .step-dots { display: none; } }
+
+/* Design: patterns */
+.pattern-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.panel .pattern-card { display: grid; gap: 5px; justify-items: center; padding: 7px 4px 6px; font-size: 11px; font-weight: 500; border-radius: 12px; background: var(--field); color: var(--text); border: 1px solid var(--line); min-width: 0; }
+.panel .pattern-card span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pattern-card canvas, .pattern-plain { width: 100%; max-width: 64px; aspect-ratio: 1; height: auto; border-radius: 8px; box-shadow: 0 0 0 1px var(--line); display: block; }
+.panel .pattern-card:hover { border-color: var(--line-strong); transform: translateY(-1px); }
+.panel .pattern-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--hover); }
+
+/* Colours */
+.palette-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.panel .palette-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: var(--field); color: var(--text); border: 1px solid var(--line); font-size: 12px; font-weight: 500; text-align: left; min-width: 0; }
+.panel .palette-card > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette-chips { display: flex; flex: 0 0 auto; }
+.palette-chips i { width: 16px; height: 26px; border: 1px solid rgba(255, 255, 255, .25); }
+.palette-chips i:first-child { border-radius: 7px 0 0 7px; }
+.palette-chips i:last-child { border-radius: 0 7px 7px 0; }
+.palette-chips i + i { margin-left: -1px; }
+.panel .palette-card:hover { border-color: var(--line-strong); }
+.panel .palette-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--hover); }
+
+/* Logo placement map */
+.placement-map { margin: 0 0 4px; padding: 10px 10px 8px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line); box-shadow: var(--glass-edge); }
+.placement-map svg { width: 100%; height: auto; display: block; }
+.placement-map figcaption { margin-top: 4px; font-size: 11px; color: var(--muted); text-align: center; }
+.placement-side { fill: var(--muted); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+.placement-spot { cursor: pointer; outline: none; }
+.placement-spot circle { fill: rgba(0, 0, 0, .55); stroke: #fff; stroke-width: 1.2; stroke-dasharray: 3 2.2; transition: fill .15s, stroke-width .15s; }
+.placement-spot text { fill: #fff; font-size: 11px; font-weight: 700; pointer-events: none; }
+.placement-spot:hover circle, .placement-spot:focus-visible circle { fill: rgba(255, 255, 255, .25); stroke-width: 2; }
+.placement-spot.filled circle { fill: #fff; stroke-dasharray: none; }
+.placement-spot.filled text { fill: #111; }
+.placement-spot.active circle { stroke: #6ee7b7; stroke-width: 2.4; stroke-dasharray: none; }
+
+/* Export: checklist, my kits */
+.checklist { border-radius: 14px; background: var(--raised); border: 1px solid var(--line); box-shadow: var(--glass-edge); overflow: hidden; }
+.checklist-head { display: flex; justify-content: space-between; align-items: baseline; padding: 11px 14px 8px; font-size: 13px; }
+.checklist-head span { color: var(--muted); font-size: 11.5px; }
+.checklist ul { list-style: none; margin: 0; padding: 0; }
+.panel .checklist-row { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 0; background: transparent; color: var(--text); border: 0; border-top: 1px solid var(--line); text-align: left; font-size: 13px; }
+.panel .checklist-row:hover { background: rgba(255, 255, 255, .05); }
+.checklist-row small { color: var(--muted); margin-left: 6px; font-size: 11px; }
+.checklist-mark { width: 18px; height: 18px; flex: 0 0 auto; border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .3); display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #0b0b0c; }
+.checklist li.done .checklist-mark { background: #6ee7b7; border-color: #6ee7b7; }
+.checklist-go { margin-left: auto; color: var(--muted); font-size: 16px; }
+.my-kits { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.my-kit { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); min-width: 0; }
+.my-kit-thumb { flex: 0 0 46px; height: 46px; border-radius: 9px; overflow: hidden; background: rgba(0, 0, 0, .35); }
+.my-kit-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.my-kit-meta { flex: 1 1 auto; min-width: 0; display: grid; font-size: 12.5px; }
+.my-kit-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-kit-meta small { color: var(--muted); }
+
+/* Flat view */
+.flat-view { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 40px); padding: 70px 24px 70px; }
+.flat-view figure { margin: 0; flex: 0 1 auto; min-width: 0; min-height: 0; max-height: 100%; display: grid; justify-items: center; gap: 8px; }
+.flat-view canvas { max-width: 100%; max-height: calc(100dvh - 190px); width: auto; height: auto; object-fit: contain; border-radius: 6px; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .5)); }
+.flat-view figcaption { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* Selected image */
+.artwork-current { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); min-width: 0; }
+.artwork-preview { flex: 0 0 64px; height: 64px; border-radius: 10px; background: rgba(0, 0, 0, .35); display: grid; place-items: center; overflow: hidden; }
+.artwork-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.artwork-preview em { font-size: 10px; color: var(--muted); font-style: normal; text-align: center; }
+.artwork-meta { min-width: 0; display: grid; font-size: 13px; }
+.artwork-meta strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artwork-meta small { color: var(--muted); font-size: 11px; }
+
+/* Flat view refinements: opaque stage, panels share the width */
+.flat-view { background: #000; align-items: center; }
+.flat-view figure { flex: 1 1 0; max-width: 360px; }
+.flat-view canvas { width: 100%; height: auto; max-height: calc(100dvh - 210px); object-fit: contain; }
+.panel .palette-card > span:last-child { white-space: normal; line-height: 1.2; }

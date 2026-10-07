@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Viewer, { LIGHTING_PRESETS } from "./Viewer.jsx";
 import TextureView from "./TextureView.jsx";
+import FlatView from "./FlatView.jsx";
+import { makeShareLink, readShareLink, shrinkImage } from "./myKits.js";
 import { isTyping } from "./LayersPanel.jsx";
 import Panel from "./Panel.jsx";
 import ExportSheet from "./ExportSheet.jsx";
 import { FONTS, fontCss, resolveTemplate } from "./design.js";
-import { DEFAULT_PROJECT, fontsInUse, sanitizeProject, serializeProject } from "./project.js";
+import { DEFAULT_PROJECT, GARMENTS, fontsInUse, sanitizeProject, serializeProject, walk } from "./project.js";
 import { KitRenderer } from "./kitRenderer.js";
 
 const TEXTURE_SIZES = [1024, 2048, 4096];
@@ -31,7 +33,7 @@ export default function App() {
   const [prefs, setPrefs] = useState(readPrefs);
   const setPref = (k, v) => setPrefs((p) => ({ ...p, [k]: v }));
   const [garment, setGarment] = useState("shirt");
-  const [view, setView] = useState("3d"); // "3d" | "texture"
+  const [view, setView] = useState("3d"); // "3d" | "flat" | "texture"
   const [handTool, setHandTool] = useState(false);
 
   useEffect(() => {
@@ -43,6 +45,20 @@ export default function App() {
     addEventListener("keydown", onHandKey);
     return () => removeEventListener("keydown", onHandKey);
   }, [view]);
+
+  // A design opened from a share link (#kit=...): load it once, then tidy the address bar.
+  useEffect(() => {
+    const open = () => {
+      if (!location.hash.startsWith("#kit=")) return;
+      readShareLink(location.hash).then((data) => {
+        if (data) setProjectRaw(sanitizeProject(data));
+        window.history.replaceState(null, "", location.pathname + location.search); // (`history` is the undo stack here)
+      });
+    };
+    open();
+    addEventListener("hashchange", open);
+    return () => removeEventListener("hashchange", open);
+  }, []);
 
   // Undo / redo: every project change is a step; changes less than half a second apart (a slider being dragged,
   // typing) merge into one.
@@ -257,6 +273,30 @@ export default function App() {
       }
     },
     reset: () => setConfirmReset(true),
+    // My kits and share links
+    kitData: () => serializeProject(project),
+    kitThumbnail: async () => {
+      try {
+        const url = viewer.current?.screenshot("1:1", { transparent: false });
+        return url ? await shrinkImage(url) : null;
+      } catch {
+        return null;
+      }
+    },
+    applyKit: (data) => setProject(sanitizeProject(data, shirtNames.map((k) => k.name))),
+    shareLink: () => {
+      // Crests picked from the catalogue travel as a link to their image, so the shared kit still shows them.
+      const data = serializeProject(project);
+      const assets = { ...data.assets };
+      for (const g of GARMENTS) {
+        walk(data.garments[g].layers, (l) => {
+          if (l.type !== "image" || !l.clubData || !assets[l.asset]?.src.startsWith("data:")) return;
+          const web = l.crestStyle === "mono" && l.clubData.monoUrl ? l.clubData.monoUrl : l.clubData.colorUrl;
+          assets[l.asset] = { ...assets[l.asset], src: `https://wsrv.nl/?output=png&w=1024&we&url=${encodeURIComponent(web)}` };
+        });
+      }
+      return makeShareLink({ ...data, assets });
+    },
     view: (preset) => {
       setView("3d");
       viewer.current?.view(preset);
@@ -288,6 +328,7 @@ export default function App() {
             onLoading={onLoading}
             onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool} />
         )}
+        {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
         <div className="stage-tools">
           <div className="seg" role="group" aria-label="History">
@@ -296,6 +337,7 @@ export default function App() {
           </div>
           <div className="seg" role="group" aria-label="View">
             <button type="button" className={view === "3d" ? "on" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button>
+            <button type="button" className={view === "flat" ? "on" : ""} aria-pressed={view === "flat"} onClick={() => setView("flat")} title="Front and back laid flat">Flat</button>
             <button type="button" className={view === "texture" ? "on" : ""} aria-pressed={view === "texture"} onClick={() => setView("texture")}>
               Texture
             </button>
@@ -319,7 +361,7 @@ export default function App() {
             {error}
           </div>
         )}
-        <div className="view-buttons" role="group" aria-label="Camera" hidden={view === "texture"}>
+        <div className="view-buttons" role="group" aria-label="Camera" hidden={view !== "3d"}>
           {CAMERAS.map(([v, label]) => (
             <button key={v} type="button" onClick={() => actions.view(v)}>
               {label}

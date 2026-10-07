@@ -9,15 +9,20 @@ import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import ClubPickerModal from "./ClubPickerModal.jsx";
 import LogoPickerModal from "./LogoPickerModal.jsx";
+import DesignStep from "./DesignStep.jsx";
+import ColorsStep from "./ColorsStep.jsx";
+import PlacementMap from "./PlacementMap.jsx";
+import KitChecklist from "./KitChecklist.jsx";
+import MyKits from "./MyKits.jsx";
 
-// The sidebar: one section at a time, so the panel stays short.
+// The sidebar is a guided flow: one step at a time, in the order a kit gets made. Layers is the advanced mode.
 const TABS = [
-  { id: "kit", label: "Kit", icon: "M8 4 4 6.5 5.5 10 7 9.3V20h10V9.3l1.5.7L20 6.5 16 4c-.5 1.6-2.1 2.7-4 2.7S8.5 5.6 8 4Z" },
-  { id: "logos", label: "Logos", icon: "M12 3 5 5.5V11c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V5.5L12 3Z" },
-  { id: "images", label: "Images", icon: "M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 3-3L20 16M9 9.5h.01" },
-  { id: "layers", label: "Layers", icon: "m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" },
-  { id: "player", label: "Player", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" },
-  { id: "export", label: "Export", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
+  { id: "design", label: "Design", hint: "Pick a shirt and a pattern", icon: "M8 4 4 6.5 5.5 10 7 9.3V20h10V9.3l1.5.7L20 6.5 16 4c-.5 1.6-2.1 2.7-4 2.7S8.5 5.6 8 4Z" },
+  { id: "colors", label: "Colours", hint: "Choose the kit colours", icon: "M12 3a9 9 0 1 0 0 18c1.7 0 2.4-1 2-2.2-.4-1.2.3-2.3 1.6-2.3H18a3 3 0 0 0 3-3c0-5-4-10.5-9-10.5ZM7.5 11h.01M10 7.5h.01M14.5 7.5h.01" },
+  { id: "logos", label: "Logos", hint: "Crest, kit brand and sponsors", icon: "M12 3 5 5.5V11c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V5.5L12 3Z" },
+  { id: "images", label: "Images", hint: "Your own pictures and textures", icon: "M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 3-3L20 16M9 9.5h.01" },
+  { id: "player", label: "Player", hint: "Name, number and font", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" },
+  { id: "export", label: "Export", hint: "Check, save and share", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
 ];
 const TAB_KEY = "kit-maker:panel-tab";
 const LOGO_SUBTAB_KEY = "kit-maker:logo-subtab";
@@ -25,9 +30,10 @@ const LOGO_SUBTAB_KEY = "kit-maker:logo-subtab";
 const savedTab = () => {
   try {
     const t = localStorage.getItem(TAB_KEY);
-    return TABS.some((x) => x.id === t) ? t : "kit";
+    if (t === "kit") return "design"; // the old name of the first tab
+    return TABS.some((x) => x.id === t) || t === "layers" ? t : "design";
   } catch {
-    return "kit";
+    return "design";
   }
 };
 
@@ -444,6 +450,54 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const setLayerSize = (id, size) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, id, (l) => ({ ...l, size }))));
   const removeImageLayer = (id) => setProject((p) => editLayers(p, "shirt", (ls) => ls.filter((l) => l.id !== id)));
 
+  const addImageLink = async (url) => {
+    try {
+      const found = await resolveRemoteImage(url);
+      const id = newId("img");
+      setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: found.src, name: found.name } } }));
+      return id;
+    } catch (err) {
+      onError(err.message);
+      return null;
+    }
+  };
+
+  // ---- steps
+  const stepIndex = Math.max(0, TABS.findIndex((t) => t.id === tab));
+  const go = (i) => setTab(TABS[Math.max(0, Math.min(TABS.length - 1, i))].id);
+
+  // ---- logo placement map: which spots are filled, and tapping one opens the right editor or library
+  const filledSlots = Object.fromEntries(logoSlots.map((s) => [s.id, !!slotLayer(s)]));
+  const activeSpotId = logoSubTab === "crest" ? "crest" : logoSubTab === "brand" ? "brand" : logoSubTab === "sponsors" ? activeSponsorSlotId : null;
+  const pickSpot = (id) => {
+    if (id === "crest") {
+      setLogoSubTab("crest");
+      if (!filledSlots.crest) setClubModalOpen(true);
+    } else if (id === "brand") {
+      setLogoSubTab("brand");
+      if (!filledSlots.brand) setLogoModal("brand");
+    } else {
+      setLogoSubTab("sponsors");
+      setActiveSponsorSlotId(id);
+      if (!filledSlots[id]) setLogoModal("sponsor");
+    }
+    actions.view(id === "back-sponsor" ? "back" : id.startsWith("sleeve") ? "side" : "front");
+  };
+
+  // ---- export checklist
+  const checklist = [
+    { id: "crest", label: "Club crest", done: filledSlots.crest, step: "logos", sub: "crest" },
+    { id: "brand", label: "Kit brand", done: filledSlots.brand, step: "logos", sub: "brand", optional: true },
+    { id: "sponsor", label: "Front sponsor", done: filledSlots["shirt-sponsor"] || !!sponsor?.text, step: "logos", sub: "sponsors", spot: "shirt-sponsor", optional: true },
+    { id: "name", label: "Player name", done: !!project.player.name.trim(), step: "player" },
+    { id: "number", label: "Player number", done: !!project.player.number.trim(), step: "player" },
+  ];
+  const goItem = (item) => {
+    if (item.sub) setLogoSubTab(item.sub);
+    if (item.spot) setActiveSponsorSlotId(item.spot);
+    setTab(item.step);
+  };
+
   const triggerUpload = (slot) => {
     setPendingLogo(slot);
     logoInput.current?.click();
@@ -476,16 +530,21 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           </button>
         ))}
       </nav>
+      <div className="panel-sub">
+        {tab === "layers"
+          ? <button type="button" className="link" onClick={() => setTab("design")}>← Back to steps</button>
+          : <><span title={TABS[stepIndex].hint}>Step {stepIndex + 1} of {TABS.length}</span><button type="button" className="link" onClick={() => setTab("layers")}>Advanced layers</button></>}
+      </div>
       <div className="panel-content">
-      {tab === "kit" && showGuide && <div className="quick-start">
+      {tab === "design" && showGuide && <div className="quick-start">
         <button type="button" className="quiet quick-start-close" aria-label="Dismiss getting started guide" onClick={() => {
           setShowGuide(false);
           try { localStorage.setItem("kit-maker:guide-dismissed", "1"); } catch { /* private browsing */ }
         }}>x</button>
-        <strong>Make your first kit</strong>
-        <p>Choose a shirt template, pick your colours, then add a crest or sponsor. Rotate the 3D kit to check the result.</p>
+        <strong>Make your first kit in six steps</strong>
+        <p>Follow the steps below: design, colours, logos, images, player, export. Use Next at the bottom, or jump with the tabs.</p>
       </div>}
-      {tab === "kit" && <Section title="Settings" eyebrow="01">
+      {tab === "design" && <Section title="Design" eyebrow="01">
         <span className="group-label">Shirt template</span>
         <select value={project.template} onChange={(e) => set({ template: e.target.value })} aria-label="Shirt template">
           {shirts.map((k) => (
@@ -494,27 +553,15 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </option>
           ))}
         </select>
-        <span className="group-label">Kit colours</span>
-        <div className="colors">
-          {project.palette.map((c, i) => (
-            <div key={i} className="color">
-              <ColorButton className="kit-color" style={{ background: c }} value={c} label={PALETTE_LABELS[i]} palette={project.palette}
-                onChange={(hex) => set({ palette: project.palette.map((x, k) => (k === i ? hex : x)) })} />
-              <span>{PALETTE_LABELS[i]}</span>
-            </div>
-          ))}
-        </div>
+        <DesignStep project={project} setProject={setProject} shirts={shirts} />
       </Section>}
-      {tab === "kit" && <div className="kit-next">
-        <div>
-          <strong>Stripes, patterns & trims</strong>
-          <p>Stripes live in Layers, your own pictures in Images, crests and sponsors in Logos.</p>
-        </div>
-        <button type="button" className="quiet" onClick={() => setTab("layers")}>Open Layers</button>
-      </div>}
+      {tab === "colors" && <Section title="Colours" eyebrow="02">
+        <ColorsStep palette={project.palette} setPalette={(palette) => set({ palette })} />
+      </Section>}
 
       {tab === "logos" && (
-        <Section title="Emblems & sponsors" eyebrow="02" className="logo-section">
+        <Section title="Emblems & sponsors" eyebrow="03" className="logo-section">
+          <PlacementMap filled={filledSlots} active={activeSpotId} palette={project.palette} onPick={pickSpot} />
           {/* Sub-navigation without emojis */}
           <div className="logo-subnav" role="tablist" aria-label="Emblem categories">
             <button
@@ -945,7 +992,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </Section>
       )}
 
-      {tab === "images" && <Section title="Kit images" eyebrow="03">
+      {tab === "images" && <Section title="Kit images" eyebrow="04">
         <p className="section-copy">Add your own artwork or a full texture. Upload a file, or paste a link: links have no size limit and keep your saved design small.</p>
         <span className="group-label">How should it fit?</span>
         <div className="fit-options" role="radiogroup" aria-label="Image fit">
@@ -998,7 +1045,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         )}
       </Section>}
 
-      {tab === "layers" && <Section title="Design layers" eyebrow="04">
+      {tab === "layers" && <Section title="Advanced layers" eyebrow="Adv">
         <LayersPanel
           project={project}
           setProject={setProject}
@@ -1009,6 +1056,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           template={templates[models[garment]]}
           fonts={fonts}
           uploadImage={uploadImage}
+          addLink={addImageLink}
         />
       </Section>}
 
@@ -1039,6 +1087,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
 
       {tab === "export" && <Section title="Export" eyebrow="06">
+        <KitChecklist items={checklist} onGo={goItem} />
         <p className="section-copy">Takes a picture of the current 3D view. You can preview it before downloading.</p>
         <div className="row">
           <button type="button" onClick={() => actions.screenshot()}>
@@ -1088,7 +1137,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         )}
       </Section>}
 
-      {tab === "export" && <Section title="Save & load" eyebrow="07">
+      {tab === "export" && <Section title="Save & load">
         <p className={`save-status ${actions.saveStatus === "unavailable" ? "warning" : ""}`} role="status">
           {actions.saveStatus === "saved" ? "Saved on this device" : actions.saveStatus === "unavailable" ? "Browser storage unavailable. Export a JSON copy to keep your design." : "Saving..."}
         </p>
@@ -1108,9 +1157,24 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           Reset to starter design
         </button>
       </Section>}
+      {tab === "export" && <Section title="My kits & sharing">
+        <MyKits actions={actions} onError={onError} />
+      </Section>}
       </div>
+      <footer className="panel-footer">
+        {tab === "layers" ? (
+          <button type="button" className="quiet" onClick={() => setTab("design")}>Back to steps</button>
+        ) : (
+          <>
+            <button type="button" className="quiet" disabled={stepIndex === 0} onClick={() => go(stepIndex - 1)}>Back</button>
+            <span className="step-dots" aria-hidden="true">{TABS.map((t, i) => <i key={t.id} className={i === stepIndex ? "on" : i < stepIndex ? "past" : ""} />)}</span>
+            {stepIndex < TABS.length - 1
+              ? <button type="button" onClick={() => go(stepIndex + 1)}>Next: {TABS[stepIndex + 1].label}</button>
+              : <button type="button" onClick={() => actions.screenshot()}>Screenshot</button>}
+          </>
+        )}
+      </footer>
       </div>
-
       <ClubPickerModal
         isOpen={clubModalOpen}
         onClose={() => setClubModalOpen(false)}

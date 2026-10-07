@@ -292,6 +292,12 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
       layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
       layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       layer.stroke = sanitizeStroke(l.stroke);
+      if (l.crestStyle === "mono" || l.crestStyle === "color") layer.crestStyle = l.crestStyle;
+      if (l.clubData && typeof l.clubData === "object") {
+        const url = (v) => (typeof v === "string" && /^https:\/\/[^\s"<>]{4,1900}$/.test(v) ? v : null);
+        const colorUrl = url(l.clubData.colorUrl);
+        if (colorUrl) layer.clubData = { name: str(l.clubData.name, 80, "Club"), colorUrl, monoUrl: url(l.clubData.monoUrl) };
+      }
       break;
     case "text":
       layer.text = str(l.text, 40, "");
