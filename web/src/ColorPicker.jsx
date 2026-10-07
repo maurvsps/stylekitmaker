@@ -123,7 +123,8 @@ function ColorPopover({ anchor, value, onChange, palette, label, onClose }) {
       const w = el.offsetWidth, h = el.offsetHeight;
       const left = Math.min(Math.max(8, a.left), innerWidth - w - 8);
       const below = a.bottom + 8;
-      const top = below + h <= innerHeight - 8 ? below : Math.max(8, a.top - h - 8);
+      const roomBelow = below + h <= innerHeight - 8;
+      const top = Math.min(Math.max(8, roomBelow ? below : a.top - h - 8), Math.max(8, innerHeight - h - 8));
       setPos({ left, top });
     };
     place();

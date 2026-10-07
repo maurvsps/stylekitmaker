@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CLUBS_CATALOG } from "./brandPresets.js";
 import { searchCrests } from "./logoSearch.js";
 import { LOWER_LABEL, SEASON } from "./season2627.js";
+import { LinkPane, SourceTabs, UploadPane } from "./SourcePanes.jsx";
 
 const LEAGUE_GROUPS = [
   { id: "all", label: "All clubs" },
@@ -23,6 +24,8 @@ export default function ClubPickerModal({
   onClose,
   onSelectClub,
   currentClub,
+  onPickFile,
+  onPickLink,
   activeCrestStyle = "color",
   palette = ["#ffffff", "#000000", "#d4af37"],
 }) {
@@ -32,6 +35,7 @@ export default function ClubPickerModal({
   const [onlineResults, setOnlineResults] = useState(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
   const [pickingId, setPickingId] = useState(null);
+  const [source, setSource] = useState("library");
   const [broken, setBroken] = useState(() => new Set()); // clubs whose crest image failed to load: hidden, not shown blank
 
   const searchInputRef = useRef(null);
@@ -40,6 +44,7 @@ export default function ClubPickerModal({
   useEffect(() => {
     if (isOpen) {
       setStyleMode(activeCrestStyle);
+      setSource("library");
       setSearch("");
       setOnlineResults(null);
       setTimeout(() => searchInputRef.current?.focus(), 50);
@@ -155,6 +160,13 @@ export default function ClubPickerModal({
           </button>
         </div>
 
+        <div className="logo-modal-target"><span>Applying to</span><strong>Team crest</strong></div>
+        <SourceTabs value={source} onChange={setSource} tabs={["library", "link", "upload"]} />
+
+        {source === "link" && <div className="club-modal-body"><LinkPane onLink={onPickLink} onDone={onClose} hint="https://i.ibb.co/xxxx/crest.png" /></div>}
+        {source === "upload" && <div className="club-modal-body"><UploadPane onFile={onPickFile} onDone={onClose} /></div>}
+        {source === "library" && (
+          <>
         {/* Modal Controls Bar: Search & Style Mode */}
         <div className="club-modal-toolbar">
           <div className="club-modal-search">
@@ -328,6 +340,8 @@ export default function ClubPickerModal({
             Vectors from FCLOGO CDN (jsDelivr) & Wikimedia Commons
           </span>
         </div>
+          </>
+        )}
       </div>
     </div>,
     document.body,

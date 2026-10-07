@@ -4,7 +4,7 @@ import ColorButton from "./ColorPicker.jsx";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
 import { prepareArtwork, prepareLogo } from "./logoImage.js";
-import { imageSize, resolveRemoteImage } from "./remoteImage.js";
+import { imageSize, normalizeImageUrl, resolveRemoteImage } from "./remoteImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import ClubPickerModal from "./ClubPickerModal.jsx";
@@ -67,8 +67,6 @@ const DEFAULT_SLOT_SIZES = {
 
 export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
-  const logoInput = useRef(null);
-  const [pendingLogo, setPendingLogo] = useState(null);
   const [showGuide, setShowGuide] = useState(() => {
     try { return !localStorage.getItem("kit-maker:guide-dismissed") && !localStorage.getItem("kit-maker:design"); }
     catch { return true; }
@@ -103,25 +101,26 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const shirtRole = (role) => findRole(project.garments.shirt.layers, role);
 
   /** Read an image file into project assets */
-  const uploadImage = async (file, { artwork = false } = {}) => {
-    if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
-      onError("Images must be PNG, SVG, JPEG or WebP files.");
+  const uploadImage = async (file, { artwork = false, strict = false } = {}) => {
+    const fail = (message) => {
+      if (strict) throw new Error(message);
+      onError(message);
       return null;
+    };
+    if (!/^image\/(png|svg\+xml|jpeg|webp)$/.test(file.type)) {
+      return fail("Images must be PNG, SVG, JPEG or WebP files.");
     }
     if (file.size > (file.type === "image/svg+xml" ? MAX_IMAGE_BYTES : MAX_UPLOAD_BYTES)) {
-      onError(`That image is too large (${file.type === "image/svg+xml" ? "1.5" : "15"} MB max).`);
-      return null;
+      return fail(`That image is too large (${file.type === "image/svg+xml" ? "1.5" : "15"} MB max).`);
     }
     let src;
     try {
       src = artwork ? await prepareArtwork(file) : await prepareLogo(file);
     } catch {
-      onError("That image could not be read.");
-      return null;
+      return fail("That image could not be read.");
     }
     if (src.length * 0.75 > MAX_IMAGE_BYTES) {
-      onError("That image is still too large after shrinking it (1.5 MB max).");
-      return null;
+      return fail("That image is still too large after shrinking it (1.5 MB max).");
     }
     const id = newId("img");
     setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src, name: file.name } } }));
@@ -158,8 +157,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
    * Places or updates an image in a specific kit slot.
    * Fixed slots stay strictly at their designated coordinates rather than wandering.
    */
-  const uploadLogo = async (file, slot, customSize = null, extraProps = {}) => {
-    const asset = await uploadImage(file);
+  const uploadLogo = async (file, slot, customSize = null, extraProps = {}, options = {}) => {
+    const asset = await uploadImage(file, options);
     if (!asset) return;
     const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
     const standardSize = customSize || DEFAULT_SLOT_SIZES[slot.id] || 0.08;
@@ -378,10 +377,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   };
 
   // ---- Kit images: a file or a link, placed freely, filling a panel, or stretched over the whole texture
-  const [imageUrl, setImageUrl] = useState("");
   const [imageFit, setImageFit] = useState("front"); // free | front | back | texture
-  const [imageBusy, setImageBusy] = useState(false);
-  const artworkInput = useRef(null);
+  const [imageModal, setImageModal] = useState(false);
   const template = templates[models[garment]];
   const imageLayers = [];
   walk(project.garments.shirt.layers, (l) => l.type === "image" && !l.role && imageLayers.push(l));
@@ -422,29 +419,15 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   };
 
   const addArtworkFile = async (file) => {
-    setImageBusy(true);
-    try {
-      const asset = await uploadImage(file, { artwork: true });
-      if (asset) await placeArtwork(asset.id, asset.src, asset.name);
-    } finally {
-      setImageBusy(false);
-    }
+    const asset = await uploadImage(file, { artwork: true, strict: true });
+    if (asset) await placeArtwork(asset.id, asset.src, asset.name);
   };
 
-  const addArtworkLink = async (e) => {
-    e.preventDefault();
-    setImageBusy(true);
-    try {
-      const found = await resolveRemoteImage(imageUrl);
-      const id = newId("img");
-      setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: found.src, name: found.name } } }));
-      await placeArtwork(id, found.src, found.name);
-      setImageUrl("");
-    } catch (err) {
-      onError(err.message);
-    } finally {
-      setImageBusy(false);
-    }
+  const addArtworkUrl = async (url) => {
+    const found = await resolveRemoteImage(url);
+    const id = newId("img");
+    setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src: found.src, name: found.name } } }));
+    await placeArtwork(id, found.src, found.name);
   };
 
   const patchImageLayer = (id, fields) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, id, (l) => ({ ...l, ...fields }))));
@@ -499,10 +482,29 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     setTab(item.step);
   };
 
-  const triggerUpload = (slot) => {
-    setPendingLogo(slot);
-    logoInput.current?.click();
+  /** Open the right "add a picture" popup for a logo slot. */
+  const openSlot = (slot) => {
+    if (slot.id === "crest") setClubModalOpen(true);
+    else if (slot.id === "brand") setLogoModal("brand");
+    else {
+      setActiveSponsorSlotId(slot.id);
+      setLogoModal("sponsor");
+    }
   };
+
+  /** A pasted link as a File, so it goes through the same clean-up as an upload. */
+  const linkToFile = async (url) => {
+    const href = normalizeImageUrl(url);
+    const name = decodeURIComponent(href.split("?")[0].split("/").pop() || "logo").replace(/\.\w+$/, "") || "logo";
+    try {
+      return await fetchLogo(href, name);
+    } catch {
+      throw new Error("Could not load that link. Use the direct address of the image (it ends in .png, .jpg, .webp or .svg).");
+    }
+  };
+  const strict = { strict: true };
+  const slotFile = (slot, extra = {}, size = null) => (file) => uploadLogo(file, slot, size, extra, strict);
+  const slotLink = (slot, extra = {}, size = null) => async (url) => uploadLogo(await linkToFile(url), slot, size, extra, strict);
 
 
   const brandLayer = slotLayer(brandSlot);
@@ -616,7 +618,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 slot={brandSlot}
                 layer={brandLayer}
                 project={project}
-                onUpload={() => triggerUpload(brandSlot)}
+                onAdd={() => openSlot(brandSlot)}
                 onRemove={() => removeLogo(brandSlot)}
               />
 
@@ -675,13 +677,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   />
                 </div>
               )}
-
-              <LibraryBanner
-                title="Kit brand library"
-                desc={brandLayer ? "Swap the supplier or search more brands" : "Puma, Nike, Adidas, Umbro, Kappa and online search"}
-                action={brandLayer ? "Change brand" : "Browse brands"}
-                onOpen={() => setLogoModal("brand")}
-              />
             </div>
           )}
 
@@ -718,7 +713,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 slot={activeSponsorSlot}
                 layer={slotLayer(activeSponsorSlot)}
                 project={project}
-                onUpload={() => triggerUpload(activeSponsorSlot)}
+                onAdd={() => openSlot(activeSponsorSlot)}
                 onRemove={() => removeLogo(activeSponsorSlot)}
               />
 
@@ -750,13 +745,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   />
                 </div>
               )}
-
-              <LibraryBanner
-                title="Sponsor library"
-                desc={`Find a logo for: ${activeSponsorSlot.label}`}
-                action={slotLayer(activeSponsorSlot) ? "Change logo" : "Find sponsor"}
-                onOpen={() => setLogoModal("sponsor")}
-              />
 
               {/* Sponsor as Text */}
               <div className="text-sponsor-block">
@@ -792,7 +780,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 slot={crestSlot}
                 layer={crestLayer}
                 project={project}
-                onUpload={() => triggerUpload(crestSlot)}
+                onAdd={() => openSlot(crestSlot)}
                 onRemove={() => removeLogo(crestSlot)}
               />
 
@@ -867,25 +855,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Club Catalog Modal Trigger Banner */}
-              <div className="club-catalog-banner">
-                <div className="club-catalog-banner-info">
-                  <span className="banner-title">Club crest catalog</span>
-                  <span className="banner-desc">
-                    {crestLayer?.clubData?.name
-                      ? `Active: ${crestLayer.clubData.name}`
-                      : "Choose from 400+ vector badges with monochrome variants"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="browse-catalog-btn"
-                  onClick={() => setClubModalOpen(true)}
-                >
-                  {crestLayer ? "Change club" : "Browse catalog"}
-                </button>
-              </div>
-
               {/* Quick Picks for top clubs */}
               <div className="quick-clubs-section">
                 <div className="quick-clubs-header">
@@ -935,7 +904,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   slot={crestSlot}
                   layer={crestLayer}
                   project={project}
-                  onUpload={() => triggerUpload(crestSlot)}
+                  onAdd={() => openSlot(crestSlot)}
                   onRemove={() => removeLogo(crestSlot)}
                   onSelect={() => setLogoSubTab("crest")}
                 />
@@ -943,7 +912,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   slot={brandSlot}
                   layer={brandLayer}
                   project={project}
-                  onUpload={() => triggerUpload(brandSlot)}
+                  onAdd={() => openSlot(brandSlot)}
                   onRemove={() => removeLogo(brandSlot)}
                   onSelect={() => setLogoSubTab("brand")}
                 />
@@ -957,7 +926,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     slot={s}
                     layer={slotLayer(s)}
                     project={project}
-                    onUpload={() => triggerUpload(s)}
+                    onAdd={() => openSlot(s)}
                     onRemove={() => removeLogo(s)}
                     onSelect={() => {
                       setActiveSponsorSlotId(s.id);
@@ -979,22 +948,11 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </div>
           )}
 
-          {/* Hidden File Input for uploading images */}
-          <input
-            ref={logoInput}
-            type="file"
-            accept="image/png,image/svg+xml,image/jpeg,image/webp"
-            hidden
-            onChange={(e) => {
-              if (e.target.files[0] && pendingLogo) uploadLogo(e.target.files[0], pendingLogo);
-              e.target.value = "";
-            }}
-          />
         </Section>
       )}
 
       {tab === "images" && <Section title="Kit images" eyebrow="04">
-        <p className="section-copy">Add your own artwork or a full texture. Upload a file, or paste a link: links have no size limit and keep your saved design small.</p>
+        <p className="section-copy">Add your own artwork or a full texture. Links have no size limit and keep your saved design small.</p>
         <span className="group-label">How should it fit?</span>
         <div className="fit-options" role="radiogroup" aria-label="Image fit">
           {[
@@ -1008,18 +966,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
             </button>
           ))}
         </div>
-        <span className="group-label">Add from a link</span>
-        <form className="row" onSubmit={addArtworkLink}>
-          <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://i.ibb.co/xxxx/texture.png" aria-label="Image link" spellCheck={false} />
-          <button type="submit" disabled={imageBusy || !imageUrl.trim()}>{imageBusy ? "Loading..." : "Add"}</button>
-        </form>
-        <p className="section-copy fine">Use the direct image address (ends in .png, .jpg or .webp). On imgbb, copy the "Direct link".</p>
-        <span className="group-label">Or upload a file</span>
-        <button type="button" className="quiet" disabled={imageBusy} onClick={() => artworkInput.current?.click()}>Upload image (PNG, JPG, WebP, SVG)</button>
-        <input ref={artworkInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
-          if (e.target.files[0]) addArtworkFile(e.target.files[0]);
-          e.target.value = "";
-        }} />
+        <button type="button" className="add-image-btn" onClick={() => setImageModal(true)}>Add image</button>
+        <p className="section-copy fine">Upload from your device or paste a link. On imgbb, copy the "Direct link".</p>
         {imageLayers.length > 0 && (
           <>
             <span className="group-label">Images on the kit</span>
@@ -1193,6 +1141,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         isOpen={clubModalOpen}
         onClose={() => setClubModalOpen(false)}
         onSelectClub={pickPopularClub}
+        onPickFile={slotFile(crestSlot, { crestStyle: "color", tint: null, clubData: null }, DEFAULT_SLOT_SIZES.crest)}
+        onPickLink={slotLink(crestSlot, { crestStyle: "color", tint: null, clubData: null }, DEFAULT_SLOT_SIZES.crest)}
         currentClub={crestLayer?.clubData}
         activeCrestStyle={crestStyle}
         palette={project.palette}
@@ -1200,8 +1150,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       <LogoPickerModal
         isOpen={logoModal === "brand"}
         onClose={() => setLogoModal(null)}
-        title="Kit brand library"
-        subtitle="Technical apparel suppliers placed on the chest"
+        title="Add kit brand"
+        subtitle="Pick a supplier from the library, paste a link or upload your own"
         targetLabel={brandSlot.label}
         presets={KIT_BRANDS}
         presetsTitle="Popular kit brands"
@@ -1209,19 +1159,33 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         onSearch={searchKitBrands}
         onPickPreset={(b) => applyPreset(b, brandSlot)}
         onPick={(file) => uploadLogo(file, brandSlot)}
-        onUpload={() => triggerUpload(brandSlot)}
+        onPickFile={slotFile(brandSlot)}
+        onPickLink={slotLink(brandSlot)}
         onError={onError}
       />
       <LogoPickerModal
         isOpen={logoModal === "sponsor"}
         onClose={() => setLogoModal(null)}
-        title="Sponsor library"
-        subtitle="Commercial sponsors for the chest, back and sleeves"
-        targetLabel={activeSponsorSlot.label}
+        title="Add sponsor"
+        subtitle="Search the library, paste a link or upload your own"
+        targets={sponsorSlots}
+        targetId={activeSponsorSlot.id}
+        onTarget={setActiveSponsorSlotId}
         placeholder="Search sponsors (e.g. Spotify, Pirelli, Audi)..."
         onSearch={searchSponsors}
         onPick={(file) => uploadLogo(file, activeSponsorSlot)}
-        onUpload={() => triggerUpload(activeSponsorSlot)}
+        onPickFile={slotFile(activeSponsorSlot)}
+        onPickLink={slotLink(activeSponsorSlot)}
+        onError={onError}
+      />
+      <LogoPickerModal
+        isOpen={imageModal}
+        onClose={() => setImageModal(false)}
+        title="Add image"
+        subtitle="Paste a link or upload a file"
+        targetLabel={{ front: "Fill the front", back: "Fill the back", texture: "Whole kit texture", free: "A free image" }[imageFit]}
+        onPickFile={addArtworkFile}
+        onPickLink={addArtworkUrl}
         onError={onError}
       />
     </aside>
@@ -1248,7 +1212,7 @@ function hideAt(layers, slot, role) {
 }
 
 /** Card showing an individual logo slot with preview, replace, and clear buttons */
-function SlotCard({ slot, layer, project, onUpload, onRemove, onSelect }) {
+function SlotCard({ slot, layer, project, onAdd, onRemove, onSelect }) {
   const asset = layer && project.assets[layer.asset];
   return (
     <div className={`logo-slot-card${layer ? " populated" : ""}`} onClick={onSelect}>
@@ -1258,12 +1222,12 @@ function SlotCard({ slot, layer, project, onUpload, onRemove, onSelect }) {
         </div>
         <div className="logo-slot-info">
           <span className="logo-slot-label">{slot.label}</span>
-          <span className="logo-slot-file">{asset ? asset.name : "Tap to add"}</span>
+          <span className="logo-slot-file">{asset ? asset.name : "Nothing yet"}</span>
         </div>
       </div>
       <div className="logo-slot-actions" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="quiet slot-act-btn" onClick={onUpload} title="Upload image file">
-          {asset ? "Replace" : "Upload"}
+        <button type="button" className="quiet slot-act-btn" onClick={onAdd} title="Upload, paste a link or pick from the library">
+          {asset ? "Change" : "Add"}
         </button>
         {layer && (
           <button
@@ -1352,19 +1316,6 @@ function FinishSelector({ finish, texture, onChange }) {
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-/** Compact row that opens a logo library popup */
-function LibraryBanner({ title, desc, action, onOpen }) {
-  return (
-    <div className="club-catalog-banner">
-      <div className="club-catalog-banner-info">
-        <span className="banner-title">{title}</span>
-        <span className="banner-desc">{desc}</span>
-      </div>
-      <button type="button" className="browse-catalog-btn" onClick={onOpen}>{action}</button>
     </div>
   );
 }
