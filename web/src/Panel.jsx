@@ -730,7 +730,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   <span className="banner-desc">
                     {crestLayer?.clubData?.name
                       ? `Active: ${crestLayer.clubData.name}`
-                      : "Choose from 390+ vector badges with monochrome variants"}
+                      : "Choose from 400+ vector badges with monochrome variants"}
                   </span>
                 </div>
                 <button
@@ -751,7 +751,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     className="link"
                     onClick={() => setClubModalOpen(true)}
                   >
-                    View all (390+)
+                    View all (400+)
                   </button>
                 </div>
                 <div className="quick-clubs-row">

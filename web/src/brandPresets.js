@@ -312,6 +312,7 @@ export const POPULAR_CLUBS = [
 ];
 
 import clubsData from "./clubsData.json";
+import { SEASON_EXTRAS, applySeason, norm } from "./season2627.js";
 
 // Set of lowercase names and aliases from POPULAR_CLUBS to avoid duplication
 const popularNames = new Set(POPULAR_CLUBS.map((p) => p.name.toLowerCase()));
@@ -319,17 +320,25 @@ for (const p of POPULAR_CLUBS) {
   if (p.aliases) p.aliases.forEach((a) => popularNames.add(a.toLowerCase()));
 }
 
-// Complete catalog of 390+ football clubs from FCLOGO
+// Same club listed twice under different spellings ("Barcelona" / "FC Barcelona"): keep the curated popular entry.
+const DUPLICATE_ALIASES = { mancityfc: "manchestercity", fcbayernmunich: "bayernmunchen" };
+const popularKeys = POPULAR_CLUBS.map((c) => ({ league: c.league, key: norm(c.name) }));
+const isPopularDuplicate = (c) => {
+  const keys = [norm(c.name), norm(c.fullName)].filter(Boolean).map((k) => DUPLICATE_ALIASES[k] || k);
+  return popularKeys.some((p) => p.league === c.league && keys.some((k) => k === p.key || k.includes(p.key) || p.key.includes(k)));
+};
+
+// Complete catalog of 390+ football clubs from FCLOGO, with top-flight membership updated to the 2026-27 season
 export const CLUBS_CATALOG = [
   ...POPULAR_CLUBS.map((c) => ({ ...c, isPopular: true })),
   ...clubsData.filter((c) => {
     const n = c.name.toLowerCase();
     const fn = (c.fullName || "").toLowerCase();
-    return !popularNames.has(n) && !popularNames.has(fn);
+    return !popularNames.has(n) && !popularNames.has(fn) && !isPopularDuplicate(c);
   }).map((c) => ({ ...c, isPopular: false })),
-];
+  ...SEASON_EXTRAS.map((c) => ({ ...c, isPopular: false })),
+].map(applySeason);
 
-// Re-export FCLOGO_CLUBS for instant search compatibility
 export const FCLOGO_CLUBS = CLUBS_CATALOG;
 
 

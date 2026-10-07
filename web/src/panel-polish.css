@@ -181,3 +181,70 @@
   .club-modal-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
   .logo-modal .club-modal-toolbar { flex-wrap: wrap; }
 }
+
+/* ================================================================ Panel shell v2 (rebuilt: no horizontal overflow) */
+.app { grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); }
+.panel {
+  display: flex; flex-direction: column; min-width: 0; overflow: hidden; padding: 16px 0 0;
+}
+.panel-header { flex: 0 0 auto; padding: 0 16px 12px; }
+.panel-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; min-width: 0; gap: 0; align-items: stretch; overflow: hidden; }
+
+/* tab bar across the full panel width */
+.panel-nav {
+  position: static; flex: 0 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px;
+  margin: 0 12px 4px; padding: 4px; border-radius: 14px;
+}
+.panel .panel-nav button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px 6px; min-width: 0; border-radius: 10px; font-size: 10.5px; }
+.panel .panel-nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-nav svg { width: 19px; height: 19px; }
+
+/* the only scroll area */
+.panel-content {
+  flex: 1 1 auto; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+  display: block; padding: 4px 16px 28px; scrollbar-gutter: stable both-edges;
+}
+.panel-content::-webkit-scrollbar { width: 8px; }
+.panel-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .16); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+
+/* every container shrinks to the panel instead of growing with its content */
+.section, .category-pane, .slot-customizer, .inspector, .layers, .logo-section, .preset-section, .quick-clubs-section,
+.customizer-row, .tint-picker-block, .finish-selector-block, .text-sponsor-block { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.section > *, .category-pane > *, .slot-customizer > * { min-width: 0; max-width: 100%; }
+.section { display: grid; padding: 14px 0; }
+.panel-content > .section:first-child { padding-top: 6px; border-top: 0; }
+
+/* segmented controls and chip rows fit the width */
+.seg { width: 100%; }
+.panel .seg button, .customizer-row .seg button { flex: 1 1 0; min-width: 0; padding: 6px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.chips { gap: 6px; }
+.logo-subnav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* slot cards: actions drop below the preview when the row is tight */
+.logo-slot-card { flex-wrap: wrap; }
+.logo-slot-main { flex: 1 1 140px; min-width: 0; }
+.logo-slot-actions { flex: 0 0 auto; margin-left: auto; }
+.logo-slot-info { min-width: 0; }
+
+/* banner and quick picks */
+.club-catalog-banner { flex-wrap: wrap; }
+.club-catalog-banner-info { flex: 1 1 140px; }
+.banner-desc { white-space: normal; }
+.quick-clubs-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.quick-clubs-header .link { white-space: nowrap; }
+.slider > span { gap: 8px; }
+.color-field { flex-wrap: wrap; }
+
+/* phones: panel sits under the stage, same shell */
+@media (max-width: 900px) and (orientation: portrait), (max-width: 760px) {
+  .panel { padding-top: 12px; }
+  .panel-header { padding: 0 12px 10px; }
+  .panel-content { padding: 4px 12px calc(20px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (min-width: 761px) and (max-width: 1050px) { .app { grid-template-columns: minmax(320px, 340px) minmax(0, 1fr); } }
+
+/* Club catalogue: 2026-27 season markers */
+.club-modal-initials { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--field); border: 1px solid var(--line-strong); font-size: 13px; font-weight: 700; color: var(--muted); }
+.season-pill { font-size: 8.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; line-height: 1.3; flex-shrink: 0; }
+.season-pill.promoted { background: rgba(52, 211, 153, .18); color: #6ee7b7; }
+.season-pill.relegated { background: rgba(255, 107, 107, .16); color: #ff8a80; }

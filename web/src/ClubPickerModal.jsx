@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CLUBS_CATALOG } from "./brandPresets.js";
-import { searchCrests, fetchLogo } from "./logoSearch.js";
+import { searchCrests } from "./logoSearch.js";
+import { LOWER_LABEL, SEASON } from "./season2627.js";
 
 const LEAGUE_GROUPS = [
   { id: "all", label: "All clubs" },
+  { id: "new", label: `${SEASON} promoted`, season: "promoted" },
   { id: "laliga", label: "La Liga", leagues: ["La Liga"] },
   { id: "premier", label: "Premier League", leagues: ["Premier League"] },
   { id: "seriea", label: "Serie A", leagues: ["Serie A"] },
@@ -12,6 +14,7 @@ const LEAGUE_GROUPS = [
   { id: "ligue1", label: "Ligue 1", leagues: ["Ligue 1"] },
   { id: "americas", label: "Americas", leagues: ["Liga Profesional", "MLS", "Brasileirão", "Liga Promerica"] },
   { id: "saudi", label: "Saudi Pro", leagues: ["Saudi Pro League"] },
+  { id: "lower", label: "Lower divisions", leagues: [LOWER_LABEL, "Championship", "Segunda División", "Serie B", "2. Bundesliga", "Ligue 2"] },
   { id: "other", label: "Other leagues", leagues: ["J.League", "K League", "Chinese Super League", "Primeira Liga", "Hong Kong Premier League"] },
 ];
 
@@ -60,9 +63,8 @@ export default function ClubPickerModal({
     // League tab filter
     if (activeTab !== "all") {
       const group = LEAGUE_GROUPS.find((g) => g.id === activeTab);
-      if (group?.leagues) {
-        list = list.filter((c) => group.leagues.includes(c.league));
-      }
+      if (group?.season) list = list.filter((c) => c.seasonStatus === group.season);
+      else if (group?.leagues) list = list.filter((c) => group.leagues.includes(c.league));
     }
 
     // Search query filter
@@ -95,6 +97,13 @@ export default function ClubPickerModal({
   };
 
   const handleSelectClub = async (club) => {
+    if (club.needsOnline) {
+      // No bundled vector for this club yet: look it up online instead.
+      setSearch(club.name);
+      setOnlineBusy(true);
+      try { setOnlineResults(await searchCrests(club.name)); } catch { setOnlineResults([]); } finally { setOnlineBusy(false); }
+      return;
+    }
     setPickingId(club.name);
     try {
       await onSelectClub(club, styleMode);
@@ -137,7 +146,7 @@ export default function ClubPickerModal({
           <div className="club-modal-title">
             <h2>Football Club Crests</h2>
             <span className="club-modal-subtitle">
-              390+ vector badges with official monochrome variants from FCLOGO
+              {SEASON} season: top flights updated for promotions and relegations
             </span>
           </div>
           <button type="button" className="quiet club-modal-close" onClick={onClose} title="Close">
@@ -218,6 +227,7 @@ export default function ClubPickerModal({
                 const isBusy = pickingId === club.name;
                 const thumbSrc =
                   styleMode === "mono" && club.monoUrl ? club.monoUrl : club.colorUrl;
+                const initials = club.name.split(/\s+/).map((w) => w[0]).join("").slice(0, 3).toUpperCase();
 
                 return (
                   <button
@@ -231,7 +241,7 @@ export default function ClubPickerModal({
                     onClick={() => handleSelectClub(club)}
                   >
                     <div className="club-modal-badge-box">
-                      <img
+                      {!thumbSrc ? <span className="club-modal-initials" aria-hidden="true">{initials}</span> : <img
                         src={thumbSrc}
                         alt=""
                         className="club-modal-badge-img"
@@ -241,12 +251,13 @@ export default function ClubPickerModal({
                             e.currentTarget.src = club.colorUrl;
                           }
                         }}
-                      />
+                      />}
                     </div>
                     <span className="club-modal-badge-name">{club.name}</span>
                     <div className="club-modal-badge-footer">
                       <span className="club-league-tag">{club.nation || club.league}</span>
                       {club.monoUrl && <span className="mono-pill">Mono</span>}
+                      {club.seasonStatus && <span className={`season-pill ${club.seasonStatus}`}>{club.seasonStatus === "promoted" ? "Promoted" : "Relegated"}</span>}
                     </div>
                   </button>
                 );
