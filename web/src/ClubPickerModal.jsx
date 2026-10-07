@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CLUBS_CATALOG } from "./brandPresets.js";
 import { searchCrests, fetchLogo } from "./logoSearch.js";
 
@@ -122,7 +123,7 @@ export default function ClubPickerModal({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="sheet-backdrop club-modal-backdrop" onClick={onClose}>
       <div
         className="sheet club-modal"
@@ -314,6 +315,7 @@ export default function ClubPickerModal({
           </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

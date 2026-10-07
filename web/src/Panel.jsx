@@ -4,9 +4,10 @@ import ColorButton from "./ColorPicker.jsx";
 import LayersPanel from "./LayersPanel.jsx";
 import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId } from "./project.js";
 import { prepareLogo } from "./logoImage.js";
-import { fetchLogo, searchCrests, searchKitBrands, searchSponsors } from "./logoSearch.js";
+import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import ClubPickerModal from "./ClubPickerModal.jsx";
+import LogoPickerModal from "./LogoPickerModal.jsx";
 
 // The sidebar: one section at a time, so the panel stays short.
 const TABS = [
@@ -69,6 +70,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
   const [clubModalOpen, setClubModalOpen] = useState(false);
+  const [logoModal, setLogoModal] = useState(null); // "brand" | "sponsor"
 
   useEffect(() => {
     try {
@@ -534,31 +536,11 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Quick-Pick Popular Kit Makers */}
-              <div className="preset-section">
-                <span className="group-label">Popular kit brands</span>
-                <div className="preset-grid">
-                  {KIT_BRANDS.map((b) => (
-                    <button
-                      key={b.id}
-                      type="button"
-                      className="preset-card brand-card"
-                      title={`Apply ${b.name}`}
-                      onClick={() => applyPreset(b, brandSlot)}
-                    >
-                      <div className="preset-icon" dangerouslySetInnerHTML={{ __html: b.svg }} />
-                      <span className="preset-label">{b.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Online Brand Search */}
-              <SearchBlock
-                placeholder="Search other brands (e.g. Kappa, Castore, Lotto)..."
-                onSearch={searchKitBrands}
-                onPick={(r) => uploadLogo(r, brandSlot)}
-                onError={onError}
+              <LibraryBanner
+                title="Kit brand library"
+                desc={brandLayer ? "Swap the supplier or search more brands" : "Puma, Nike, Adidas, Umbro, Kappa and online search"}
+                action={brandLayer ? "Change brand" : "Browse brands"}
+                onOpen={() => setLogoModal("brand")}
               />
             </div>
           )}
@@ -627,12 +609,11 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                 </div>
               )}
 
-              {/* Search online sponsors */}
-              <SearchBlock
-                placeholder="Search sponsors (e.g. Spotify, Pirelli, Audi)..."
-                onSearch={searchSponsors}
-                onPick={(r) => uploadLogo(r, activeSponsorSlot)}
-                onError={onError}
+              <LibraryBanner
+                title="Sponsor library"
+                desc={`Find a logo for: ${activeSponsorSlot.label}`}
+                action={slotLayer(activeSponsorSlot) ? "Change logo" : "Find sponsor"}
+                onOpen={() => setLogoModal("sponsor")}
               />
 
               {/* Sponsor as Text */}
@@ -793,30 +774,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   ))}
                 </div>
               </div>
-
-              {/* Search FCLOGO & Wikimedia */}
-              <SearchBlock
-                placeholder="Search club (e.g. Real Madrid, Arsenal, Boca, Milan)..."
-                onSearch={searchCrests}
-                onPick={async (file, r) => {
-                  const isMono = crestStyle === "mono";
-                  let targetFile = file;
-                  if (isMono && r?.monoUrl) {
-                    try {
-                      targetFile = await fetchLogo(r.monoUrl, `${r.name}-mono`);
-                    } catch {
-                      /* fallback to downloaded file */
-                    }
-                  }
-                  await uploadLogo(targetFile, crestSlot, DEFAULT_SLOT_SIZES.crest, {
-                    crestStyle: isMono ? "mono" : "color",
-                    tint: isMono ? (crestLayer?.tint || "@trim") : null,
-                    clubData: r ? { name: r.name, colorUrl: r.url, monoUrl: r.monoUrl || null } : null,
-                  });
-                }}
-                onError={onError}
-                credit="Vector crests from FCLOGO & Wikimedia"
-              />
             </div>
           )}
 
@@ -1010,6 +967,33 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         activeCrestStyle={crestStyle}
         palette={project.palette}
       />
+      <LogoPickerModal
+        isOpen={logoModal === "brand"}
+        onClose={() => setLogoModal(null)}
+        title="Kit brand library"
+        subtitle="Technical apparel suppliers placed on the chest"
+        targetLabel={brandSlot.label}
+        presets={KIT_BRANDS}
+        presetsTitle="Popular kit brands"
+        placeholder="Search brands (e.g. Kappa, Castore, Lotto)..."
+        onSearch={searchKitBrands}
+        onPickPreset={(b) => applyPreset(b, brandSlot)}
+        onPick={(file) => uploadLogo(file, brandSlot)}
+        onUpload={() => triggerUpload(brandSlot)}
+        onError={onError}
+      />
+      <LogoPickerModal
+        isOpen={logoModal === "sponsor"}
+        onClose={() => setLogoModal(null)}
+        title="Sponsor library"
+        subtitle="Commercial sponsors for the chest, back and sleeves"
+        targetLabel={activeSponsorSlot.label}
+        placeholder="Search sponsors (e.g. Spotify, Pirelli, Audi)..."
+        onSearch={searchSponsors}
+        onPick={(file) => uploadLogo(file, activeSponsorSlot)}
+        onUpload={() => triggerUpload(activeSponsorSlot)}
+        onError={onError}
+      />
     </aside>
   );
 }
@@ -1142,79 +1126,15 @@ function FinishSelector({ finish, texture, onChange }) {
   );
 }
 
-/** Online Search block with results thumbnail grid */
-function SearchBlock({ placeholder, onSearch, onPick, onError, credit }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState(null);
-  const [busy, setBusy] = useState(false);
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-    setBusy(true);
-    try {
-      setResults(await onSearch(query));
-    } catch (err) {
-      setResults([]);
-      onError(`Search failed (${err.message}). Check your internet connection or upload a file directly.`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handlePick = async (r) => {
-    setBusy(true);
-    try {
-      const file = await fetchLogo(r.url, r.name);
-      await onPick(file, r);
-    } catch (err) {
-      onError(`Could not download image (${err.message}). Try uploading a file.`);
-    } finally {
-      setBusy(false);
-    }
-  };
-
+/** Compact row that opens a logo library popup */
+function LibraryBanner({ title, desc, action, onOpen }) {
   return (
-    <div className="search-block">
-      <span className="group-label">Search online</span>
-      <form className="row" onSubmit={handleSearch}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={placeholder}
-          aria-label="Search"
-        />
-        <button type="submit" disabled={busy}>{busy ? "..." : "Find"}</button>
-      </form>
-      {results && (
-        <div className="search-results-area">
-          {results.length === 0 && <p className="section-copy">No results found.</p>}
-          <div className="logo-results">
-            {results.map((r) => (
-              <button
-                key={r.url}
-                type="button"
-                className="logo-result"
-                title={r.name}
-                disabled={busy}
-                onClick={() => handlePick(r)}
-              >
-                <img
-                  src={r.thumb}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => { if (e.currentTarget.src !== r.url) e.currentTarget.src = r.url; }}
-                />
-                <span className="logo-result-name">
-                  {r.name}
-                  {r.hasMono && <span className="mono-pill">Mono</span>}
-                </span>
-              </button>
-            ))}
-          </div>
-          {credit && <p className="section-copy fine">{credit}</p>}
-        </div>
-      )}
+    <div className="club-catalog-banner">
+      <div className="club-catalog-banner-info">
+        <span className="banner-title">{title}</span>
+        <span className="banner-desc">{desc}</span>
+      </div>
+      <button type="button" className="browse-catalog-btn" onClick={onOpen}>{action}</button>
     </div>
   );
 }
