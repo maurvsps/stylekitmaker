@@ -2,6 +2,10 @@
 // Holding a button repeats the step.
 import { useEffect, useRef } from "react";
 
+const Chevron = ({ dir }) => (
+  <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d={dir < 0 ? "M7.5 2 3.5 6l4 4" : "M4.5 2l4 4-4 4"} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+);
+
 const decimals = (n) => (String(n).split(".")[1] || "").length;
 
 export default function RangeInput({ value, onChange, min = 0, max = 100, step = 1, label, ...rest }) {
@@ -32,10 +36,10 @@ export default function RangeInput({ value, onChange, min = 0, max = 100, step =
 
   return (
     <div className="range-row">
-      {arrow(-1, "‹", "Decrease")}
-      <input type="range" aria-label={label} value={value} min={min} max={max} step={step}
+      {arrow(-1, <Chevron dir={-1} />, "Decrease")}
+      <input type="range" className="range-input" aria-label={label} value={value} min={min} max={max} step={step}
         onChange={(e) => onChange(Number(e.target.value))} {...rest} />
-      {arrow(1, "›", "Increase")}
+      {arrow(1, <Chevron dir={1} />, "Increase")}
     </div>
   );
 }

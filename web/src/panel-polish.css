@@ -508,14 +508,27 @@
 .collar-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .collar-name { max-width: 100%; font-size: 11px; line-height: 1.25; font-weight: 500; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
-/* Slider arrows: fine steps, and an easy target on touch screens */
-.range-row { display: flex; align-items: center; gap: 8px; }
+/* Slider arrows: small, quiet, and a comfortable target on touch screens */
+.range-row { display: flex; align-items: center; gap: 6px; }
 .range-row input[type="range"] { flex: 1; min-width: 0; width: auto; }
-.range-step {
-  flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border-radius: 50%; display: grid; place-items: center;
-  font-size: 18px; line-height: 1; color: var(--text); background: rgba(255, 255, 255, .08);
-  border: 1px solid rgba(255, 255, 255, .12); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+.panel .range-row .range-step {
+  flex: 0 0 auto; width: 24px; height: 24px; min-height: 0; padding: 0; border-radius: 7px; display: grid; place-items: center;
+  color: var(--muted); background: transparent; border: 1px solid rgba(255, 255, 255, .14); box-shadow: none;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
-.range-step:hover:not(:disabled) { background: rgba(255, 255, 255, .16); }
-.range-step:disabled { opacity: .35; }
-@media (pointer: coarse) { .range-step { width: 36px; height: 36px; font-size: 22px; } }
+.panel .range-row .range-step:hover:not(:disabled), .panel .range-row .range-step:active:not(:disabled) { color: #fff; background: rgba(255, 255, 255, .1); }
+.panel .range-row .range-step:disabled { opacity: .3; }
+@media (pointer: coarse) { .panel .range-row .range-step { width: 30px; height: 30px; } }
+
+/* Pattern picker */
+.panel .pattern-current {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 12px 8px 8px; text-align: left;
+  border-radius: var(--r-md); background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .12); color: var(--text);
+}
+.panel .pattern-current:hover { background: rgba(255, 255, 255, .09); }
+.pattern-current-swatch { flex: 0 0 44px; height: 44px; display: grid; place-items: center; }
+.pattern-current-swatch canvas { width: 44px; height: 44px; }
+.pattern-current-text { flex: 1; display: grid; gap: 2px; }
+.pattern-current-text small { color: var(--muted); font-size: 11px; }
+.pattern-thumb canvas { width: 100%; height: 100%; }
+.club-modal-card.active { outline: 2px solid var(--accent); }

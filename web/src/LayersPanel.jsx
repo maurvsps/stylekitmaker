@@ -3,6 +3,7 @@ import ColorButton from "./ColorPicker.jsx";
 import ColorsStep from "./ColorsStep.jsx";
 import LogoControls from "./LogoControls.jsx";
 import RangeInput from "./RangeInput.jsx";
+import PatternPickerModal from "./PatternPickerModal.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
@@ -448,6 +449,7 @@ const LockIcon = ({ open }) => (
 function Inspector({ layer, garment, project, template, fonts, patch, uploadImage, addLink, isLogo = false }) {
   const { palette } = project;
   const [librarySearch, setLibrarySearch] = useState("");
+  const [patternModal, setPatternModal] = useState(false);
   const locked = layer.locked;
   const placed = "surface" in layer;
   const island = placed && template?.islands[layer.surface];
@@ -490,24 +492,17 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "pattern" && (() => {
         const p = patternDef(layer.pattern);
-        const choices = PATTERNS.filter((def) => def.label.toLowerCase().includes(librarySearch.toLowerCase()));
+        const swatch = (def, colors) => <PatternSwatch def={def} colors={colors.map((c) => c && resolveColor(c, palette))} ground={palette[0]} />;
+        const choose = (def) => patch({ pattern: def.id, name: layer.name === p.label ? def.label : layer.name, colors: defaultPatternColors(def, layer.colors, p) });
         return (
           <>
-            <label className="field library-search"><span>Find a pattern</span><input value={librarySearch} placeholder="Search patterns…" onChange={(e) => setLibrarySearch(e.target.value)} /></label>
-            <div className="patterns" role="radiogroup" aria-label="Pattern">
-              {choices.map((def) => {
-                const colors = defaultPatternColors(def, layer.colors, p);
-                return (
-                  <button key={def.id} type="button" role="radio" aria-checked={p.id === def.id}
-                    className={p.id === def.id ? "active" : ""}
-                    onClick={() => patch({ pattern: def.id, name: layer.name === p.label ? def.label : layer.name, colors })}>
-                    <PatternSwatch def={def} colors={colors.map((c) => c && resolveColor(c, palette))} ground={palette[0]} />
-                    {def.label}
-                  </button>
-                );
-              })}
-              {!choices.length && <p className="hint">No matching patterns.</p>}
-            </div>
+            <button type="button" className="pattern-current" onClick={() => setPatternModal(true)}>
+              <span className="pattern-current-swatch">{swatch(p, layer.colors)}</span>
+              <span className="pattern-current-text"><strong>{p.label}</strong><small>Browse all {PATTERNS.length} patterns</small></span>
+              <span aria-hidden="true">›</span>
+            </button>
+            <PatternPickerModal isOpen={patternModal} onClose={() => setPatternModal(false)} patterns={PATTERNS} current={p.id}
+              renderSwatch={(def) => swatch(def, defaultPatternColors(def, layer.colors, p))} onPick={choose} />
             <div className="slot-colors">
               {patternSlots(p).map((label, i) => (
                 <ColorField key={i} label={label} value={layer.colors[i]} palette={palette} allowNone={i === p.slots.length}

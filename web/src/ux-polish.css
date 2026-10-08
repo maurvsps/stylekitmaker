@@ -69,3 +69,10 @@
 .club-modal-badge-box.patch-thumb img { background: transparent; }
 /* Variant names are long ("Adidas Trefoil + name"): wrap onto two lines instead of ending in an ellipsis. */
 .club-modal-card .club-modal-badge-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; text-align: center; }
+
+/* Slider rows: the slim track and small arrow buttons are exempt from the 44px rule (the row itself is the target). */
+@media (pointer: coarse), (max-width: 760px) {
+  .panel .range-row input[type="range"].range-input, .panel .range-row .range-input { min-height: 0; height: 4px; }
+  .panel .range-row .range-step { min-height: 0; width: 34px; height: 34px; }
+  .panel .range-row { min-height: 44px; }
+}
