@@ -197,7 +197,8 @@ const Viewer = forwardRef(function Viewer(
     ).then(() => !cancelled && onLoaded?.(), (err) => {
       if (cancelled) return;
       console.error("Could not load the 3D kit", err);
-      onError?.(`The 3D model could not be loaded: ${err.message || err}. Check the model files and Draco decoder.`);
+      console.error("3D model failed to load:", err);
+      onError?.("The 3D model could not be shown. Try another camera view or reload the page.");
     });
     return () => {
       cancelled = true;

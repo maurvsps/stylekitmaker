@@ -1,9 +1,9 @@
 {
   "kits": [
     {
-      "name": "shirt_puma19",
+      "name": "shirt_clo",
       "garment": "shirt",
-      "label": "PUMA 19 (V collar)",
+      "label": "Crew neck (narrow binding)",
       "params": {
         "collar": "crew",
         "sleeves": "short",

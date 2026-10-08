@@ -34,7 +34,7 @@ export const FONTS = [
 ];
 
 export const DEFAULT_DESIGN = {
-  template: "shirt_puma19",
+  template: "shirt_clo",
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
   pattern: "stripes",
   logo: null, // { src: data URL, name, x: cm, y: cm, scale }
@@ -71,9 +71,9 @@ export function sanitizeDesign(input, templates = []) {
   return d;
 }
 
-/** Saved designs from before the PUMA 19 shirt became the only template open it on that shirt. */
+/** Saved designs name their template; the App falls back to the first shirt in kits.json when that model is gone. */
 export function resolveTemplate(name) {
-  return typeof name === "string" && name.startsWith("shirt_clo") ? "shirt_puma19" : name;
+  return name;
 }
 
 export const cleanName = (s) => s.toUpperCase().slice(0, 14);

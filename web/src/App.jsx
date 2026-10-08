@@ -116,6 +116,7 @@ export default function App() {
   const [images, setImages] = useState({}); // asset id -> decoded image
   const [fontsReady, setFontsReady] = useState(0);
   const [error, setError] = useState(null);
+  const [errorCanRetry, setErrorCanRetry] = useState(false); // a reload may fix it (the models did not load)
   const [sheet, setSheet] = useState(null); // { kind: "image" | "json", title, url | text, filename }
   const [confirmReset, setConfirmReset] = useState(false);
   const [busyNote, setBusyNote] = useState(null); // shown over the stage while a big render runs
@@ -142,7 +143,11 @@ export default function App() {
         const template = resolveTemplate(p.template);
         return shirts.includes(template) ? { ...p, template } : { ...p, template: shirts[0] };
       });
-    })().catch((err) => setError(`Could not load the kit templates (${err.message}). Run blender/make_kit.py first.`));
+    })().catch((err) => {
+      console.error("Kit templates failed to load:", err); // the details stay in the console, not in front of the user
+      setErrorCanRetry(true);
+      setError("The kit models could not be loaded. Check your connection, then reload the page.");
+    });
   }, []);
 
   const shirtNames = useMemo(() => (kits || []).filter((k) => k.garment === "shirt"), [kits]);
@@ -384,10 +389,15 @@ export default function App() {
           </select>}
         </div>
         {busyNote && <div className="stage-note" role="status">{busyNote}</div>}
-        {!loaded && !error && !busyNote && <div className="stage-note">Loading kit…</div>}
+        {!loaded && !error && !busyNote && <div className="stage-note loading" role="status"><span className="spinner" aria-hidden="true" />Loading kit…</div>}
         {error && (
-          <div className="stage-note error" role="alert" onClick={() => setError(null)}>
-            {error}
+          <div className="stage-note error" role="alert">
+            <strong>Something went wrong</strong>
+            <span>{error}</span>
+            <div className="error-actions">
+              {errorCanRetry && <button type="button" onClick={() => location.reload()}>Reload</button>}
+              <button type="button" className="quiet" onClick={() => { setError(null); setErrorCanRetry(false); }}>Dismiss</button>
+            </div>
           </div>
         )}
         <div className="view-buttons" role="group" aria-label="Camera" hidden={view !== "3d"}>

@@ -1,0 +1,66 @@
+/* ---------------------------------------------------------------- Readability, touch targets, and clear status messages
+   Loaded last, so these rules win over the earlier sheets at equal specificity. */
+
+/* 1. Text floor: no label under 12px (body hints and captions stay at 13px). */
+.section-index, .section-copy.fine, .section h2, .logo-section > .group-label, .logo-slot-label, .logo-slot-file,
+.logo-result span, .layer-help, .cp-group > span, .cp-group p, .panel .design-card, .panel .graphic-card,
+.panel .panel-nav button, .panel .logo-subnav button, .panel .pattern-card, .panel button small, .panel .fit-card span,
+.kit-image-name small, .panel-sub .link, .color, .checklist-head span, .checklist-row small, .artwork-preview em,
+.artwork-meta small, .placement-side, .mono-pill, .season-pill, .font-name, .collar-name, .placement-map figcaption,
+.panel-header p, .panel-nav button, .group-label, .panel button.slot-act-btn, .panel .sponsor-pill, .preset-label,
+.banner-desc, .quick-clubs-header .link, .club-search-clear, .club-modal-tabs button.club-tab-btn,
+.club-modal-badge-name, .club-modal-footer, .customizer-row .seg button, .pane-intro p,
+.panel-sub, .panel-sub > span {
+  font-size: 12px;
+}
+/* Section tabs (seven across the top of the panel): 12px fits from ~1100px wide. Between 761 and 1050px the
+   panel is narrower, so the labels drop to 11px rather than clip ("Colo…"). */
+.panel .panel-nav button, .panel-nav button { font-size: 12px; line-height: 1.15; }
+@media (min-width: 761px) and (max-width: 1050px) { .panel .panel-nav button, .panel-nav button { font-size: 11px; } }
+.collar-name { -webkit-line-clamp: 2; }
+
+/* 2. Touch targets: 44px (Apple's guideline; above WCAG 2.5.8's 24px) on touch screens and phones. */
+@media (pointer: coarse), (max-width: 760px) {
+  .panel button, .panel select, .panel input:not([type="checkbox"]):not([type="radio"]),
+  .stage-tools select, .stage-tools .seg button, .view-buttons button, .quick-start-close {
+    min-height: 44px;
+  }
+  /* Small colour chips and marks keep their own size: they are sized by their grid, not by a 44px rule. */
+  .panel .swatch, .panel .cp-swatch, .panel .checklist-mark, .panel .handle, .panel .icon, .cp-icon, .cp-preview {
+    min-height: 0;
+  }
+  .panel .panel-nav button { min-height: 48px; }
+  .panel .quick-start-close { width: 44px; height: 44px; top: 4px; right: 4px; }
+  .panel .layer-actions button { min-height: 44px; }
+  .view-buttons button { min-height: 44px; padding: 8px 14px; }
+  .stage-tools .seg button, .stage-tools select { min-width: 44px; }
+  /* The 3D pan button and undo/redo buttons share the seg style: keep them square. */
+  .stage-tools .seg button { padding-left: 10px; padding-right: 10px; }
+  /* Tools wrap onto a second row on a phone instead of running past the screen edge; lighting sits at the right. */
+  .stage-tools { flex-wrap: wrap; }
+  .stage-tools select { margin-left: auto; }
+}
+
+/* 3. Stage status: a loading line with a spinner, and an error card with a title and actions. */
+.stage-note.loading { display: flex; align-items: center; gap: 10px; }
+.stage-note.loading .spinner {
+  width: 16px; height: 16px; flex: 0 0 auto; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .25); border-top-color: #fff;
+  animation: stage-spin .8s linear infinite;
+}
+@keyframes stage-spin { to { transform: rotate(360deg); } }
+.stage-note.error {
+  display: grid; gap: 4px; max-width: min(360px, calc(100% - 32px)); padding: 12px 14px; cursor: default;
+  color: #ffd4d4; background: rgba(60, 14, 14, .92); border-color: rgba(255, 107, 107, .45);
+}
+.stage-note.error strong { font-size: 14px; color: #fff; }
+.stage-note.error span { font-size: 13px; line-height: 1.4; }
+.stage-note.error .error-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.stage-note.error .error-actions button { min-height: 36px; padding: 6px 12px; font: inherit; font-size: 13px; border-radius: 9px; border: 0; cursor: pointer; background: #fff; color: #111; }
+.stage-note.error .error-actions button.quiet { background: transparent; color: #ffd4d4; border: 1px solid rgba(255, 107, 107, .45); }
+@media (prefers-reduced-motion: reduce) { .stage-note.loading .spinner { animation-duration: 2.4s; } }
+
+/* 4. Empty states: centred, readable, with room to breathe. */
+.club-modal-empty { font-size: 13px; line-height: 1.45; text-align: center; }
+.club-modal-empty p { margin: 0; max-width: 32ch; }
+.cp-group p { font-size: 12px; line-height: 1.4; }
