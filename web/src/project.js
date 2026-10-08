@@ -189,7 +189,34 @@ export function projectFromDesign(input, templates) {
   };
 }
 
-export const DEFAULT_PROJECT = projectFromDesign(DEFAULT_DESIGN);
+// The kit a new project starts with: FC Barcelona's blaugrana stripes with Nike and Spotify. Crest and logos are links.
+function barcelonaProject() {
+  const p = projectFromDesign({ ...DEFAULT_DESIGN, colors: ["#a50044", "#004d98", "#edbb00"], pattern: "stripes", name: "LAMINE", number: "10" });
+  const cdn = "https://cdn.jsdelivr.net";
+  p.assets = {
+    crest: { src: `${cdn}/gh/FCLOGO/fclogo.top@main/src/data/logos/RFEF/clubs/006_Barcelona/svg/FC-Barcelona-v2002.svg`, name: "FC Barcelona" },
+    nike: { src: `${cdn}/npm/simple-icons@11.14.0/icons/nike.svg`, name: "Nike" },
+    spotify: { src: `${cdn}/npm/simple-icons@11.14.0/icons/spotify.svg`, name: "Spotify" },
+  };
+  const layers = p.garments.shirt.layers;
+  const stripes = layers.find((l) => l.id === "shirt-pattern");
+  stripes.colors = ["@1", null];
+  stripes.mask = { include: ["front", "back"], exclude: [] };
+  const logo = (id, role, name, asset, x, y, size, tint, extra) => ({
+    ...makeLayer("image", "shirt"), id, role, name, asset, surface: "front", size, tint, texture: "smooth", transform: { ...IDENTITY, x, y }, ...extra,
+  });
+  const crest = logo("shirt-crest", "crest", "Crest", "crest", 0.095, 0.555, 0.08, null, {
+    crestStyle: "color",
+    clubData: { name: "FC Barcelona", colorUrl: p.assets.crest.src, monoUrl: p.assets.crest.src.replace(".svg", "-mono.svg") },
+  });
+  const brand = logo("shirt-brand", "logo-brand", "Kit maker brand", "nike", -0.095, 0.555, 0.058, "#ffffff");
+  const sponsor = logo("shirt-sponsor-logo", "logo-shirt-sponsor", "Front sponsor", "spotify", 0, 0.38, 0.11, "@2", { texture: "kit" });
+  const at = layers.findIndex((l) => l.id === "shirt-number-front");
+  layers.splice(at, 1, crest, brand, sponsor); // replaces the number on the chest
+  return p;
+}
+
+export const DEFAULT_PROJECT = barcelonaProject();
 
 // ---------------------------------------------------------------- sanitizing (saved files, localStorage)
 

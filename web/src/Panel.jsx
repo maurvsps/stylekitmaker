@@ -241,73 +241,26 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
   };
 
+  // Switching style is instant (style + tint); the club's mono/colour artwork then swaps in when it has loaded.
+  // Only the latest click may apply its artwork, so quick toggling can't leave a stale image behind.
+  const crestStyleRun = useRef(0);
   const setCrestStyleMode = async (mode) => {
     const layer = slotLayer(crestSlot);
     if (!layer) return;
-
-    if (mode === "color") {
-      if (layer.clubData?.colorUrl) {
-        try {
-          const file = await fetchLogo(layer.clubData.colorUrl, layer.clubData.name);
-          const asset = await uploadImage(file);
-          if (asset) {
-            setProject((p) =>
-              editLayers(p, "shirt", (ls) =>
-                mapLayer(ls, layer.id, (l) => ({
-                  ...l,
-                  asset: asset.id,
-                  crestStyle: "color",
-                  tint: null,
-                }))
-              )
-            );
-            return;
-          }
-        } catch {
-          /* fallback */
-        }
-      }
-      setProject((p) =>
-        editLayers(p, "shirt", (ls) =>
-          mapLayer(ls, layer.id, (l) => ({
-            ...l,
-            crestStyle: "color",
-            tint: null,
-          }))
-        )
-      );
-    } else {
-      const defaultTint = layer.tint || "@trim";
-      if (layer.clubData?.monoUrl) {
-        try {
-          const file = await fetchLogo(layer.clubData.monoUrl, `${layer.clubData.name}-mono`);
-          const asset = await uploadImage(file);
-          if (asset) {
-            setProject((p) =>
-              editLayers(p, "shirt", (ls) =>
-                mapLayer(ls, layer.id, (l) => ({
-                  ...l,
-                  asset: asset.id,
-                  crestStyle: "mono",
-                  tint: defaultTint,
-                }))
-              )
-            );
-            return;
-          }
-        } catch {
-          /* fallback */
-        }
-      }
-      setProject((p) =>
-        editLayers(p, "shirt", (ls) =>
-          mapLayer(ls, layer.id, (l) => ({
-            ...l,
-            crestStyle: "mono",
-            tint: defaultTint,
-          }))
-        )
-      );
+    const run = ++crestStyleRun.current;
+    const isMono = mode === "mono";
+    const tint = isMono ? layer.tint || "@trim" : null;
+    const apply = (fields) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, crestStyle: mode, tint, ...fields }))));
+    apply({});
+    const url = isMono ? layer.clubData?.monoUrl : layer.clubData?.colorUrl;
+    if (!url) return;
+    try {
+      const file = await fetchLogo(url, `${layer.clubData.name}${isMono ? "-mono" : ""}`);
+      if (run !== crestStyleRun.current) return;
+      const asset = await uploadImage(file);
+      if (asset && run === crestStyleRun.current) apply({ asset: asset.id });
+    } catch {
+      /* keep the current artwork with the new tint */
     }
   };
 

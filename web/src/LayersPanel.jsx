@@ -464,11 +464,11 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         const choices = BASE_DESIGNS[garment].filter((b) => !!b.trim === !!design.trim && b.label.toLowerCase().includes(librarySearch.toLowerCase()));
         return (
           <>
-            <label className="field library-search">
+            {design.trim && <label className="field library-search">
               <span>Find a base design</span>
               <input value={librarySearch} placeholder="Search designs…" onChange={(e) => setLibrarySearch(e.target.value)} />
-            </label>
-            <div className="design-gallery" role="radiogroup" aria-label="Base design">
+            </label>}
+            {design.trim && <div className="design-gallery" role="radiogroup" aria-label="Base design">
               {choices.map((next) => (
                 <button key={next.id} type="button" role="radio" aria-checked={design.id === next.id}
                   className={`design-card${design.id === next.id ? " active" : ""}`} onClick={() => {
@@ -476,7 +476,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               }}><DesignThumb id={next.id} /><span>{next.label}</span></button>
               ))}
               {!choices.length && <p className="hint">No matching designs.</p>}
-            </div>
+            </div>}
             <div className="slot-colors">
               {design.slots.filter(([k]) => k !== "vAccent" || template?.islands?.collar?.layered_v).map(([k, label, def]) => (
                 <ColorField key={k} label={label} value={layer.colors[k] ?? def} palette={palette}
