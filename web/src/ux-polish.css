@@ -64,3 +64,8 @@
 .club-modal-empty { font-size: 13px; line-height: 1.45; text-align: center; }
 .club-modal-empty p { margin: 0; max-width: 32ch; }
 .cp-group p { font-size: 12px; line-height: 1.4; }
+
+/* Logo picker thumbnails sit on a light card: the global dark <img> background would hide black logos. */
+.club-modal-badge-box.patch-thumb img { background: transparent; }
+/* Variant names are long ("Adidas Trefoil + name"): wrap onto two lines instead of ending in an ellipsis. */
+.club-modal-card .club-modal-badge-name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; text-align: center; }

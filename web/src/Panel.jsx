@@ -7,6 +7,9 @@ import { prepareArtwork, prepareLogo } from "./logoImage.js";
 import { imageSize, normalizeImageUrl, resolveRemoteImage } from "./remoteImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
+import { brandLibrary } from "./brandVariants.js";
+
+const BRAND_LIBRARY = brandLibrary(KIT_BRANDS); // the bundled brands plus their symbol / wordmark / combined variants
 import ClubPickerModal from "./ClubPickerModal.jsx";
 import LogoPickerModal from "./LogoPickerModal.jsx";
 import PATCHES from "./patches.json";
@@ -1249,7 +1252,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         title="Add kit brand"
         subtitle="Pick a supplier from the library, paste a link or upload your own"
         targetLabel={brandSlot.label}
-        presets={KIT_BRANDS}
+        presets={BRAND_LIBRARY}
         presetsTitle="Popular kit brands"
         placeholder="Search brands (e.g. Kappa, Castore, Lotto)..."
         onSearch={searchKitBrands}
