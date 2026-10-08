@@ -10,7 +10,7 @@ function parse(children, rows = []) {
     if (!isValidElement(c)) return;
     if (c.type === "option") {
       const label = textOf(c.props.children);
-      rows.push({ kind: "option", value: String(c.props.value ?? label), label, disabled: !!c.props.disabled });
+      rows.push({ kind: "option", value: String(c.props.value ?? label), label, disabled: !!c.props.disabled, hidden: !!c.props.hidden });
     } else if (c.type === "optgroup") {
       rows.push({ kind: "group", label: c.props.label });
       parse(c.props.children, rows);
@@ -31,8 +31,9 @@ const EDGE = 8; // keep this far from the window edge
  */
 export default function Select({ value, onChange, children, className = "", disabled = false, ...rest }) {
   const rows = parse(children);
-  const options = rows.filter((r) => r.kind === "option");
-  const current = options.find((o) => o.value === String(value ?? ""));
+  const all = rows.filter((r) => r.kind === "option");
+  const options = all.filter((o) => !o.hidden); // a hidden option only supplies the button's label (a placeholder)
+  const current = all.find((o) => o.value === String(value ?? ""));
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1); // index into `options`
   const [place, setPlace] = useState(null);
@@ -152,6 +153,7 @@ export default function Select({ value, onChange, children, className = "", disa
       {open && place && createPortal(
         <div ref={menu} id={`${id}-list`} className="select-menu" role="listbox" style={place}>
           {rows.map((row, k) => {
+            if (row.kind === "option" && row.hidden) return null;
             if (row.kind === "group") return <div key={`g${k}`} className="select-group" role="presentation">{row.label}</div>;
             const i = ++index;
             const selected = row.value === String(value ?? "");

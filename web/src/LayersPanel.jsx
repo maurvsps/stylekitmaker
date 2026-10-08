@@ -5,10 +5,10 @@ import LogoControls from "./LogoControls.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
-import Select from "./Select.jsx";
   BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor, SHOWN_GARMENTS,
 } from "./project.js";
+import Select from "./Select.jsx";
 
 const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
 const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "material", "group"];
@@ -242,7 +242,7 @@ export default function LayersPanel({
           </button>
         )}
         <Select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
-          <option value="">+ Add layer</option>
+          <option value="" hidden>+ Add layer</option>
           <optgroup label="Logos">
             {LOGO_ADD.map(([id, label]) => (
               <option key={id} value={`logo:${id}`}>{label}{filledLogos[id] ? " (edit)" : ""}</option>
