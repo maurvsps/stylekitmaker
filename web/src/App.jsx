@@ -37,14 +37,30 @@ export default function App() {
   const [view, setView] = useState("3d"); // "3d" | "flat" | "texture"
   const [handTool, setHandTool] = useState(false);
 
+  // Hold Space to pan: the hand tool is on while the key is down (the toolbar button still toggles it).
+  const [spaceHeld, setSpaceHeld] = useState(false);
   useEffect(() => {
-    const onHandKey = (e) => {
-      if (view !== "3d" || e.key.toLowerCase() !== "m" || e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
-      e.preventDefault();
-      setHandTool((active) => !active);
+    const isSpace = (e) => e.code === "Space" || e.key === " ";
+    const down = (e) => {
+      if (!isSpace(e) || view !== "3d" || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
+      e.preventDefault(); // no page scroll, and no click on a focused button
+      setSpaceHeld(true);
     };
-    addEventListener("keydown", onHandKey);
-    return () => removeEventListener("keydown", onHandKey);
+    const up = (e) => {
+      if (!isSpace(e)) return;
+      if (!isTyping(e.target)) e.preventDefault();
+      setSpaceHeld(false);
+    };
+    const release = () => setSpaceHeld(false);
+    addEventListener("keydown", down);
+    addEventListener("keyup", up);
+    addEventListener("blur", release);
+    return () => {
+      removeEventListener("keydown", down);
+      removeEventListener("keyup", up);
+      removeEventListener("blur", release);
+      setSpaceHeld(false);
+    };
   }, [view]);
 
   // A design opened from a share link (#kit=...): load it once, then tidy the address bar.
@@ -360,7 +376,7 @@ export default function App() {
         {kits && (
           <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
             onLoading={onLoading}
-            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool} />
+            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld} />
         )}
         {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
         {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
@@ -377,8 +393,8 @@ export default function App() {
             </button>
           </div>
           {view === "3d" && <div className="seg" role="group" aria-label="3D navigation">
-            <button type="button" className={handTool ? "on" : ""} aria-pressed={handTool}
-              aria-label="Hand tool" title="Hand tool (M): drag to move the view"
+            <button type="button" className={handTool || spaceHeld ? "on" : ""} aria-pressed={handTool || spaceHeld}
+              aria-label="Hand tool" title="Hand tool: hold Space and drag to move the view"
               onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span><span className="pan-label"> Pan</span></button>
           </div>}
           {view === "3d" && <Select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">

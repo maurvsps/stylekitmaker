@@ -547,14 +547,14 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
           {!isLogo && <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} addLink={addLink} />}
           <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
-          <label className="field">
+          {!layer.role?.startsWith("logo-") && <label className="field">
             <span>Fit</span>
             <Select value={layer.fit || "free"} onChange={(e) => patch({ fit: e.target.value })}>
               <option value="free">Placed on a part (move and resize)</option>
               <option value="texture">Whole kit texture (stretched over the UV layout)</option>
             </Select>
-          </label>
-          {layer.fit === "texture" && <p className="hint">Fills the whole shirt texture. Use opacity and blend below to mix it with the kit.</p>}
+          </label>}
+          {layer.fit === "texture" && !layer.role?.startsWith("logo-") && <p className="hint">Fills the whole shirt texture. Use opacity and blend below to mix it with the kit.</p>}
           <StrokeField stroke={layer.stroke} palette={palette} onChange={(stroke) => patch({ stroke })} />
         </>
       )}
