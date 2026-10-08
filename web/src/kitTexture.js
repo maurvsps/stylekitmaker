@@ -429,7 +429,7 @@ function placeGraphic(ctx, layer, env, frame, x, y) {
 export const FABRIC_ROUGHNESS = 0.8;
 const FLAT = 128;
 
-export function drawMaterial(height, orm, garment, template, project, images = {}) {
+export function drawMaterial(height, orm, garment, template, project, images = {}, irid = null) {
   const env = makeEnv(height, garment, template, project, images);
   const h = height.getContext("2d");
   const o = orm.getContext("2d");
@@ -438,6 +438,13 @@ export function drawMaterial(height, orm, garment, template, project, images = {
   h.fillRect(0, 0, env.S, env.S);
   o.fillStyle = ormColor(FABRIC_ROUGHNESS, 0);
   o.fillRect(0, 0, env.S, env.S);
+  const i = irid?.getContext("2d") || null;
+  if (i) {
+    reset(i);
+    i.fillStyle = "#000"; // R = how iridescent (0 = not at all)
+    i.fillRect(0, 0, env.S, env.S);
+    env.irid = i;
+  }
   finishLayers(h, o, project.garments[garment].layers, env, 1);
 }
 
@@ -483,6 +490,13 @@ function finishLayer(h, o, layer, env, alpha) {
     ctx.restore();
   };
   const hasCustomOrm = f.roughness !== null || f.metalness !== null || f.stitch;
+  if ((f.fx === "iridescent" || f.fx === "holo") && env.irid) {
+    // Thin-film map: R = amount, G = film thickness, which sets the colour the light shows at each angle.
+    silhouette();
+    sctx.fillStyle = thicknessFill(sctx, f.fx, env.S);
+    sctx.fillRect(0, 0, env.S, env.S);
+    lay(env.irid);
+  }
   if (layer.texture === "smooth" && !hasCustomOrm) {
     silhouette();
     sctx.fillStyle = ormColor(f.roughness ?? FABRIC_ROUGHNESS, f.metalness ?? 0, 0);
@@ -507,6 +521,24 @@ function finishLayer(h, o, layer, env, alpha) {
     sctx.fillRect(0, 0, env.S, env.S);
     lay(o);
   }
+}
+
+// Film thickness across the layer: a slow diagonal sweep (iridescent), or tight repeating bands (holographic).
+function thicknessFill(ctx, fx, S) {
+  const ramp = (g, x1, y1) => {
+    const grad = g.createLinearGradient(0, 0, x1, y1);
+    for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `rgb(255,${i % 2 ? 235 : 20},0)`);
+    return grad;
+  };
+  if (fx === "iridescent") return ramp(ctx, S, S);
+  const tile = document.createElement("canvas");
+  tile.width = tile.height = Math.max(24, Math.round(S / 14));
+  const t = tile.getContext("2d");
+  t.fillStyle = ramp(t, tile.width, 0);
+  t.fillRect(0, 0, tile.width, tile.height);
+  const pattern = ctx.createPattern(tile, "repeat");
+  pattern.setTransform(new DOMMatrix().rotate(28));
+  return pattern;
 }
 
 function materialEffect(h, o, layer, env, alpha) {
@@ -718,8 +750,8 @@ function applyFx(sctx, fx, env, depth) {
 
   if (fx === "iridescent") {
     // An oil-slick sheen sweeping across the layer: hue and saturation from a rainbow, the layer's own light and dark kept.
-    overlay((g) => { g.fillStyle = rainbow(g, 0, 0, S, H); g.fillRect(0, 0, S, H); }, "color", 0.8);
-    overlay((g) => { g.fillStyle = rainbow(g, S, 0, 0, H); g.fillRect(0, 0, S, H); }, "overlay", 0.35);
+    overlay((g) => { g.fillStyle = rainbow(g, 0, 0, S, H); g.fillRect(0, 0, S, H); }, "color", 0.4);
+    overlay((g) => { g.fillStyle = rainbow(g, S, 0, 0, H); g.fillRect(0, 0, S, H); }, "overlay", 0.2);
   } else if (fx === "holo") {
     const tile = document.createElement("canvas");
     tile.width = tile.height = Math.max(32, Math.round(110 * u));
@@ -731,7 +763,7 @@ function applyFx(sctx, fx, env, depth) {
       pattern.setTransform(new DOMMatrix().rotate(28));
       g.fillStyle = pattern;
       g.fillRect(0, 0, S, H);
-    }, "color", 0.85);
+    }, "color", 0.5);
     overlay((g) => specks(g, Math.round((S * H) / 2600), Math.max(1, 2 * u)), "screen", 0.8);
   } else if (fx === "glitter") {
     overlay((g) => specks(g, Math.round((S * H) / 500), Math.max(1.5, 3 * u)), "source-over", 1);

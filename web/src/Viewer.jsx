@@ -288,7 +288,7 @@ function textureStamp(t) {
   if (!mats || mats.length === 0) return 0;
   for (let i = 0; i < mats.length; i++) {
     const m = mats[i];
-    s += (m.map?.version || 0) + (m.userData.relief?.value?.version || 0) + (m.roughnessMap?.version || 0);
+    s += (m.map?.version || 0) + (m.userData.relief?.value?.version || 0) + (m.roughnessMap?.version || 0) + (m.iridescenceMap?.version || 0);
   }
   return s;
 }
@@ -461,8 +461,14 @@ function applyMaps(material, maps) {
   const { relief } = material.userData;
   const orm = maps?.orm || null;
   const normal = maps?.normal || null;
-  if (relief.value === normal && material.roughnessMap === orm) return;
+  const irid = maps?.irid || null;
+  if (relief.value === normal && material.roughnessMap === orm && material.iridescenceMap === irid) return;
   relief.value = normal;
+  // Thin-film iridescence (iridescent / holographic layers): the colour shifts with the viewing angle, as on real foil.
+  material.iridescenceMap = material.iridescenceThicknessMap = irid;
+  material.iridescence = irid ? 1 : 0;
+  material.iridescenceIOR = 1.8;
+  material.iridescenceThicknessRange = [180, 760];
   material.roughnessMap = material.metalnessMap = orm;
   // With the map, the values come from it (G = roughness, B = metalness); without, the plain fabric.
   material.roughness = orm ? 1 : FABRIC.roughness;

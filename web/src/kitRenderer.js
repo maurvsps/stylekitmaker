@@ -9,7 +9,7 @@ import { GARMENTS, hasFinish, walk } from "./project.js";
 // Per garment:
 //   textures[g]       colour (always)
 //   collar            the shirt collar alone at a higher resolution, mapped onto the collar mesh (see collarTemplate)
-//   maps[g]           { normal, orm } material maps, or null while no layer of the garment has a finish. They are
+//   maps[g]           { normal, orm, irid } material maps, or null while no layer of the garment has a finish. They are
 //                     painted at `materialScale` of the colour size and only repaint when the layer shapes change
 //                     (a palette change never touches them).
 
@@ -37,6 +37,7 @@ export class KitRenderer {
     for (const s of Object.values(this.store)) {
       s.normal.dispose();
       s.orm.dispose();
+      s.irid.dispose();
     }
     this.store = {};
     this.painted = {};
@@ -82,12 +83,12 @@ export class KitRenderer {
       }
       if (same(this.paintedMaps[g], shapes)) continue;
       const s = this.mapStore(g);
-      drawMaterial(s.height, s.orm.image, g, template, project, images);
+      drawMaterial(s.height, s.orm.image, g, template, project, images, s.irid.image);
       heightToNormal(s.height, s.normal.image);
-      s.normal.needsUpdate = s.orm.needsUpdate = true;
+      s.normal.needsUpdate = s.orm.needsUpdate = s.irid.needsUpdate = true;
       this.paintedMaps[g] = shapes;
       if (!this.maps[g]) {
-        this.maps[g] = { normal: s.normal, orm: s.orm };
+        this.maps[g] = { normal: s.normal, orm: s.orm, irid: s.irid };
         mapsChanged = true;
       }
     }
@@ -117,7 +118,8 @@ export class KitRenderer {
       height.getContext("2d", { willReadFrequently: true }); // read back by heightToNormal
       const normal = makeTexture(n, n, THREE.NoColorSpace, false);
       const orm = makeTexture(n, n, THREE.NoColorSpace, false);
-      this.store[g] = { height, normal, orm };
+      const irid = makeTexture(n, n, THREE.NoColorSpace, false); // thin-film (iridescence) amount and thickness
+      this.store[g] = { height, normal, orm, irid };
     }
     return this.store[g];
   }

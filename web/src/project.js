@@ -69,7 +69,7 @@ export const NO_FINISH = { relief: 0, stitch: false, roughness: null, metalness:
 
 /** Whether a layer changes the material maps (relief, roughness, metalness). */
 export const hasFinish = (l) =>
-  l.type === "material" || l.texture === "smooth" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null || l.finish.grain));
+  l.type === "material" || l.texture === "smooth" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null || l.finish.grain || l.finish.fx === "iridescent" || l.finish.fx === "holo"));
 
 export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
