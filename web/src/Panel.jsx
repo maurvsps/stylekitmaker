@@ -14,6 +14,7 @@ import LogoPickerModal from "./LogoPickerModal.jsx";
 import PATCHES from "./patches.json";
 import KitChecklist from "./KitChecklist.jsx";
 import MyKits from "./MyKits.jsx";
+import Select from "./Select.jsx";
 
 // The sidebar is a guided flow, one step at a time. Layers holds the kit colours, the design and every logo.
 const TABS = [
@@ -610,13 +611,13 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </label>
         <label className="field">
           <span>Texture resolution (for the downloads below)</span>
-          <select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
+          <Select value={actions.textureSize} onChange={(e) => actions.setTextureSize(Number(e.target.value))}>
             {actions.textureSizes.map((s) => (
               <option key={s} value={s}>
                 {s} x {s}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="row">
           {SHOWN_GARMENTS.map((g) => (

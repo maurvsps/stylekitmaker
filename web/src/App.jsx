@@ -9,6 +9,7 @@ import ExportSheet from "./ExportSheet.jsx";
 import { FONTS, fontCss, resolveTemplate } from "./design.js";
 import { DEFAULT_PROJECT, GARMENTS, fontsInUse, sanitizeProject, serializeProject, walk } from "./project.js";
 import { KitRenderer } from "./kitRenderer.js";
+import Select from "./Select.jsx";
 
 const TEXTURE_SIZES = [1024, 2048, 4096];
 const PREFS_KEY = "kit-maker:prefs"; // view settings of this browser (not part of the design)
@@ -380,13 +381,13 @@ export default function App() {
               aria-label="Hand tool" title="Hand tool (M): drag to move the view"
               onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span><span className="pan-label"> Pan</span></button>
           </div>}
-          {view === "3d" && <select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">
+          {view === "3d" && <Select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">
             {LIGHTING_PRESETS.map((l) => (
               <option key={l} value={l}>
                 {l[0].toUpperCase() + l.slice(1)}
               </option>
             ))}
-          </select>}
+          </Select>}
         </div>
         {busyNote && <div className="stage-note" role="status">{busyNote}</div>}
         {!loaded && !error && !busyNote && <div className="stage-note loading" role="status"><span className="spinner" aria-hidden="true" />Loading kit…</div>}

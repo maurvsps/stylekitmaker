@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchLogo } from "./logoSearch.js";
 import { LinkPane, SourceTabs, UploadPane } from "./SourcePanes.jsx";
+import Select from "./Select.jsx";
 
 /**
  * One popup for adding a picture to the kit: from a library (presets and online search), from a link, or from the
@@ -96,9 +97,9 @@ export default function LogoPickerModal({
           <div className="logo-modal-target">
             <span>Applying to</span>
             {targets
-              ? <select value={targetId} onChange={(e) => onTarget(e.target.value)} aria-label="Where to place it">
+              ? <Select value={targetId} onChange={(e) => onTarget(e.target.value)} aria-label="Where to place it">
                   {targets.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </select>
+                </Select>
               : <strong>{targetLabel}</strong>}
           </div>
         )}

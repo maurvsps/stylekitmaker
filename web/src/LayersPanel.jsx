@@ -5,6 +5,7 @@ import LogoControls from "./LogoControls.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
+import Select from "./Select.jsx";
   BLEND_MODES, LAYER_TYPES, PALETTE_LABELS, REGIONS, SURFACES, adaptLayer, cloneLayer, defaultPatternColors, editLayers, findLayer, locate, makeLayer,
   mapLayer, moveLayer, removeLayer, insertLayer, resolveColor, SHOWN_GARMENTS,
 } from "./project.js";
@@ -240,7 +241,7 @@ export default function LayersPanel({
             Paste
           </button>
         )}
-        <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
+        <Select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
           <option value="">+ Add layer</option>
           <optgroup label="Logos">
             {LOGO_ADD.map(([id, label]) => (
@@ -254,7 +255,7 @@ export default function LayersPanel({
               </option>
             ))}
           </optgroup>
-        </select>
+        </Select>
         <input ref={imageInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
           if (e.target.files[0]) onImageFile(e.target.files[0]);
           e.target.value = "";
@@ -520,11 +521,11 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         <>
           <label className="field">
             <span>Content</span>
-            <select value={layer.bind || ""} onChange={(e) => patch({ bind: e.target.value || null })}>
+            <Select value={layer.bind || ""} onChange={(e) => patch({ bind: e.target.value || null })}>
               <option value="">Custom text</option>
               <option value="name">Player name</option>
               <option value="number">Player number</option>
-            </select>
+            </Select>
           </label>
           {layer.bind ? (
             <p className="hint">Shows the player {layer.bind} from the Player section.</p>
@@ -536,10 +537,10 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
           )}
           <label className="field">
             <span>Font</span>
-            <select value={layer.font || ""} onChange={(e) => patch({ font: e.target.value || null })}>
+            <Select value={layer.font || ""} onChange={(e) => patch({ font: e.target.value || null })}>
               <option value="">Kit font ({project.font})</option>
               {fonts.map((f) => <option key={f.id} value={f.id}>{f.id}</option>)}
-            </select>
+            </Select>
           </label>
           <ColorField label="Colour" value={layer.color} palette={palette} onChange={(color) => patch({ color })} />
         </>
@@ -552,10 +553,10 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             onChange={(tint) => patch({ tint })} />
           <label className="field">
             <span>Fit</span>
-            <select value={layer.fit || "free"} onChange={(e) => patch({ fit: e.target.value })}>
+            <Select value={layer.fit || "free"} onChange={(e) => patch({ fit: e.target.value })}>
               <option value="free">Placed on a part (move and resize)</option>
               <option value="texture">Whole kit texture (stretched over the UV layout)</option>
-            </select>
+            </Select>
           </label>
           {layer.fit === "texture" && <p className="hint">Fills the whole shirt texture. Use opacity and blend below to mix it with the kit.</p>}
           <StrokeField stroke={layer.stroke} palette={palette} onChange={(stroke) => patch({ stroke })} />
@@ -577,7 +578,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         <>
           <label className="field">
             <span>Placed on</span>
-            <select value={layer.surface} onChange={(e) => {
+            <Select value={layer.surface} onChange={(e) => {
               const isl = template?.islands[e.target.value];
               const centre = isl ? islandBounds(isl) : null;
               patch({
@@ -586,7 +587,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               });
             }}>
               {SURFACES[garment].map(([s, label]) => <option key={s} value={s}>{label}</option>)}
-            </select>
+            </Select>
           </label>
           {island && (() => {
             const b = islandBounds(island);
@@ -616,13 +617,13 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         <>
           <label className="field">
             <span>Effect</span>
-            <select value={layer.effect} onChange={(e) => {
+            <Select value={layer.effect} onChange={(e) => {
               const next = MATERIALS.find((m) => m.id === e.target.value);
               const old = MATERIALS.find((m) => m.id === layer.effect);
               patch({ effect: next.id, name: layer.name === old?.label ? next.label : layer.name });
             }}>
               {MATERIALS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
-            </select>
+            </Select>
           </label>
           <Slider label="Strength" unit="%" min={0} max={100} step={1} value={Math.round(layer.opacity * 100)}
             onChange={(v) => patch({ opacity: v / 100 })} />
@@ -642,19 +643,19 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
               onChange={(v) => patch({ opacity: v / 100 })} />
             <label className="field">
               <span>Blend mode</span>
-              <select value={layer.blend} onChange={(e) => patch({ blend: e.target.value })}>
+              <Select value={layer.blend} onChange={(e) => patch({ blend: e.target.value })}>
                 {BLEND_MODES.map((m) => <option key={m} value={m}>{BLEND_LABELS[m]}</option>)}
-              </select>
+              </Select>
             </label>
           </details>
           <MaskFields layer={layer} garment={garment} patch={patch} />
           {PRINT_ROLES.test(layer.role || "") && (
             <label className="field">
               <span>Print texture</span>
-              <select value={layer.texture || "kit"} onChange={(e) => patch({ texture: e.target.value })}>
+              <Select value={layer.texture || "kit"} onChange={(e) => patch({ texture: e.target.value })}>
                 <option value="kit">Kit fabric</option>
                 <option value="smooth">Smooth print</option>
-              </select>
+              </Select>
               <span className="hint">Smooth print sits on top of the fabric, without the knit showing through.</span>
             </label>
           )}

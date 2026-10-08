@@ -5,6 +5,7 @@ import "./styles.css";
 import "./panel-polish.css";
 import "./ux-polish.css";
 import "./layers-studio.css";
+import "./select-menu.css";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>

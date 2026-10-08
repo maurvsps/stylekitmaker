@@ -57,9 +57,3 @@
 .inspector-body .layer-actions { flex-wrap: wrap; }
 .inspector-body .layer-actions button { flex: 1 1 auto; padding: 6px 10px; }
 .palette-dots i { flex: 0 0 12px; }
-
-/* The Add layer menu is a native <select>; its group headings ("Logos", "Layers") were left white with grey text.
-   color-scheme makes the browser draw the open list (hover, scrollbar) in dark colours too. */
-.panel select, .stage-tools select { color-scheme: dark; }
-.panel select optgroup, .stage-tools select optgroup { background: #18181a; color: var(--muted); font-style: normal; font-weight: 700; }
-.panel select option, .stage-tools select option { background: #18181a; color: var(--text); font-weight: 400; }
