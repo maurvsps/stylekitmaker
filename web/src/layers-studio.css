@@ -1,0 +1,59 @@
+/* ---------------------------------------------------------------- Layers studio
+   One panel for the kit colours, the design and every logo: the options of the selected layer sit on top, the layer
+   list below. Loaded after the other sheets. */
+
+/* Four steps now (Layers, Images, Player, Export). */
+.panel-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.panel-sub { justify-content: space-between; }
+.panel-sub-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+
+.layer-studio { gap: 12px; }
+
+/* The options card */
+.inspector-card { display: grid; min-width: 0; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--raised); overflow: hidden; }
+.inspector-head { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; }
+.inspector-head > .type, .inspector-head > .palette-dots {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px;
+  border-radius: 9px; background: var(--field); color: var(--accent); font-weight: 700;
+}
+.inspector-title { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.inspector-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.inspector-title small { color: var(--muted); font-size: 12px; }
+.inspector-title input { width: 100%; min-width: 0; }
+.inspector-head .fold { flex: 0 0 auto; width: 34px; height: 34px; padding: 0; border-radius: 9px; background: transparent; color: var(--muted); }
+.inspector-head .fold:hover { background: var(--hover); color: var(--text); }
+.inspector-body {
+  display: grid; gap: 12px; padding: 0 12px 12px; min-width: 0;
+  max-height: min(54dvh, 480px); overflow-y: auto;
+}
+.inspector-body > * { min-width: 0; }
+/* The fieldset border and legend would double the card's own frame and title. */
+.inspector-body .inspector { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.inspector-body .inspector > legend { display: none; }
+.inspector-empty { display: grid; justify-items: start; gap: 8px; padding: 16px; }
+.inspector-empty p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* Three colour dots: the kit palette, in the card header and on the pinned list row */
+.palette-dots { gap: 3px; padding: 0 7px; }
+.palette-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line-strong); }
+
+/* Pinned "Kit colours" row at the top of the layer list */
+.layer-row.pinned { cursor: pointer; padding-left: 10px; }
+.layer-row.pinned .type.palette-dots { width: auto; margin-right: 4px; }
+.layer-list > li.hint { padding: 10px 12px; }
+
+/* Logo controls at the top of a crest / brand / sponsor / patch layer's options */
+.logo-controls { display: grid; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.logo-controls .customizer-row { display: grid; gap: 6px; }
+
+@media (pointer: coarse), (max-width: 760px) {
+  .inspector-head .fold { width: 44px; height: 44px; }
+  /* No scroll box inside the scrolling panel (it traps a finger): the whole panel scrolls, and the fold button
+     hides the options to bring the list up. */
+  .inspector-body { max-height: none; overflow: visible; }
+}
+
+/* The layer actions wrap instead of overlapping in the narrow panel. */
+.inspector-body .layer-actions { flex-wrap: wrap; }
+.inspector-body .layer-actions button { flex: 1 1 auto; padding: 6px 10px; }
+.palette-dots i { flex: 0 0 12px; }

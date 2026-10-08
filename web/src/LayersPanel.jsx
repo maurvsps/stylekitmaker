@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ColorButton from "./ColorPicker.jsx";
+import ColorsStep from "./ColorsStep.jsx";
+import LogoControls from "./LogoControls.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
@@ -11,20 +13,50 @@ const GARMENT_LABELS = { shirt: "Shirt", shorts: "Shorts", socks: "Socks" };
 const ADDABLE = ["text", "image", "graphic", "pattern", "base", "trim", "material", "group"];
 const ICONS = { base: "▣", pattern: "▥", graphic: "◆", image: "▨", text: "T", material: "✦", group: "▤" };
 const PRINT_ROLES = /^(crest|logo-brand)$|sponsor/; // logos that can be a smooth print on top of the fabric
+const LOGO_MAX_CM = { crest: 15, "logo-brand": 12 }; // a crest or kit brand is small; other images can be big
+/** Logos the Add menu can place: they open the matching library (club crests, brands, sponsors, patches). */
+const LOGO_ADD = [
+  ["crest", "Club crest"], ["brand", "Kit brand"], ["shirt-sponsor", "Front sponsor"], ["back-sponsor", "Back sponsor"],
+  ["sleeve-left", "Left sleeve patch"], ["sleeve-right", "Right sleeve patch"],
+];
 
-/** The layer stack of one garment: tabs, the list (top layer first), the toolbar and the selected layer's fields. */
+/**
+ * The layer stack of one garment, with the selected layer's options in a panel on top: the kit colours (a pinned row),
+ * the layer list (top layer first) and the toolbar below.
+ */
 /** Keyboard shortcuts leave text fields alone. */
 export const isTyping = (el) =>
   !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) && el.type !== "range" && el.type !== "checkbox";
 
 let clipboard = null; // the copied layer (kept while the page is open)
 
-export default function LayersPanel({ project, setProject, garment, setGarment, selected, select, template, fonts, uploadImage, addLink }) {
+export default function LayersPanel({
+  project, setProject, garment, setGarment, selected, select, colorsSelected, selectColors, setPalette, logo,
+  template, fonts, uploadImage, addLink,
+}) {
   const layers = project.garments[garment].layers;
   const layer = selected ? findLayer(layers, selected) : null;
   const imageInput = useRef(null);
+  const root = useRef(null);
   const [renaming, setRenaming] = useState(null);
   const [clip, setClip] = useState(clipboard?.name ?? null);
+  const [open, setOpen] = useState(true); // the options panel can fold away so the list gets the room
+
+  /** The options are on top: bring them into view when a layer is picked from further down the list. */
+  const toTop = () => {
+    const box = root.current?.closest(".panel-content");
+    if (box) box.scrollTo({ top: 0, behavior: box.scrollTop > 500 ? "auto" : "smooth" }); // a long glide is slow and gets cut off
+  };
+  const pick = (id) => {
+    select(id);
+    setOpen(true);
+    toTop();
+  };
+  const pickColors = () => {
+    selectColors();
+    setOpen(true);
+    toTop();
+  };
 
   const edit = (fn) => setProject((p) => editLayers(p, garment, fn));
   const patch = (id, fields) => edit((ls) => mapLayer(ls, id, (l) => ({ ...l, ...fields })));
@@ -42,6 +74,7 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
   };
 
   const onAdd = (type) => {
+    if (type.startsWith("logo:")) return logo.add(type.slice(5));
     if (type === "image") return imageInput.current.click();
     if (type === "trim") return add(makeLayer("base", garment, { design: "trim" }));
     add(makeLayer(type, garment));
@@ -116,8 +149,10 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
   }, []);
 
   const at = layer && locate(layers, layer.id);
+  const slot = layer && logo ? logo.slotOf(layer) : null;
+  const filledLogos = logo ? logo.filled : {};
   return (
-    <div className="layers">
+    <div className="layers layer-studio" ref={root}>
       {SHOWN_GARMENTS.length > 1 && <div className="tabs" role="tablist" aria-label="Garment">
         {Object.entries(GARMENT_LABELS).filter(([g]) => SHOWN_GARMENTS.includes(g)).map(([g, label]) => (
           <button
@@ -133,6 +168,72 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
         ))}
       </div>}
 
+      {/* The options of whatever is selected: every layer type, the logos and the kit colours. */}
+      <section className="inspector-card" aria-label="Options of the selected layer">
+        {colorsSelected ? (
+          <>
+            <header className="inspector-head">
+              <span className="palette-dots" aria-hidden="true">{project.palette.map((c, i) => <i key={i} style={{ background: c }} />)}</span>
+              <div className="inspector-title"><strong>Kit colours</strong><small>Shared by every layer</small></div>
+              <button type="button" className="icon fold" aria-expanded={open} aria-label={open ? "Hide options" : "Show options"}
+                onClick={() => setOpen((v) => !v)}>{open ? "▾" : "▸"}</button>
+            </header>
+            {open && <div className="inspector-body"><ColorsStep palette={project.palette} setPalette={setPalette} /></div>}
+          </>
+        ) : layer ? (
+          <>
+            <header className="inspector-head">
+              <span className="type" aria-hidden="true">{ICONS[layer.type]}</span>
+              <div className="inspector-title">
+                {renaming === layer.id ? (
+                  <RenameField
+                    value={layer.name}
+                    onDone={(name) => {
+                      setRenaming(null);
+                      if (name != null && name.trim()) patch(layer.id, { name: name.trim().slice(0, 40) });
+                    }}
+                  />
+                ) : <strong>{layer.name}</strong>}
+                <small>{slot ? slot.label : LAYER_TYPES[layer.type]}{layer.locked ? " · Locked" : ""}</small>
+              </div>
+              <button type="button" className="icon fold" aria-expanded={open} aria-label={open ? "Hide options" : "Show options"}
+                onClick={() => setOpen((v) => !v)}>{open ? "▾" : "▸"}</button>
+            </header>
+            {open && (
+              <div className="inspector-body">
+                <div className="row layer-actions">
+                  <button type="button" className="quiet" title="Move up" aria-label="Move up" disabled={layer.locked || at.index >= at.list.length - 1} onClick={act.up}>↑</button>
+                  <button type="button" className="quiet" title="Move down" aria-label="Move down" disabled={layer.locked || at.index === 0} onClick={act.down}>↓</button>
+                  <button type="button" className="quiet" disabled={layer.locked} onClick={() => setRenaming(layer.id)}>Rename</button>
+                  <button type="button" className="quiet" onClick={act.duplicate} title="Ctrl+D">Duplicate</button>
+                  <button type="button" className="quiet" onClick={act.copy} title="Ctrl+C">Copy</button>
+                  <button type="button" className="quiet danger" disabled={layer.locked} onClick={act.remove}>Delete</button>
+                </div>
+                {slot && <LogoControls layer={layer} slot={slot} project={project} logo={logo} />}
+                <Inspector
+                  key={layer.id}
+                  layer={layer}
+                  garment={garment}
+                  project={project}
+                  template={template}
+                  fonts={fonts}
+                  patch={(fields) => patch(layer.id, fields)}
+                  uploadImage={uploadImage}
+                  addLink={addLink}
+                  isLogo={!!slot}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="inspector-empty">
+            <strong>Nothing selected</strong>
+            <p>Tap a layer below to change all of its options here, or add a new one.</p>
+            <button type="button" className="quiet" onClick={pickColors}>Edit kit colours</button>
+          </div>
+        )}
+      </section>
+
       <div className="layer-tools">
         {clip && (
           <button type="button" className="quiet" onClick={act.paste} title={`Paste "${clip}" (Ctrl+V)`}>
@@ -141,11 +242,18 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
         )}
         <select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
           <option value="">+ Add layer</option>
-          {ADDABLE.map((t) => (
-            <option key={t} value={t}>
-              {t === "trim" ? baseDesign(garment, "trim").label : t === "image" ? "Image / logo…" : LAYER_TYPES[t]}
-            </option>
-          ))}
+          <optgroup label="Logos">
+            {LOGO_ADD.map(([id, label]) => (
+              <option key={id} value={`logo:${id}`}>{label}{filledLogos[id] ? " (edit)" : ""}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Layers">
+            {ADDABLE.map((t) => (
+              <option key={t} value={t}>
+                {t === "trim" ? baseDesign(garment, "trim").label : t === "image" ? "Image…" : LAYER_TYPES[t]}
+              </option>
+            ))}
+          </optgroup>
         </select>
         <input ref={imageInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
           if (e.target.files[0]) onImageFile(e.target.files[0]);
@@ -153,42 +261,18 @@ export default function LayersPanel({ project, setProject, garment, setGarment, 
         }} />
       </div>
 
-      <p className="layer-help" id="layer-help">The top of the list prints on top. Tap a layer to edit it, drag ⠿ to reorder.</p>
+      <p className="layer-help" id="layer-help">The top of the list prints on top. Tap a layer to edit it above, drag ⠿ to reorder.</p>
 
       <LayerList
         layers={layers}
         selected={selected}
-        select={select}
+        select={pick}
+        colors={{ selected: colorsSelected, palette: project.palette, onSelect: pickColors }}
         renaming={renaming}
         setRenaming={setRenaming}
         patch={patch}
         move={(id, parentId, index) => edit((ls) => moveLayer(ls, id, parentId, index))}
       />
-
-      {layer && (
-        <div className="row layer-actions">
-          <button type="button" className="quiet" title="Move up" aria-label="Move up" disabled={layer.locked || at.index >= at.list.length - 1} onClick={act.up}>↑</button>
-          <button type="button" className="quiet" title="Move down" aria-label="Move down" disabled={layer.locked || at.index === 0} onClick={act.down}>↓</button>
-          <button type="button" className="quiet" disabled={layer.locked} onClick={() => setRenaming(layer.id)}>Rename</button>
-          <button type="button" className="quiet" onClick={act.duplicate} title="Ctrl+D">Duplicate</button>
-          <button type="button" className="quiet" onClick={act.copy} title="Ctrl+C">Copy</button>
-          <button type="button" className="quiet danger" disabled={layer.locked} onClick={act.remove}>Delete</button>
-        </div>
-      )}
-
-      {layer && (
-        <Inspector
-          key={layer.id}
-          layer={layer}
-          garment={garment}
-          project={project}
-          template={template}
-          fonts={fonts}
-          patch={(fields) => patch(layer.id, fields)}
-          uploadImage={uploadImage}
-          addLink={addLink}
-        />
-      )}
     </div>
   );
 }
@@ -205,7 +289,7 @@ function flatten(layers, depth = 0, parentId = null, out = []) {
   return out;
 }
 
-function LayerList({ layers, selected, select, renaming, setRenaming, patch, move }) {
+function LayerList({ layers, selected, select, colors, renaming, setRenaming, patch, move }) {
   const rows = flatten(layers);
   const list = useRef(null);
   const drag = useRef(null); // { id, row }
@@ -246,9 +330,13 @@ function LayerList({ layers, selected, select, renaming, setRenaming, patch, mov
     setDrop(null);
   };
 
-  if (!rows.length) return <p className="hint">No layers yet. Add one above.</p>;
   return (
     <ul className="layer-list" ref={list} role="listbox" aria-label="Layers">
+      <li className={`layer-row pinned${colors.selected ? " selected" : ""}`} role="option" aria-selected={colors.selected} onClick={colors.onSelect}>
+        <span className="type palette-dots" aria-hidden="true">{colors.palette.map((c, i) => <i key={i} style={{ background: c }} />)}</span>
+        <span className="name">Kit colours</span>
+      </li>
+      {!rows.length && <li className="hint">No layers yet. Add one with the menu above.</li>}
       {rows.map((row, i) => {
         const { layer, depth } = row;
         const cls = ["layer-row"];
@@ -265,7 +353,11 @@ function LayerList({ layers, selected, select, renaming, setRenaming, patch, mov
             aria-selected={layer.id === selected}
             style={{ paddingLeft: 4 + depth * 16 }}
             onClick={() => select(layer.id)}
-            onDoubleClick={() => !layer.locked && setRenaming(layer.id)}
+            onDoubleClick={() => {
+              if (layer.locked) return;
+              select(layer.id);
+              setRenaming(layer.id);
+            }}
           >
             <span
               className={`handle${layer.locked ? " off" : ""}`}
@@ -307,17 +399,7 @@ function LayerList({ layers, selected, select, renaming, setRenaming, patch, mov
             <span className="type" title={LAYER_TYPES[layer.type]}>
               {ICONS[layer.type]}
             </span>
-            {renaming === layer.id ? (
-              <RenameField
-                value={layer.name}
-                onDone={(name) => {
-                  setRenaming(null);
-                  if (name != null && name.trim()) patch(layer.id, { name: name.trim().slice(0, 40) });
-                }}
-              />
-            ) : (
-              <span className="name">{layer.name}</span>
-            )}
+            <span className="name">{layer.name}</span>
           </li>
         );
       })}
@@ -361,7 +443,7 @@ const LockIcon = ({ open }) => (
 
 // ---------------------------------------------------------------- inspector
 
-function Inspector({ layer, garment, project, template, fonts, patch, uploadImage, addLink }) {
+function Inspector({ layer, garment, project, template, fonts, patch, uploadImage, addLink, isLogo = false }) {
   const { palette } = project;
   const [librarySearch, setLibrarySearch] = useState("");
   const locked = layer.locked;
@@ -465,7 +547,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
 
       {layer.type === "image" && (
         <>
-          <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} addLink={addLink} />
+          {!isLogo && <AssetPicker project={project} value={layer.asset} onChange={(asset) => patch({ asset })} uploadImage={uploadImage} addLink={addLink} />}
           <ColorField label="Colour" value={layer.tint ?? null} palette={palette} allowNone noneLabel="Original"
             onChange={(tint) => patch({ tint })} />
           <label className="field">
@@ -518,7 +600,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             );
           })()}
           {(
-            <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : layer.type === "image" ? Math.max(150, round(layer.size * 100)) : 60} step={layer.type === "image" ? 1 : 0.5}
+            <Slider label={layer.type === "text" ? "Letter height" : "Size"} unit="cm" min={1} max={layer.type === "text" ? 40 : layer.type === "image" ? (LOGO_MAX_CM[layer.role] ?? Math.max(150, round(layer.size * 100))) : 60} step={layer.type === "image" ? 1 : 0.5}
               value={round(layer.size * 100)} onChange={(v) => patch({ size: v / 100 })} />
           )}
           {layer.type === "text" && (

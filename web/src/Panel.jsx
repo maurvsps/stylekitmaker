@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cleanName, cleanNumber } from "./design.js";
-import ColorButton from "./ColorPicker.jsx";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
-import { IDENTITY, PALETTE_LABELS, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
+import { IDENTITY, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
 import { prepareArtwork, prepareLogo } from "./logoImage.js";
 import { imageSize, normalizeImageUrl, resolveRemoteImage } from "./remoteImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
@@ -13,42 +12,28 @@ const BRAND_LIBRARY = brandLibrary(KIT_BRANDS); // the bundled brands plus their
 import ClubPickerModal from "./ClubPickerModal.jsx";
 import LogoPickerModal from "./LogoPickerModal.jsx";
 import PATCHES from "./patches.json";
-import DesignStep from "./DesignStep.jsx";
-import ColorsStep from "./ColorsStep.jsx";
-import PlacementMap from "./PlacementMap.jsx";
 import KitChecklist from "./KitChecklist.jsx";
 import MyKits from "./MyKits.jsx";
 
-// The sidebar is a guided flow: one step at a time, in the order a kit gets made. Layers is the advanced mode.
+// The sidebar is a guided flow, one step at a time. Layers holds the kit colours, the design and every logo.
 const TABS = [
-  { id: "design", label: "Design", hint: "Pick a shirt and a pattern", icon: "M8 4 4 6.5 5.5 10 7 9.3V20h10V9.3l1.5.7L20 6.5 16 4c-.5 1.6-2.1 2.7-4 2.7S8.5 5.6 8 4Z" },
-  { id: "colors", label: "Colours", hint: "Choose the kit colours", icon: "M12 3a9 9 0 1 0 0 18c1.7 0 2.4-1 2-2.2-.4-1.2.3-2.3 1.6-2.3H18a3 3 0 0 0 3-3c0-5-4-10.5-9-10.5ZM7.5 11h.01M10 7.5h.01M14.5 7.5h.01" },
-  { id: "logos", label: "Logos", hint: "Crest, kit brand and sponsors", icon: "M12 3 5 5.5V11c0 4.4 3 8.2 7 10 4-1.8 7-5.6 7-10V5.5L12 3Z" },
+  { id: "layers", label: "Layers", hint: "Colours, design, logos and every layer of the kit", icon: "M12 3 3 8l9 5 9-5-9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" },
   { id: "images", label: "Images", hint: "Your own pictures and textures", icon: "M4 5h16v14H4V5Zm0 11 4.5-4.5 3.5 3.5 3-3L20 16M9 9.5h.01" },
   { id: "player", label: "Player", hint: "Name, number and font", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c0-3.3 3.1-6 7-6s7 2.7 7 6" },
   { id: "export", label: "Export", hint: "Check, save and share", icon: "M12 15V3m0 12-4-4m4 4 4-4M5 15v4h14v-4" },
 ];
 const TAB_KEY = "kit-maker:panel-tab";
-const LOGO_SUBTAB_KEY = "kit-maker:logo-subtab";
 
 const savedTab = () => {
   try {
     const t = localStorage.getItem(TAB_KEY);
-    if (t === "kit") return "design"; // the old name of the first tab
-    return TABS.some((x) => x.id === t) || t === "layers" ? t : "design";
+    return TABS.some((x) => x.id === t) ? t : "layers"; // the old Design, Colours and Logos steps are all in Layers now
   } catch {
-    return "design";
+    return "layers";
   }
 };
 
-const savedLogoSubTab = () => {
-  try {
-    const t = localStorage.getItem(LOGO_SUBTAB_KEY);
-    return ["crest", "brand", "sponsors", "patches", "all"].includes(t) ? t : "brand";
-  } catch {
-    return "brand";
-  }
-};
+const COLORS_ID = "__colors"; // the pinned "Kit colours" row of the layer list is selectable like a layer
 
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -75,9 +60,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     try { return !localStorage.getItem("kit-maker:guide-dismissed") && !localStorage.getItem("kit-maker:design"); }
     catch { return true; }
   });
-  const [selection, setSelection] = useState({});
+  const [selection, setSelection] = useState({ shirt: COLORS_ID });
   const [tab, setTab] = useState(savedTab);
-  const [logoSubTab, setLogoSubTab] = useState(savedLogoSubTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
   const [clubModalOpen, setClubModalOpen] = useState(false);
   const [logoModal, setLogoModal] = useState(null); // "brand" | "sponsor" | "patch"
@@ -91,15 +75,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     }
   }, [tab]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOGO_SUBTAB_KEY, logoSubTab);
-    } catch {
-      /* storage blocked */
-    }
-  }, [logoSubTab]);
-
-  const selected = selection[garment] && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
+  const colorsSelected = selection[garment] === COLORS_ID;
+  const selected = selection[garment] && !colorsSelected && findLayer(project.garments[garment].layers, selection[garment]) ? selection[garment] : null;
   const select = (id, g = garment) => setSelection((s) => ({ ...s, [g]: id }));
 
   const set = (fields) => setProject((p) => ({ ...p, ...fields }));
@@ -131,19 +108,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     setProject((p) => ({ ...p, assets: { ...p.assets, [id]: { src, name: file.name } } }));
     return { id, name: file.name, src };
   };
-
-  // Text sponsor
-  const setSponsor = (text) =>
-    setProject((p) =>
-      editLayers(p, "shirt", (ls) => {
-        const layer = findRole(ls, "sponsor");
-        if (layer) return mapLayer(ls, layer.id, (l) => ({ ...l, text, visible: true }));
-        return [...ls, makeLayer("text", "shirt", { role: "sponsor", name: "Sponsor", text, size: 0.065, maxWidth: 0.32, transform: { ...IDENTITY, y: 0.39 } })];
-      }),
-    );
-
-  const clearSponsorText = () =>
-    setProject((p) => editLayers(p, "shirt", (ls) => ls.filter((l) => l.role !== "sponsor")));
 
   const sponsor = shirtRole("sponsor");
 
@@ -200,43 +164,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     actions.view(slot.surface === "back" ? "back" : slot.surface.startsWith("sleeve") ? "side" : "front");
   };
 
-
-  const removeLogo = (slot) => {
-    const role = slot.id === "crest" ? "crest" : `logo-${slot.id}`;
-    setProject((p) => editLayers(p, slot.garment, (ls) => ls.filter((l) => l.role !== role)));
-  };
-
-  const setSlotSize = (slot, sizeMeters) => {
-    const layer = slotLayer(slot);
-    if (!layer) return;
-    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, size: sizeMeters }))));
-  };
-
-  const setSlotTint = (slot, tint) => {
-    const layer = slotLayer(slot);
-    if (!layer) return;
-    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, tint }))));
-  };
-
-  const setSlotStroke = (slot, stroke) => {
-    const layer = slotLayer(slot);
-    if (!layer) return;
-    setProject((p) => editLayers(p, slot.garment, (ls) => mapLayer(ls, layer.id, (l) => ({ ...l, stroke }))));
-  };
-
-  const setSlotFinish = (slot, finishItem) => {
-    const layer = slotLayer(slot);
-    if (!layer) return;
-    setProject((p) =>
-      editLayers(p, slot.garment, (ls) =>
-        mapLayer(ls, layer.id, (l) => ({
-          ...l,
-          finish: { ...finishItem.finish },
-          texture: finishItem.texture,
-        })),
-      ),
-    );
-  };
 
   const setBrandPosition = (posKey) => {
     const brandSlot = logoSlots.find((s) => s.id === "brand");
@@ -457,40 +384,19 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   const stepIndex = Math.max(0, TABS.findIndex((t) => t.id === tab));
   const go = (i) => setTab(TABS[Math.max(0, Math.min(TABS.length - 1, i))].id);
 
-  // ---- logo placement map: which spots are filled, and tapping one opens the right editor or library
   const filledSlots = Object.fromEntries(logoSlots.map((s) => [s.id, !!slotLayer(s)]));
-  const activeSpotId = logoSubTab === "crest" ? "crest" : logoSubTab === "brand" ? "brand" : logoSubTab === "sponsors" ? activeSponsorSlotId : logoSubTab === "patches" ? activePatchSlotId : null;
-  const pickSpot = (id) => {
-    if (id === "crest") {
-      setLogoSubTab("crest");
-      if (!filledSlots.crest) setClubModalOpen(true);
-    } else if (id === "brand") {
-      setLogoSubTab("brand");
-      if (!filledSlots.brand) setLogoModal("brand");
-    } else if (id.startsWith("sleeve")) {
-      setLogoSubTab("patches");
-      setActivePatchSlotId(id);
-      if (!filledSlots[id]) setLogoModal("patch");
-    } else {
-      setLogoSubTab("sponsors");
-      setActiveSponsorSlotId(id);
-      if (!filledSlots[id]) setLogoModal("sponsor");
-    }
-    actions.view(id === "back-sponsor" ? "back" : id.startsWith("sleeve") ? "side" : "front");
-  };
 
   // ---- export checklist
   const checklist = [
-    { id: "crest", label: "Club crest", done: filledSlots.crest, step: "logos", sub: "crest" },
-    { id: "brand", label: "Kit brand", done: filledSlots.brand, step: "logos", sub: "brand", optional: true },
-    { id: "sponsor", label: "Front sponsor", done: filledSlots["shirt-sponsor"] || !!sponsor?.text, step: "logos", sub: "sponsors", spot: "shirt-sponsor", optional: true },
+    { id: "crest", label: "Club crest", done: filledSlots.crest, step: "layers", slot: "crest" },
+    { id: "brand", label: "Kit brand", done: filledSlots.brand, step: "layers", slot: "brand", optional: true },
+    { id: "sponsor", label: "Front sponsor", done: filledSlots["shirt-sponsor"] || !!sponsor?.text, step: "layers", slot: "shirt-sponsor", optional: true },
     { id: "name", label: "Player name", done: !!project.player.name.trim(), step: "player" },
     { id: "number", label: "Player number", done: !!project.player.number.trim(), step: "player" },
   ];
   const goItem = (item) => {
-    if (item.sub) setLogoSubTab(item.sub);
-    if (item.spot) setActiveSponsorSlotId(item.spot);
     setTab(item.step);
+    if (item.slot) logo.add(item.slot);
   };
 
   /** Open the right "add a picture" popup for a logo slot. */
@@ -504,14 +410,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       setActiveSponsorSlotId(slot.id);
       setLogoModal("sponsor");
     }
-  };
-
-  /** Open a logo's layer in the advanced editor (position, scale, blending, mask, finish). */
-  const editSlot = (slot) => {
-    const layer = slotLayer(slot);
-    if (!layer) return;
-    select(layer.id, slot.garment);
-    setTab("layers");
   };
 
   /** A pasted link as a File, so it goes through the same clean-up as an upload. */
@@ -538,6 +436,27 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     ? "left"
     : "right";
 
+  /** What the Layers panel needs to edit logos: which spots are filled, the libraries, the crest style and positions. */
+  const logo = {
+    filled: filledSlots,
+    slotOf: (layer) => logoSlots.find((s) => (s.id === "crest" ? "crest" : `logo-${s.id}`) === layer.role) || null,
+    change: openSlot,
+    // An existing logo is selected for editing; an empty spot opens its library.
+    add: (id) => {
+      const slot = logoSlots.find((x) => x.id === id);
+      const existing = slotLayer(slot);
+      if (existing) select(existing.id, slot.garment);
+      else openSlot(slot);
+    },
+    crestStyle,
+    setCrestStyle: setCrestStyleMode,
+    position: (slot) => (slot.id === "crest" ? crestPos : brandPos),
+    setPosition: (slot, key) => (slot.id === "crest" ? setCrestPosition(key) : setBrandPosition(key)),
+    quickClubs: POPULAR_CLUBS.slice(0, 8),
+    pickClub: pickPopularClub,
+    openClubs: () => setClubModalOpen(true),
+  };
+
   return (
     <aside className="panel" aria-label="Kit design">
       <header className="panel-header">
@@ -556,501 +475,38 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         ))}
       </nav>
       <div className="panel-sub">
-        {tab === "layers"
-          ? <button type="button" className="link" onClick={() => setTab("design")}>← Back to steps</button>
-          : <><span title={TABS[stepIndex].hint}>Step {stepIndex + 1} of {TABS.length}</span><button type="button" className="link" onClick={() => setTab("layers")}>Advanced layers</button></>}
+        <span title={TABS[stepIndex].hint}>Step {stepIndex + 1} of {TABS.length}</span>
+        <span className="panel-sub-hint">{TABS[stepIndex].hint}</span>
       </div>
       <div className="panel-content">
-      {tab === "design" && showGuide && <div className="quick-start">
+      {tab === "layers" && showGuide && <div className="quick-start">
         <button type="button" className="quiet quick-start-close" aria-label="Dismiss getting started guide" onClick={() => {
           setShowGuide(false);
           try { localStorage.setItem("kit-maker:guide-dismissed", "1"); } catch { /* private browsing */ }
         }}>x</button>
-        <strong>Make your first kit in six steps</strong>
-        <p>Follow the steps below: design, colours, logos, images, player, export. Use Next at the bottom, or jump with the tabs.</p>
+        <strong>Make your first kit in four steps</strong>
+        <p>Everything about the shirt is a layer: pick one and its options open on top. Then add images, the player and export.</p>
       </div>}
-      {tab === "design" && <Section title="Design" eyebrow="01">
-        <DesignStep project={project} setProject={setProject} shirts={shirts} onTemplate={(template) => set({ template })} />
+      {tab === "layers" && <Section title="Layers" eyebrow="01" className="layers-section">
+        <LayersPanel
+          project={project}
+          setProject={setProject}
+          garment={garment}
+          setGarment={setGarment}
+          selected={selected}
+          select={select}
+          colorsSelected={colorsSelected}
+          selectColors={() => select(COLORS_ID)}
+          setPalette={(palette) => set({ palette })}
+          logo={logo}
+          template={templates[models[garment]]}
+          fonts={fonts}
+          uploadImage={uploadImage}
+          addLink={addImageLink}
+        />
       </Section>}
-      {tab === "colors" && <Section title="Colours" eyebrow="02">
-        <ColorsStep palette={project.palette} setPalette={(palette) => set({ palette })} />
-      </Section>}
 
-      {tab === "logos" && (
-        <Section title="Emblems & sponsors" eyebrow="03" className="logo-section">
-          <PlacementMap filled={filledSlots} active={activeSpotId} palette={project.palette} onPick={pickSpot} />
-          {/* Sub-navigation without emojis */}
-          <div className="logo-subnav" role="tablist" aria-label="Emblem categories">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={logoSubTab === "brand"}
-              className={logoSubTab === "brand" ? "on" : ""}
-              onClick={() => setLogoSubTab("brand")}
-            >
-              <span>Brand</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={logoSubTab === "sponsors"}
-              className={logoSubTab === "sponsors" ? "on" : ""}
-              onClick={() => setLogoSubTab("sponsors")}
-            >
-              <span>Sponsors</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={logoSubTab === "crest"}
-              className={logoSubTab === "crest" ? "on" : ""}
-              onClick={() => setLogoSubTab("crest")}
-            >
-              <span>Crest</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={logoSubTab === "patches"}
-              className={logoSubTab === "patches" ? "on" : ""}
-              onClick={() => setLogoSubTab("patches")}
-            >
-              <span>Patches</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={logoSubTab === "all"}
-              className={logoSubTab === "all" ? "on" : ""}
-              onClick={() => setLogoSubTab("all")}
-            >
-              <span>All</span>
-            </button>
-          </div>
-
-          {/* 1. KIT MAKER BRAND (PUMA, NIKE, ADIDAS...) */}
-          {logoSubTab === "brand" && (
-            <div className="category-pane">
-              <div className="pane-intro">
-                <strong>Kit maker brand</strong>
-                <p>Technical apparel supplier (Puma, Nike, Adidas, Umbro, Kappa...). Placed on the chest.</p>
-              </div>
-
-              {/* Active Brand Slot Card */}
-              <SlotCard
-                slot={brandSlot}
-                layer={brandLayer}
-                project={project}
-                onAdd={() => openSlot(brandSlot)}
-                onRemove={() => removeLogo(brandSlot)}
-                onEdit={() => editSlot(brandSlot)}
-              />
-
-              {brandLayer && (
-                <div className="slot-customizer">
-                  <div className="customizer-row">
-                    <span className="group-label">Chest position</span>
-                    <div className="seg">
-                      <button
-                        type="button"
-                        className={brandPos === "right" ? "on" : ""}
-                        onClick={() => setBrandPosition("right")}
-                      >
-                        Right chest
-                      </button>
-                      <button
-                        type="button"
-                        className={brandPos === "center" ? "on" : ""}
-                        onClick={() => setBrandPosition("center")}
-                      >
-                        Center
-                      </button>
-                      <button
-                        type="button"
-                        className={brandPos === "left" ? "on" : ""}
-                        onClick={() => setBrandPosition("left")}
-                      >
-                        Left chest
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Size slider */}
-                  <SliderField
-                    label="Brand size"
-                    value={Math.round((brandLayer.size || DEFAULT_SLOT_SIZES.brand) * 100)}
-                    unit="cm"
-                    min={2}
-                    max={12}
-                    step={0.2}
-                    onChange={(cm) => setSlotSize(brandSlot, cm / 100)}
-                  />
-
-                  <TintPicker
-                    value={brandLayer.tint}
-                    palette={project.palette}
-                    onChange={(tint) => setSlotTint(brandSlot, tint)}
-                  />
-
-                  <StrokeField stroke={brandLayer.stroke} palette={project.palette} onChange={(s) => setSlotStroke(brandSlot, s)} />
-
-                  <FinishSelector
-                    finish={brandLayer.finish}
-                    texture={brandLayer.texture}
-                    onChange={(fin) => setSlotFinish(brandSlot, fin)}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 2. SHIRT SPONSORS */}
-          {logoSubTab === "sponsors" && (
-            <div className="category-pane">
-              <div className="pane-intro">
-                <strong>Shirt sponsors</strong>
-                <p>Commercial club sponsors: main chest, lower back, and sleeve patches.</p>
-              </div>
-
-              {/* Target sponsor spot selector */}
-              <span className="group-label">Select spot to edit</span>
-              <div className="sponsor-slot-selector">
-                {sponsorSlots.map((s) => {
-                  const l = slotLayer(s);
-                  const isAct = s.id === activeSponsorSlotId;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`sponsor-pill${isAct ? " active" : ""}${l ? " populated" : ""}`}
-                      onClick={() => setActiveSponsorSlotId(s.id)}
-                    >
-                      <span>{s.label}</span>
-                      {l && <span className="dot" title="Active logo" />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Active Selected Sponsor Slot Card */}
-              <SlotCard
-                slot={activeSponsorSlot}
-                layer={slotLayer(activeSponsorSlot)}
-                project={project}
-                onAdd={() => openSlot(activeSponsorSlot)}
-                onRemove={() => removeLogo(activeSponsorSlot)}
-                onEdit={() => editSlot(activeSponsorSlot)}
-              />
-
-              {slotLayer(activeSponsorSlot) && (
-                <div className="slot-customizer">
-                  {/* Size slider */}
-                  <SliderField
-                    label="Sponsor size"
-                    value={Math.round((slotLayer(activeSponsorSlot).size || DEFAULT_SLOT_SIZES[activeSponsorSlot.id] || 0.18) * 100)}
-                    unit="cm"
-                    min={4}
-                    max={activeSponsorSlot.id.includes("sponsor") ? 36 : 14}
-                    step={0.5}
-                    onChange={(cm) => setSlotSize(activeSponsorSlot, cm / 100)}
-                  />
-
-                  <TintPicker
-                    value={slotLayer(activeSponsorSlot).tint}
-                    palette={project.palette}
-                    onChange={(tint) => setSlotTint(activeSponsorSlot, tint)}
-                  />
-
-                  <StrokeField stroke={slotLayer(activeSponsorSlot).stroke} palette={project.palette} onChange={(s) => setSlotStroke(activeSponsorSlot, s)} />
-
-                  <FinishSelector
-                    finish={slotLayer(activeSponsorSlot).finish}
-                    texture={slotLayer(activeSponsorSlot).texture}
-                    onChange={(fin) => setSlotFinish(activeSponsorSlot, fin)}
-                  />
-                </div>
-              )}
-
-              {/* Sponsor as Text */}
-              <div className="text-sponsor-block">
-                <span className="group-label">Chest sponsor as text</span>
-                <div className="row">
-                  <input
-                    value={sponsor?.text ?? ""}
-                    maxLength={20}
-                    disabled={sponsor?.locked}
-                    placeholder="Type brand text (e.g. SONY, JEEP)"
-                    onChange={(e) => setSponsor(e.target.value)}
-                  />
-                  {sponsor?.text && (
-                    <button type="button" className="quiet" onClick={clearSponsorText} title="Clear text sponsor">
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* PATCHES: competition badges on the sleeves */}
-          {logoSubTab === "patches" && (
-            <div className="category-pane">
-              <div className="pane-intro">
-                <strong>Competition patches</strong>
-                <p>League, Champions League, cup and tournament badges for the sleeves.</p>
-              </div>
-
-              <span className="group-label">Sleeve</span>
-              <div className="sponsor-slot-selector">
-                {patchSlots.map((s) => (
-                  <button key={s.id} type="button" className={`sponsor-pill${s.id === activePatchSlot.id ? " active" : ""}${slotLayer(s) ? " populated" : ""}`}
-                    onClick={() => setActivePatchSlotId(s.id)}>
-                    <span>{s.label}</span>
-                    {slotLayer(s) && <span className="dot" title="Has a patch" />}
-                  </button>
-                ))}
-              </div>
-
-              <SlotCard
-                slot={activePatchSlot}
-                layer={slotLayer(activePatchSlot)}
-                project={project}
-                onAdd={() => openSlot(activePatchSlot)}
-                onRemove={() => removeLogo(activePatchSlot)}
-                onEdit={() => editSlot(activePatchSlot)}
-              />
-
-              {slotLayer(activePatchSlot) && (
-                <div className="slot-customizer">
-                  <SliderField
-                    label="Patch size"
-                    value={Math.round((slotLayer(activePatchSlot).size || DEFAULT_SLOT_SIZES["sleeve-left"]) * 100)}
-                    unit="cm"
-                    min={3}
-                    max={14}
-                    step={0.5}
-                    onChange={(cm) => setSlotSize(activePatchSlot, cm / 100)}
-                  />
-                  <TintPicker value={slotLayer(activePatchSlot).tint} palette={project.palette} onChange={(tint) => setSlotTint(activePatchSlot, tint)} />
-                  <StrokeField stroke={slotLayer(activePatchSlot).stroke} palette={project.palette} onChange={(st) => setSlotStroke(activePatchSlot, st)} />
-                  <FinishSelector finish={slotLayer(activePatchSlot).finish} texture={slotLayer(activePatchSlot).texture} onChange={(fin) => setSlotFinish(activePatchSlot, fin)} />
-                </div>
-              )}
-
-              <button type="button" className="add-image-btn" onClick={() => openSlot(activePatchSlot)}>
-                {slotLayer(activePatchSlot) ? "Change patch" : "Choose a patch"}
-              </button>
-            </div>
-          )}
-
-          {/* 3. CLUB CREST */}
-          {logoSubTab === "crest" && (
-            <div className="category-pane">
-              <div className="pane-intro">
-                <strong>Team crest / badge</strong>
-                <p>Official football club badge placed on the left breast or chest center.</p>
-              </div>
-
-              {/* Active Crest Slot Card */}
-              <SlotCard
-                slot={crestSlot}
-                layer={crestLayer}
-                project={project}
-                onAdd={() => openSlot(crestSlot)}
-                onRemove={() => removeLogo(crestSlot)}
-                onEdit={() => editSlot(crestSlot)}
-              />
-
-              {crestLayer && (
-                <div className="slot-customizer">
-                  <div className="customizer-row">
-                    <span className="group-label">Badge style</span>
-                    <div className="seg">
-                      <button
-                        type="button"
-                        className={crestStyle === "color" ? "on" : ""}
-                        onClick={() => setCrestStyleMode("color")}
-                      >
-                        Full color
-                      </button>
-                      <button
-                        type="button"
-                        className={crestStyle === "mono" ? "on" : ""}
-                        onClick={() => setCrestStyleMode("mono")}
-                      >
-                        Monochrome
-                      </button>
-                    </div>
-                  </div>
-
-                  {crestStyle === "mono" && (
-                    <TintPicker
-                      value={crestLayer.tint || "@trim"}
-                      palette={project.palette}
-                      onChange={(tint) => setSlotTint(crestSlot, tint)}
-                    />
-                  )}
-
-                  <div className="customizer-row">
-                    <span className="group-label">Crest position</span>
-                    <div className="seg">
-                      <button
-                        type="button"
-                        className={crestPos === "left" ? "on" : ""}
-                        onClick={() => setCrestPosition("left")}
-                      >
-                        Left breast
-                      </button>
-                      <button
-                        type="button"
-                        className={crestPos === "center" ? "on" : ""}
-                        onClick={() => setCrestPosition("center")}
-                      >
-                        Center chest
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Size slider */}
-                  <SliderField
-                    label="Crest size"
-                    value={Math.round((crestLayer.size || DEFAULT_SLOT_SIZES.crest) * 100)}
-                    unit="cm"
-                    min={4}
-                    max={15}
-                    step={0.5}
-                    onChange={(cm) => setSlotSize(crestSlot, cm / 100)}
-                  />
-
-                  <StrokeField stroke={crestLayer.stroke} palette={project.palette} onChange={(s) => setSlotStroke(crestSlot, s)} />
-
-                  <FinishSelector
-                    finish={crestLayer.finish}
-                    texture={crestLayer.texture}
-                    onChange={(fin) => setSlotFinish(crestSlot, fin)}
-                  />
-                </div>
-              )}
-
-              {/* Quick Picks for top clubs */}
-              <div className="quick-clubs-section">
-                <div className="quick-clubs-header">
-                  <span className="group-label">Quick picks</span>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => setClubModalOpen(true)}
-                  >
-                    View all (400+)
-                  </button>
-                </div>
-                <div className="quick-clubs-row">
-                  {POPULAR_CLUBS.slice(0, 8).map((c) => (
-                    <button
-                      key={c.name}
-                      type="button"
-                      className="quick-club-btn"
-                      title={`${c.name} (Official vector + monochrome)`}
-                      onClick={() => pickPopularClub(c)}
-                    >
-                      <img
-                        src={crestStyle === "mono" && c.monoUrl ? c.monoUrl : c.colorUrl}
-                        alt=""
-                        className="quick-club-thumb"
-                        loading="lazy"
-                      />
-                      <span>{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 4. ALL LOGOS (OVERVIEW) */}
-          {logoSubTab === "all" && (
-            <div className="category-pane">
-              <div className="pane-intro">
-                <strong>Kit emblems overview</strong>
-                <p>All active badges, technical brands, and sponsors on this jersey.</p>
-              </div>
-
-              <span className="group-label">Club & technical brand</span>
-              <div className="all-slots-grid">
-                <SlotCard
-                  slot={crestSlot}
-                  layer={crestLayer}
-                  project={project}
-                  onAdd={() => openSlot(crestSlot)}
-                  onRemove={() => removeLogo(crestSlot)}
-                  onEdit={() => editSlot(crestSlot)}
-                  onSelect={() => setLogoSubTab("crest")}
-                />
-                <SlotCard
-                  slot={brandSlot}
-                  layer={brandLayer}
-                  project={project}
-                  onAdd={() => openSlot(brandSlot)}
-                  onRemove={() => removeLogo(brandSlot)}
-                  onEdit={() => editSlot(brandSlot)}
-                  onSelect={() => setLogoSubTab("brand")}
-                />
-              </div>
-
-              <span className="group-label">Shirt sponsors</span>
-              <div className="all-slots-grid">
-                {sponsorSlots.map((s) => (
-                  <SlotCard
-                    key={s.id}
-                    slot={s}
-                    layer={slotLayer(s)}
-                    project={project}
-                    onAdd={() => openSlot(s)}
-                    onRemove={() => removeLogo(s)}
-                    onEdit={() => editSlot(s)}
-                    onSelect={() => {
-                      setActiveSponsorSlotId(s.id);
-                      setLogoSubTab("sponsors");
-                    }}
-                  />
-                ))}
-              </div>
-
-              <span className="group-label">Sleeve patches</span>
-              <div className="all-slots-grid">
-                {patchSlots.map((s) => (
-                  <SlotCard
-                    key={s.id}
-                    slot={s}
-                    layer={slotLayer(s)}
-                    project={project}
-                    onAdd={() => openSlot(s)}
-                    onRemove={() => removeLogo(s)}
-                    onEdit={() => editSlot(s)}
-                    onSelect={() => {
-                      setActivePatchSlotId(s.id);
-                      setLogoSubTab("patches");
-                    }}
-                  />
-                ))}
-              </div>
-
-              {sponsor?.text && (
-                <div className="text-sponsor-card">
-                  <span className="label">Text sponsor:</span>
-                  <strong>{sponsor.text}</strong>
-                  <button type="button" className="quiet danger" onClick={clearSponsorText} title="Remove text sponsor">
-                    x
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-        </Section>
-      )}
-
-      {tab === "images" && <Section title="Kit images" eyebrow="04">
+      {tab === "images" && <Section title="Kit images" eyebrow="02">
         <p className="section-copy">Add your own artwork or a full texture. Links have no size limit and keep your saved design small.</p>
         <span className="group-label">How should it fit?</span>
         <div className="fit-options" role="radiogroup" aria-label="Image fit">
@@ -1106,22 +562,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         )}
       </Section>}
 
-      {tab === "layers" && <Section title="Advanced layers" eyebrow="Adv">
-        <LayersPanel
-          project={project}
-          setProject={setProject}
-          garment={garment}
-          setGarment={setGarment}
-          selected={selected}
-          select={select}
-          template={templates[models[garment]]}
-          fonts={fonts}
-          uploadImage={uploadImage}
-          addLink={addImageLink}
-        />
-      </Section>}
-
-      {tab === "player" && <Section title="Player details" eyebrow="05">
+      {tab === "player" && <Section title="Player details" eyebrow="03">
         <div className="row">
           <label className="field grow">
             <span>Name</span>
@@ -1147,7 +588,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </div>
       </Section>}
 
-      {tab === "export" && <Section title="Export" eyebrow="06">
+      {tab === "export" && <Section title="Export" eyebrow="04">
         <KitChecklist items={checklist} onGo={goItem} />
         <p className="section-copy">Takes a 4K picture of the current 3D view (2K on phones). You can preview it before downloading.</p>
         <div className="row">
@@ -1223,17 +664,11 @@ export default function Panel({ project, setProject, garment, setGarment, templa
       </Section>}
       </div>
       <footer className="panel-footer">
-        {tab === "layers" ? (
-          <button type="button" className="quiet" onClick={() => setTab("design")}>Back to steps</button>
-        ) : (
-          <>
-            <button type="button" className="quiet" disabled={stepIndex === 0} onClick={() => go(stepIndex - 1)}>Back</button>
-            <span className="step-dots" aria-hidden="true">{TABS.map((t, i) => <i key={t.id} className={i === stepIndex ? "on" : i < stepIndex ? "past" : ""} />)}</span>
-            {stepIndex < TABS.length - 1
-              ? <button type="button" onClick={() => go(stepIndex + 1)}>Next: {TABS[stepIndex + 1].label}</button>
-              : <button type="button" onClick={() => actions.screenshot()}>Screenshot</button>}
-          </>
-        )}
+        <button type="button" className="quiet" disabled={stepIndex === 0} onClick={() => go(stepIndex - 1)}>Back</button>
+        <span className="step-dots" aria-hidden="true">{TABS.map((t, i) => <i key={t.id} className={i === stepIndex ? "on" : i < stepIndex ? "past" : ""} />)}</span>
+        {stepIndex < TABS.length - 1
+          ? <button type="button" onClick={() => go(stepIndex + 1)}>Next: {TABS[stepIndex + 1].label}</button>
+          : <button type="button" onClick={() => actions.screenshot()}>Screenshot</button>}
       </footer>
       </div>
       <ClubPickerModal
@@ -1324,43 +759,6 @@ function hideAt(layers, slot, role) {
       Math.hypot(l.transform.x - slot.x, l.transform.y - slot.y) < 0.04;
     return near && l.visible ? { ...l, visible: false } : l;
   });
-}
-
-/** Card showing an individual logo slot with preview, replace, and clear buttons */
-function SlotCard({ slot, layer, project, onAdd, onRemove, onEdit, onSelect }) {
-  const asset = layer && project.assets[layer.asset];
-  return (
-    <div className={`logo-slot-card${layer ? " populated" : ""}`} onClick={onSelect}>
-      <div className="logo-slot-main">
-        <div className="logo-preview">
-          {asset ? <img src={asset.src} alt="" /> : <span aria-hidden="true">+</span>}
-        </div>
-        <div className="logo-slot-info">
-          <span className="logo-slot-label">{slot.label}</span>
-          <span className="logo-slot-file">{asset ? asset.name : "Nothing yet"}</span>
-        </div>
-      </div>
-      <div className="logo-slot-actions" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="quiet slot-act-btn" onClick={onAdd} title="Upload, paste a link or pick from the library">
-          {asset ? "Change" : "Add"}
-        </button>
-        {layer && onEdit && (
-          <button type="button" className="quiet slot-act-btn" onClick={onEdit} title="Open in the advanced editor">Edit</button>
-        )}
-        {layer && (
-          <button
-            type="button"
-            className="quiet slot-act-btn danger"
-            onClick={onRemove}
-            title={`Remove ${slot.label}`}
-            aria-label={`Remove ${slot.label}`}
-          >
-            x
-          </button>
-        )}
-      </div>
-    </div>
-  );
 }
 
 /** Size adjustment slider */
