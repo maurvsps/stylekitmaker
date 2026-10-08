@@ -70,7 +70,8 @@ function reset(ctx) {
 function drawLayers(ctx, layers, env, depth) {
   for (const layer of layers) {
     if (!layer.visible || layer.opacity <= 0) continue;
-    const isolated = layer.opacity < 1 || layer.blend !== "normal";
+    const fx = layer.finish?.fx;
+    const isolated = layer.opacity < 1 || layer.blend !== "normal" || !!fx;
     if (!isolated) {
       paintLayer(ctx, layer, env, depth);
       continue;
@@ -80,6 +81,7 @@ function drawLayers(ctx, layers, env, depth) {
     reset(sctx);
     sctx.clearRect(0, 0, env.S, env.S);
     paintLayer(sctx, layer, env, depth + 1);
+    if (fx) applyFx(sctx, fx, env, depth);
     ctx.save();
     reset(ctx);
     ctx.globalAlpha = layer.opacity;
@@ -487,11 +489,16 @@ function finishLayer(h, o, layer, env, alpha) {
     sctx.fillRect(0, 0, env.S, env.S);
     lay(o);
   }
-  if (f.relief || f.stitch) {
+  if (f.relief || f.stitch || f.grain) {
     silhouette();
     const g = FLAT + Math.round((f.relief || (f.stitch ? 0.35 : 0)) * 110);
     sctx.fillStyle = f.stitch ? stitchPattern(sctx, env.S, g) : grey(g);
     sctx.fillRect(0, 0, env.S, env.S);
+    if (f.grain) {
+      sctx.globalCompositeOperation = "source-atop"; // the surface texture, only where the layer is
+      sctx.fillStyle = grainPattern(sctx, f.grain, env.S);
+      sctx.fillRect(0, 0, env.S, env.S);
+    }
     lay(h);
   }
   if (hasCustomOrm) {
@@ -549,6 +556,216 @@ function stitchPattern(ctx, S, g) {
     stitches.set(key, c);
   }
   return ctx.createPattern(stitches.get(key), "repeat");
+}
+
+// ---------------------------------------------------------------- surface textures (relief map) and colour effects
+//
+// A grain is a small tile of white (raised) and black (pressed in) with some transparency, laid over the layer's grey in
+// the relief map. Tile sizes are in material-map pixels and grow a little with the map.
+
+const grains = new Map();
+function grainPattern(ctx, id, S) {
+  const u = Math.max(1, Math.round(S / 512)); // 1 on a 512 map
+  const key = `${id}:${u}`;
+  if (!grains.has(key)) {
+    const make = (w, h, draw) => {
+      const c = document.createElement("canvas");
+      c.width = w * u;
+      c.height = h * u;
+      const g = c.getContext("2d");
+      g.scale(u, u);
+      draw(g, w, h);
+      return c;
+    };
+    const rnd = seeded(11);
+    const white = (a) => `rgba(255,255,255,${a})`;
+    const black = (a) => `rgba(0,0,0,${a})`;
+    const specks = (g, w, h, n, max) => {
+      for (let i = 0; i < n; i++) {
+        g.fillStyle = rnd() < 0.5 ? white(0.15 + rnd() * 0.5) : black(0.15 + rnd() * 0.5);
+        g.beginPath();
+        g.arc(rnd() * w, rnd() * h, 0.4 + rnd() * max, 0, 2 * Math.PI);
+        g.fill();
+      }
+    };
+    const tiles = {
+      carbon: () => make(16, 16, (g) => {
+        g.fillStyle = black(0.3);
+        g.fillRect(0, 0, 16, 16);
+        for (const [x, y, horizontal] of [[0, 0, 1], [8, 8, 1], [8, 0, 0], [0, 8, 0]]) {
+          g.fillStyle = white(0.4);
+          for (let i = 0; i < 4; i++) horizontal ? g.fillRect(x, y + i * 2, 8, 1) : g.fillRect(x + i * 2, y, 1, 8);
+        }
+      }),
+      mesh: () => make(10, 10, (g) => {
+        g.fillStyle = black(0.85);
+        g.beginPath();
+        g.arc(5, 5, 3, 0, 2 * Math.PI);
+        g.fill();
+      }),
+      leather: () => make(64, 64, (g, w, h) => specks(g, w, h, 260, 2.2)),
+      velvet: () => make(32, 32, (g, w, h) => specks(g, w, h, 420, 0.7)),
+      glitter: () => make(96, 96, (g, w, h) => {
+        for (let i = 0; i < 90; i++) {
+          g.fillStyle = rnd() < 0.5 ? white(0.9) : black(0.8);
+          g.fillRect(Math.floor(rnd() * w), Math.floor(rnd() * h), 1 + (rnd() < 0.3), 1 + (rnd() < 0.3));
+        }
+      }),
+      brushed: () => make(64, 32, (g, w, h) => {
+        for (let i = 0; i < 70; i++) {
+          g.fillStyle = rnd() < 0.5 ? white(0.1 + rnd() * 0.2) : black(0.1 + rnd() * 0.2);
+          const len = 16 + rnd() * 48;
+          const y = Math.floor(rnd() * h);
+          const x = rnd() * w;
+          g.fillRect(x, y, len, 1);
+          g.fillRect(x - w, y, len, 1); // wraps round the tile edge
+        }
+      }),
+      hex: () => make(30, 35, (g, w, h) => {
+        const r = 10;
+        g.strokeStyle = white(0.7);
+        g.lineWidth = 2;
+        g.fillStyle = black(0.12);
+        g.fillRect(0, 0, w, h);
+        for (const [cx, cy] of [[0, 0], [0, h], [3 * r, 0], [3 * r, h], [1.5 * r, h / 2]]) {
+          g.beginPath();
+          for (let i = 0; i <= 6; i++) {
+            const t = (i * Math.PI) / 3;
+            i ? g.lineTo(cx + r * Math.cos(t), cy + r * Math.sin(t)) : g.moveTo(cx + r, cy);
+          }
+          g.stroke();
+        }
+      }),
+      quilt: () => make(40, 40, (g) => {
+        g.fillStyle = black(0.5);
+        g.fillRect(0, 0, 40, 40);
+        const lit = g.createRadialGradient(20, 20, 1, 20, 20, 20);
+        lit.addColorStop(0, white(0.65));
+        lit.addColorStop(1, white(0.05));
+        g.fillStyle = lit;
+        g.beginPath();
+        g.moveTo(20, 2); g.lineTo(38, 20); g.lineTo(20, 38); g.lineTo(2, 20);
+        g.closePath();
+        g.fill();
+      }),
+      chrome: () => make(32, 128, (g, w, h) => {
+        const bands = g.createLinearGradient(0, 0, 0, h);
+        for (let i = 0; i <= 8; i++) bands.addColorStop(i / 8, i % 2 ? white(0.55) : black(0.5));
+        g.fillStyle = bands;
+        g.fillRect(0, 0, w, h);
+      }),
+      prism: () => make(12, 12, (g) => {
+        const tri = (pts, fill) => {
+          g.fillStyle = fill;
+          g.beginPath();
+          g.moveTo(...pts[0]); g.lineTo(...pts[1]); g.lineTo(...pts[2]);
+          g.closePath();
+          g.fill();
+        };
+        tri([[0, 0], [12, 0], [6, 6]], white(0.4));
+        tri([[12, 0], [12, 12], [6, 6]], black(0.3));
+        tri([[12, 12], [0, 12], [6, 6]], black(0.45));
+        tri([[0, 12], [0, 0], [6, 6]], white(0.15));
+      }),
+    };
+    grains.set(key, ctx.createPattern((tiles[id] || tiles.leather)(), "repeat"));
+  }
+  return grains.get(key);
+}
+
+function seeded(seed) {
+  let s = seed;
+  return () => ((s = (s * 16807) % 2147483647) / 2147483647);
+}
+
+// Colour effects. `sctx` holds the layer as painted; each effect recolours it, cuts it, or fades it, inside its shape.
+const RAINBOW = ["#ff4fd8", "#4ff0ff", "#b6ff4f", "#ffb34f", "#9b6bff", "#ff4fd8"];
+
+function applyFx(sctx, fx, env, depth) {
+  const { S, H } = env;
+  const overlay = (paint, mode, alpha) => {
+    const fxc = scratchCanvas(env, depth + 40);
+    const g = fxc.getContext("2d");
+    reset(g);
+    g.clearRect(0, 0, S, H);
+    paint(g);
+    g.globalCompositeOperation = "destination-in"; // keep the effect only where the layer is
+    g.drawImage(sctx.canvas, 0, 0);
+    sctx.save();
+    reset(sctx);
+    sctx.globalAlpha = alpha;
+    sctx.globalCompositeOperation = mode;
+    sctx.drawImage(fxc, 0, 0);
+    sctx.restore();
+  };
+  const rainbow = (g, x0, y0, x1, y1) => {
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    RAINBOW.forEach((c, i) => grad.addColorStop(i / (RAINBOW.length - 1), c));
+    return grad;
+  };
+  const specks = (g, count, size) => {
+    const rnd = seeded(5);
+    const colors = ["#ffffff", "#fff2c2", "#d6ecff", "#ffd1f0"];
+    for (let i = 0; i < count; i++) {
+      g.globalAlpha = 0.45 + rnd() * 0.55;
+      g.fillStyle = colors[Math.floor(rnd() * colors.length)];
+      const s = size * (0.6 + rnd() * 1.6);
+      g.fillRect(rnd() * S, rnd() * H, s, s);
+    }
+    g.globalAlpha = 1;
+  };
+  const u = S / 2048;
+
+  if (fx === "iridescent") {
+    // An oil-slick sheen sweeping across the layer: hue and saturation from a rainbow, the layer's own light and dark kept.
+    overlay((g) => { g.fillStyle = rainbow(g, 0, 0, S, H); g.fillRect(0, 0, S, H); }, "color", 0.8);
+    overlay((g) => { g.fillStyle = rainbow(g, S, 0, 0, H); g.fillRect(0, 0, S, H); }, "overlay", 0.35);
+  } else if (fx === "holo") {
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = Math.max(32, Math.round(110 * u));
+    const t = tile.getContext("2d");
+    t.fillStyle = rainbow(t, 0, 0, tile.width, 0);
+    t.fillRect(0, 0, tile.width, tile.height);
+    overlay((g) => {
+      const pattern = g.createPattern(tile, "repeat");
+      pattern.setTransform(new DOMMatrix().rotate(28));
+      g.fillStyle = pattern;
+      g.fillRect(0, 0, S, H);
+    }, "color", 0.85);
+    overlay((g) => specks(g, Math.round((S * H) / 2600), Math.max(1, 2 * u)), "screen", 0.8);
+  } else if (fx === "glitter") {
+    overlay((g) => specks(g, Math.round((S * H) / 500), Math.max(1.5, 3 * u)), "source-over", 1);
+  } else if (fx === "perforated") {
+    const step = Math.max(6, Math.round(14 * u));
+    const tile = document.createElement("canvas");
+    tile.width = tile.height = step;
+    const t = tile.getContext("2d");
+    t.fillStyle = "#000";
+    for (const [x, y] of [[0.25, 0.25], [0.75, 0.75]]) {
+      t.beginPath();
+      t.arc(x * step, y * step, step * 0.17, 0, 2 * Math.PI);
+      t.fill();
+    }
+    sctx.save();
+    reset(sctx);
+    sctx.globalCompositeOperation = "destination-out"; // punch the holes through the layer
+    sctx.fillStyle = sctx.createPattern(tile, "repeat");
+    sctx.fillRect(0, 0, S, H);
+    sctx.restore();
+  } else if (fx === "fade") {
+    sctx.save();
+    reset(sctx);
+    sctx.globalCompositeOperation = "destination-out"; // opaque at the top of each panel, gone at the bottom
+    for (const { frame } of env.islands) {
+      const grad = sctx.createLinearGradient(0, frame.y, 0, frame.y + frame.h);
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(0.35, "rgba(0,0,0,0)");
+      grad.addColorStop(1, "rgba(0,0,0,1)");
+      sctx.fillStyle = grad;
+      sctx.fillRect(frame.x - PAD, frame.y - PAD, frame.w + 2 * PAD, frame.h + 2 * PAD);
+    }
+    sctx.restore();
+  }
 }
 
 // Typed array buffer pooling to avoid megabytes of garbage collection on every render

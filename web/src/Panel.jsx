@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import RangeInput from "./RangeInput.jsx";
+import FinishPicker from "./FinishPicker.jsx";
 import { cleanName, cleanNumber } from "./design.js";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
 import { IDENTITY, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
@@ -40,12 +41,6 @@ const COLORS_ID = "__colors"; // the pinned "Kit colours" row of the layer list 
 const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
-const FINISH_PRESETS = [
-  { id: "flat", label: "Flat print", finish: { relief: 0, stitch: false, roughness: null, metalness: null }, texture: "kit" },
-  { id: "raised", label: "3D Raised", finish: { relief: 0.5, stitch: false, roughness: 0.5, metalness: null }, texture: "smooth" },
-  { id: "embroidered", label: "Embroidered", finish: { relief: 0.45, stitch: true, roughness: 0.6, metalness: null }, texture: "smooth" },
-  { id: "foil", label: "Metallic", finish: { relief: 0.1, stitch: false, roughness: 0.3, metalness: 0.9 }, texture: "smooth" },
-];
 
 const DEFAULT_SLOT_SIZES = {
   crest: 0.08,
@@ -521,7 +516,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                     <details className="kit-image-more">
                       <summary>Print texture{l.fit === "texture" ? "" : " & border"}</summary>
                       <div className="kit-image-options">
-                        <FinishSelector finish={l.finish} texture={l.texture}
+                        <FinishSelector finish={l.finish}
                           onChange={(fin) => patchImageLayer(l.id, { finish: { ...fin.finish }, texture: fin.texture })} />
                         {l.fit !== "texture" && (
                           <>
@@ -781,27 +776,12 @@ function TintPicker({ value, palette, onChange }) {
   );
 }
 
-/** Finish selector (Flat, 3D Raised, Embroidered, Metallic) */
-function FinishSelector({ finish, texture, onChange }) {
-  const activePreset =
-    FINISH_PRESETS.find((p) => p.texture === texture && JSON.stringify(p.finish) === JSON.stringify(finish))?.id ||
-    (finish?.stitch ? "embroidered" : finish?.relief > 0 ? "raised" : finish?.metalness ? "foil" : "flat");
-
+/** Finish selector: the finishes in groups. Anything but a flat print is a smooth print on top of the fabric. */
+function FinishSelector({ finish, onChange }) {
   return (
     <div className="finish-selector-block">
       <span className="group-label">Finish / texture</span>
-      <div className="chips">
-        {FINISH_PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`chip${activePreset === p.id ? " on" : ""}`}
-            onClick={() => onChange(p)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <FinishPicker finish={finish} onPick={(p) => onChange({ finish: { ...p.finish }, texture: p.id === "flat" ? "kit" : "smooth" })} />
     </div>
   );
 }

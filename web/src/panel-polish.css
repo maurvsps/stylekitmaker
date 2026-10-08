@@ -532,3 +532,17 @@
 .pattern-current-text small { color: var(--muted); font-size: 11px; }
 .pattern-thumb canvas { width: 100%; height: 100%; }
 .club-modal-card.active { outline: 2px solid var(--accent); }
+
+/* Finish picker: grouped cards */
+.finish-picker { display: grid; gap: 12px; margin: 8px 0; }
+.finish-group { display: grid; gap: 6px; }
+.finish-group-label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.finish-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.panel .finish-card {
+  display: grid; justify-items: center; gap: 6px; padding: 8px 4px 7px; border-radius: 12px; text-align: center;
+  background: var(--field); color: var(--text); border: 1px solid var(--line);
+}
+.panel .finish-card:hover { background: var(--hover); }
+.panel .finish-card.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
+.finish-swatch { width: 100%; max-width: 64px; height: 30px; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
+.finish-name { font-size: 11.5px; line-height: 1.15; }

@@ -3,6 +3,8 @@ import ColorButton from "./ColorPicker.jsx";
 import ColorsStep from "./ColorsStep.jsx";
 import LogoControls from "./LogoControls.jsx";
 import RangeInput from "./RangeInput.jsx";
+import FinishPicker from "./FinishPicker.jsx";
+import { matchFinish } from "./finishes.js";
 import PatternPickerModal from "./PatternPickerModal.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
@@ -769,33 +771,18 @@ function MaskFields({ layer, garment, patch }) {
   );
 }
 
-/** Relief, stitching and shine of the layer's shape (material maps; no colour change). */
-const FINISHES = {
-  flat: ["Flat print", { relief: 0, stitch: false, roughness: null, metalness: null }],
-  embroidered: ["Embroidered", { relief: 0.45, stitch: true, roughness: 0.6, metalness: null }],
-  raised: ["Raised (heat-pressed)", { relief: 0.5, stitch: false, roughness: 0.5, metalness: null }],
-  vinyl: ["Glossy vinyl", { relief: 0.2, stitch: false, roughness: 0.2, metalness: null }],
-  debossed: ["Debossed", { relief: -0.5, stitch: false, roughness: null, metalness: null }],
-  foil: ["Metallic foil", { relief: 0.1, stitch: false, roughness: 0.3, metalness: 0.9 }],
-};
-
+/** Relief, stitching, shine, surface texture and effects of the layer (material maps and colour). */
 function FinishFields({ layer, patch }) {
   const f = layer.finish;
-  const preset = Object.keys(FINISHES).find((k) => JSON.stringify(FINISHES[k][1]) === JSON.stringify(f));
+  const preset = matchFinish(f);
   const set = (fields) => patch({ finish: { ...f, ...fields } });
   return (
     <details className="sub">
       <summary>
         Finish
-        <span>{preset ? FINISHES[preset][0] : "Custom"}</span>
+        <span>{preset ? preset.label : "Custom"}</span>
       </summary>
-      <div className="chips">
-        {Object.entries(FINISHES).map(([k, [label, value]]) => (
-          <button key={k} type="button" className={`chip${preset === k ? " on" : ""}`} aria-pressed={preset === k} onClick={() => patch({ finish: { ...value } })}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <FinishPicker finish={f} onPick={(p) => patch({ finish: { ...p.finish } })} />
       <Slider label="Relief (pressed in … raised)" unit="%" min={-100} max={100} step={5} value={Math.round(f.relief * 100)}
         onChange={(v) => set({ relief: v / 100 })} />
       <label className="check">

@@ -32,6 +32,7 @@
 // `role` (optional) marks the layers the panel's shortcuts edit: crest, sponsor, name, number.
 
 import { DEFAULT_DESIGN, FONTS, cleanName, cleanNumber, resolveTemplate, sanitizeDesign } from "./design.js";
+import { FX, GRAINS } from "./finishes.js";
 import { GRAPHICS, MATERIALS, REGIONS, baseDesign, pattern as patternDef, patternSlots } from "./library.js";
 
 export const PROJECT_VERSION = 4;
@@ -64,11 +65,11 @@ export const SURFACES = {
 export { REGIONS };
 
 export const NO_MASK = { include: null, exclude: [] };
-export const NO_FINISH = { relief: 0, stitch: false, roughness: null, metalness: null };
+export const NO_FINISH = { relief: 0, stitch: false, roughness: null, metalness: null, grain: null, fx: null };
 
 /** Whether a layer changes the material maps (relief, roughness, metalness). */
 export const hasFinish = (l) =>
-  l.type === "material" || l.texture === "smooth" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null));
+  l.type === "material" || l.texture === "smooth" || !!(l.finish && (l.finish.relief || l.finish.roughness !== null || l.finish.metalness !== null || l.finish.grain));
 
 export const ROLES = ["crest", "sponsor", "name", "number", "logo-brand", "logo-shirt-sponsor", "logo-back-sponsor", "logo-sleeve-left", "logo-sleeve-right", "logo-shorts-mark", "logo-sock-mark"];
 
@@ -368,7 +369,10 @@ function sanitizeMask(m, garment) {
 function sanitizeFinish(f) {
   if (!f || typeof f !== "object") return { ...NO_FINISH };
   const opt = (v) => (v === null || v === undefined ? null : num(v, 0, 1, null));
-  return { relief: num(f.relief, -1, 1, 0), stitch: f.stitch === true, roughness: opt(f.roughness), metalness: opt(f.metalness) };
+  return {
+    relief: num(f.relief, -1, 1, 0), stitch: f.stitch === true, roughness: opt(f.roughness), metalness: opt(f.metalness),
+    grain: GRAINS.includes(f.grain) ? f.grain : null, fx: FX.includes(f.fx) ? f.fx : null,
+  };
 }
 
 const color = (v, fallback) => (typeof v === "string" && (/^@[0-2]$/.test(v) || HEX.test(v)) ? v.toLowerCase() : fallback);
