@@ -671,6 +671,22 @@ TEMPLATES = {
 # ---------------------------------------------------------------- mesh building, UV layout
 
 
+def ray_outward(tree, piece, samples=400, reach=0.30):
+    """Positive when the normals of this connected piece point out of the garment, negative when they point in: from a
+    sample of its faces, a ray along the normal escapes when it points out and runs into the far wall when it points in.
+    (`tree` is the whole mesh, whatever the normals' direction: only hits matter, not which side is hit.)"""
+    votes = 0
+    step = max(1, len(piece) // samples)
+    for f in piece[::step]:
+        n, mid = f.normal.copy(), f.calc_center_median()
+        if n.length < 1e-9:
+            continue
+        out = tree.ray_cast(mid + n * 0.001, n, reach)[0] is not None
+        into = tree.ray_cast(mid - n * 0.001, -n, reach)[0] is not None
+        votes += int(into) - int(out)
+    return votes
+
+
 def build_object(part):
     bm = bmesh.new()
     verts = [bm.verts.new(v) for v in part.verts]
@@ -690,6 +706,11 @@ def build_object(part):
     # recalc_face_normals is consistent per connected piece but may pick inward on an open surface:
     # make each piece face away from its own centre.
     seen = set()
+    tree = None
+    if getattr(part, "ray_orient", False):
+        from mathutils.bvhtree import BVHTree
+        bm.normal_update()
+        tree = BVHTree.FromBMesh(bm)
     for f0 in bm.faces:
         if f0 in seen:
             continue
@@ -703,8 +724,11 @@ def build_object(part):
                     if g not in seen:
                         seen.add(g)
                         stack.append(g)
-        centre = sum((f.calc_center_median() for f in piece), Vector()) / len(piece)
-        outward = sum(f.normal.dot(f.calc_center_median() - centre) * f.calc_area() for f in piece)
+        if getattr(part, "ray_orient", False):
+            outward = ray_outward(tree, piece)
+        else:
+            centre = sum((f.calc_center_median() for f in piece), Vector()) / len(piece)
+            outward = sum(f.normal.dot(f.calc_center_median() - centre) * f.calc_area() for f in piece)
         if outward < 0:
             bmesh.ops.reverse_faces(bm, faces=piece)
     bm.normal_update()

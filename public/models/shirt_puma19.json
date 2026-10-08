@@ -1,9 +1,9 @@
 {
   "template": "shirt",
-  "name": "shirt_clo_v",
-  "label": "V-neck",
+  "name": "shirt_puma19",
+  "label": "PUMA 19 (V collar)",
   "params": {
-    "collar": "v-neck",
+    "collar": "crew",
     "sleeves": "short",
     "fit": "regular",
     "source": "clo"
@@ -22,41 +22,41 @@
       "rect": [
         0.02,
         0.02,
-        0.409184,
-        0.596116
+        0.435178,
+        0.528815
       ],
-      "pmin": -0.243237,
-      "qmax": 0.708717,
-      "scale": 0.84112
+      "pmin": -0.316904,
+      "qmax": 0.77001,
+      "scale": 0.686764
     },
     "back": {
       "material": "shirt_body",
       "kind": "body",
       "frame": "p: metres across from the centre line, q: metres up from the hem",
       "rect": [
-        0.449184,
+        0.475178,
         0.02,
-        0.409183,
-        0.690712
+        0.504822,
+        0.526802
       ],
-      "pmin": -0.243237,
-      "qmax": 0.821181,
-      "scale": 0.84112
+      "pmin": -0.367467,
+      "qmax": 0.767078,
+      "scale": 0.686764
     },
     "sleeve_left": {
       "material": "shirt_sleeves",
       "kind": "sleeve",
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
-        0.391784,
-        0.730712,
-        0.351784,
-        0.219584
+        0.315567,
+        0.568815,
+        0.276595,
+        0.160942
       ],
-      "pmin": -0.138327,
+      "pmin": -0.201503,
       "qmax": 0.0,
-      "scale": 0.84112,
-      "length": 0.2611
+      "scale": 0.686764,
+      "length": 0.2343
     },
     "sleeve_right": {
       "material": "shirt_sleeves",
@@ -64,14 +64,14 @@
       "frame": "p: metres around from the top line (underarm seam at both ends), q: minus metres from the shoulder",
       "rect": [
         0.02,
-        0.730712,
-        0.351784,
-        0.219615
+        0.568815,
+        0.275567,
+        0.161623
       ],
-      "pmin": -0.279906,
+      "pmin": -0.200454,
       "qmax": 0.0,
-      "scale": 0.84112,
-      "length": 0.2611
+      "scale": 0.686764,
+      "length": 0.2353
     },
     "collar": {
       "material": "shirt_collar",
@@ -79,13 +79,13 @@
       "frame": "p: metres around from the front centre, q: metres up the band",
       "rect": [
         0.02,
-        0.970327,
-        0.554776,
-        0.009673
+        0.750438,
+        0.384488,
+        0.006524
       ],
-      "pmin": -0.328467,
-      "qmax": 0.01,
-      "scale": 0.84112
+      "pmin": -0.280602,
+      "qmax": 0.008,
+      "scale": 0.686764
     }
   }
 }

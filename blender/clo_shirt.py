@@ -1,7 +1,7 @@
 """
 Build a shirt template from a garment made in CLO 3D / Marvelous Designer (.zprj).
 
-    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|wide|cross] [--name shirt_clo]
+    .bpy/bin/python blender/clo_shirt.py -- path/to/shirt.zprj [--collar crew|v|wide|cross] [--name shirt_puma19] [--label "Name in the selector"]
 
 --collar picks the neck (see COLLARS): v and wide reshape the front neckline. Every variant
 replaces CLO's standing strip with a flat rib binding. Each builds its own template (shirt_clo_v, ...).
@@ -115,7 +115,9 @@ def classify(ps):
     front, back = sorted(body[:2], key=lambda p: -p["c"][2])
     front["role"], back["role"] = "front", "back"
     for side, name in ((1, "sleeve_left"), (-1, "sleeve_right")):
-        arm = sorted([p for p in ps if p["c"][0] * side > 120], key=lambda p: -len(p["P"]))
+        # Arm pieces hang at shoulder height or above the body's middle; side panels of the body (some jerseys have
+        # them) sit lower and join the front and back as extras instead.
+        arm = sorted([p for p in ps if p["c"][0] * side > 120 and p["c"][1] > front["c"][1]], key=lambda p: -len(p["P"]))
         arm[0]["role"] = name
         for p in arm[1:]:
             p["role"] = name + "+"
@@ -218,8 +220,8 @@ def place(ps):
         c["uv"] = fit_rigid(c["R"][i] / 1000, q["uv"][j])(c["R"] / 1000)
         c["island"] = q["island"]
         todo.remove(c)
-        if c["role"] == "+":
-            match_yoke(c, q, [p for p in ps if p["role"] in ("front", "back") and p is not q])
+        if c["role"] == "+" and c["c"][1] > roots["front"]["c"][1] + 150:  # a yoke sits above the body's middle;
+            match_yoke(c, q, [p for p in ps if p["role"] in ("front", "back") and p is not q])  # side panels do not
     return ps
 
 
@@ -498,13 +500,13 @@ def to_ours(P, hem, neck_x, neck_z):
 
 
 def clo_part(path, collar_kind="crew"):
-    _, _, cut, band = COLLARS[collar_kind]
+    _, _, cut, band, *more = COLLARS[collar_kind]
     ps = place(classify(pieces(read_pac(path))))
     front = next(p for p in ps if p["role"] == "front")
     collar = [p for p in ps if p["island"] == "collar"]
     neck = np.concatenate([p["P"] for p in collar])
     if cut:
-        cut_neckline(front, collar, cut, 0.015 if collar_kind == "cross" else NECK_DEPTH[cut])
+        cut_neckline(front, collar, cut, more[0] if more else 0.015 if collar_kind == "cross" else NECK_DEPTH[cut])
     hem = front["P"][:, 1].min()
     for p in ps:
         p["V"] = to_ours(p["P"], hem, (neck[:, 0].min() + neck[:, 0].max()) / 2,
@@ -515,6 +517,7 @@ def clo_part(path, collar_kind="crew"):
     circ = ring.max() - ring.min()
 
     part = mk.Part("Shirt")
+    part.ray_orient = True  # CLO's triangle order is not reliable: build_object finds "outside" with rays
     part.params = dict(collar="v-neck" if COLLARS[collar_kind][2] == "v" else "crew", sleeves="short", fit="regular", source="clo")
     if band:  # CLO's band comes off; a new one is sewn on below
         neck_marks(ps, collar)
@@ -598,7 +601,7 @@ def decimate(obj, ratio):
     print(f"[clo] decimate kept {len(keep)} seam vertices")
 
 
-def build(path, out_name, draco, collar_kind="crew"):
+def build(path, out_name, draco, collar_kind="crew", label=None):
     import bpy
     import json
     import shutil
@@ -615,7 +618,7 @@ def build(path, out_name, draco, collar_kind="crew"):
     shutil.copyfile(os.path.join(mk.UV_DIR, f"{out_name}_uv_{mk.UV_SIZES[0]}.png"),
                     os.path.join(mk.MODELS_DIR, f"{out_name}_uv.png"))
     template = {
-        "template": "shirt", "name": out_name, "label": COLLARS[collar_kind][1], "params": part.params,
+        "template": "shirt", "name": out_name, "label": label or COLLARS[collar_kind][1], "params": part.params,
         "materials": part.materials,
         "texture": "One square texture for every part. rect = [x, y, w, h] in texture units, origin top-left. "
                    "A point (p, q) of an island's local frame (metres) lands at "
@@ -648,4 +651,5 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     collar = argv[argv.index("--collar") + 1] if "--collar" in argv else "crew"
     name = argv[argv.index("--name") + 1] if "--name" in argv else "shirt_clo" + COLLARS[collar][0]
-    build(argv[0], name, "--no-draco" not in argv, collar)
+    label = argv[argv.index("--label") + 1] if "--label" in argv else None
+    build(argv[0], name, "--no-draco" not in argv, collar, label)

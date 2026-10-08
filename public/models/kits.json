@@ -1,42 +1,9 @@
 {
   "kits": [
     {
-      "name": "shirt_clo",
+      "name": "shirt_puma19",
       "garment": "shirt",
-      "label": "Crew neck (narrow binding)",
-      "params": {
-        "collar": "crew",
-        "sleeves": "short",
-        "fit": "regular",
-        "source": "clo"
-      }
-    },
-    {
-      "name": "shirt_clo_cross",
-      "garment": "shirt",
-      "label": "Double V-neck",
-      "params": {
-        "collar": "v-neck",
-        "sleeves": "short",
-        "fit": "regular",
-        "source": "clo"
-      }
-    },
-    {
-      "name": "shirt_clo_v",
-      "garment": "shirt",
-      "label": "V-neck",
-      "params": {
-        "collar": "v-neck",
-        "sleeves": "short",
-        "fit": "regular",
-        "source": "clo"
-      }
-    },
-    {
-      "name": "shirt_clo_wide",
-      "garment": "shirt",
-      "label": "Crew neck (wide band)",
+      "label": "PUMA 19 (V collar)",
       "params": {
         "collar": "crew",
         "sleeves": "short",

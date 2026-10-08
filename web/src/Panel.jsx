@@ -567,15 +567,7 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <p>Follow the steps below: design, colours, logos, images, player, export. Use Next at the bottom, or jump with the tabs.</p>
       </div>}
       {tab === "design" && <Section title="Design" eyebrow="01">
-        <span className="group-label">Shirt template</span>
-        <select value={project.template} onChange={(e) => set({ template: e.target.value })} aria-label="Shirt template">
-          {shirts.map((k) => (
-            <option key={k.name} value={k.name}>
-              {k.label}
-            </option>
-          ))}
-        </select>
-        <DesignStep project={project} setProject={setProject} shirts={shirts} />
+        <DesignStep project={project} setProject={setProject} shirts={shirts} onTemplate={(template) => set({ template })} />
       </Section>}
       {tab === "colors" && <Section title="Colours" eyebrow="02">
         <ColorsStep palette={project.palette} setPalette={(palette) => set({ palette })} />

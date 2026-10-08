@@ -34,7 +34,7 @@ export const FONTS = [
 ];
 
 export const DEFAULT_DESIGN = {
-  template: "shirt_clo",
+  template: "shirt_puma19",
   colors: ["#c8102e", "#ffffff", "#0b1f3a"],
   pattern: "stripes",
   logo: null, // { src: data URL, name, x: cm, y: cm, scale }
@@ -71,8 +71,9 @@ export function sanitizeDesign(input, templates = []) {
   return d;
 }
 
+/** Saved designs from before the PUMA 19 shirt became the only template open it on that shirt. */
 export function resolveTemplate(name) {
-  return name === "shirt_clo_v_wide" ? "shirt_clo_v" : name;
+  return typeof name === "string" && name.startsWith("shirt_clo") ? "shirt_puma19" : name;
 }
 
 export const cleanName = (s) => s.toUpperCase().slice(0, 14);

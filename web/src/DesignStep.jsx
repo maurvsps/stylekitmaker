@@ -16,7 +16,7 @@ function firstOf(layers, test) {
  * Step 1: the shirt model, the body style and the pattern, all as one-click galleries
  * (the same layers the advanced Layers panel edits).
  */
-export default function DesignStep({ project, setProject, shirts }) {
+export default function DesignStep({ project, setProject, shirts, onTemplate }) {
   const [all, setAll] = useState(false);
   const layers = project.garments.shirt.layers;
   const palette = project.palette;
@@ -58,6 +58,17 @@ export default function DesignStep({ project, setProject, shirts }) {
 
   return (
     <>
+      {shirts.length > 1 && <span className="group-label">Collar and cut</span>}
+      {shirts.length > 1 && <div className="collar-gallery" role="radiogroup" aria-label="Collar and cut">
+        {shirts.map((k) => (
+          <button key={k.name} type="button" role="radio" aria-checked={project.template === k.name}
+            className={`collar-card${project.template === k.name ? " active" : ""}`} onClick={() => onTemplate(k.name)}>
+            <span className="collar-thumb"><img src={`models/${k.name}_neck.png`} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.visibility = "hidden"; }} /></span>
+            <span className="collar-name">{k.label}</span>
+          </button>
+        ))}
+      </div>}
+
       {bodyLayer && (
         <>
           <span className="group-label">Body style</span>
