@@ -303,6 +303,34 @@ export default function Panel({ project, setProject, garment, setGarment, templa
     actions.view(imageFit === "back" ? "back" : "front");
   };
 
+  /** A texture made from the club crest, kept separate from the crest on the chest: the crest stretched over the whole kit, or repeated. */
+  const addCrestTexture = (mode) => {
+    const crest = slotLayer(crestSlot);
+    if (!crest?.asset) {
+      onError("Add a team crest first (Layers, Team crest), then make a texture from it.");
+      return;
+    }
+    const tile = mode === "tile";
+    const layer = makeLayer("image", "shirt", {
+      name: tile ? "Crest pattern" : "Crest texture",
+      asset: crest.asset,
+      fit: mode,
+      tint: crest.tint || null,
+      texture: "smooth",
+      size: 0.07,
+      transform: { ...IDENTITY },
+      ...(tile ? { tile: { gap: 0.03, stagger: true } } : {}),
+    });
+    // Above the base design and patterns, below the text and logos.
+    setProject((pr) => editLayers(pr, "shirt", (ls) => {
+      const at = ls.findIndex((l) => l.type !== "base" && l.type !== "pattern");
+      return at < 0 ? [...ls, layer] : [...ls.slice(0, at), layer, ...ls.slice(at)];
+    }));
+    setGarment("shirt");
+    select(layer.id, "shirt");
+    actions.view("front");
+  };
+
   const addArtworkFile = async (file) => {
     const asset = await uploadImage(file, { artwork: true, strict: true });
     if (asset) await placeArtwork(asset.id, asset.src, asset.name);
@@ -466,6 +494,12 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         </div>
         <button type="button" className="add-image-btn" onClick={() => setImageModal(true)}>Add image</button>
         <p className="section-copy fine">Upload from your device or paste a link. On imgbb, copy the "Direct link".</p>
+        <span className="group-label">Texture from the club crest</span>
+        <p className="section-copy fine">Uses your team crest as a texture, separate from the crest on the chest. Edit its size, spacing, colour and rotation in Layers.</p>
+        <div className="fit-options" role="group" aria-label="Crest texture">
+          <button type="button" className="fit-card" onClick={() => addCrestTexture("tile")}><strong>Repeating pattern</strong><span>The crest tiled over the kit, with custom size and spacing</span></button>
+          <button type="button" className="fit-card" onClick={() => addCrestTexture("texture")}><strong>Whole kit texture</strong><span>The crest stretched over the full kit texture</span></button>
+        </div>
         {imageLayers.length > 0 && (
           <>
             <span className="group-label">Images on the kit</span>
@@ -476,12 +510,12 @@ export default function Panel({ project, setProject, garment, setGarment, templa
                   <li key={l.id} className={`kit-image${l.id === selected ? " selected" : ""}`}>
                     <div className="kit-image-head">
                       <span className="kit-image-thumb">{a && <img src={a.src} alt="" />}</span>
-                      <span className="kit-image-name">{l.name}<small>{l.fit === "texture" ? "Whole texture" : (l.surface || "front").replace("_", " ")}</small></span>
+                      <span className="kit-image-name">{l.name}<small>{l.fit === "texture" ? "Whole texture" : l.fit === "tile" ? "Repeating pattern" : (l.surface || "front").replace("_", " ")}</small></span>
                       <button type="button" className="quiet slot-act-btn" onClick={() => { select(l.id, "shirt"); setTab("layers"); }}>Edit</button>
                       <button type="button" className="quiet slot-act-btn danger" aria-label={`Remove ${l.name}`} onClick={() => removeImageLayer(l.id)}>x</button>
                     </div>
                     {l.fit !== "texture" && (
-                      <SliderField label="Size" value={Math.round(l.size * 100)} unit="cm" min={2} max={Math.max(150, Math.round(l.size * 100))} step={1}
+                      <SliderField label={l.fit === "tile" ? "Tile size" : "Size"} value={Math.round(l.size * 100)} unit="cm" min={2} max={Math.max(150, Math.round(l.size * 100))} step={1}
                         onChange={(cm) => setLayerSize(l.id, cm / 100)} />
                     )}
                     <details className="kit-image-more">

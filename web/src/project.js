@@ -315,7 +315,8 @@ function sanitizeLayer(l, garment, assets, ids, budget, depth) {
     case "image":
       layer.asset = typeof l.asset === "string" && assets[l.asset] ? l.asset : null;
       layer.size = num(l.size, 0.005, 2.5, d.size);
-      layer.fit = l.fit === "texture" ? "texture" : "free"; // texture: stretched over the whole garment texture
+      layer.fit = l.fit === "texture" || l.fit === "tile" ? l.fit : "free"; // texture: stretched over the whole garment texture; tile: repeated like a pattern
+      if (layer.fit === "tile") layer.tile = { gap: num(l.tile?.gap, 0, 0.5, 0.03), stagger: l.tile?.stagger !== false };
       layer.tint = l.tint == null ? null : color(l.tint, null); // older designs have none: original colours
       layer.texture = l.texture === "smooth" ? "smooth" : "kit";
       layer.stroke = sanitizeStroke(l.stroke);

@@ -451,7 +451,8 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
   const [librarySearch, setLibrarySearch] = useState("");
   const [patternModal, setPatternModal] = useState(false);
   const locked = layer.locked;
-  const placed = "surface" in layer;
+  const tiled = layer.type === "image" && layer.fit === "tile";
+  const placed = "surface" in layer && !tiled;
   const island = placed && template?.islands[layer.surface];
   const setT = (fields) => patch({ transform: { ...layer.transform, ...fields } });
 
@@ -551,9 +552,22 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
             <span>Fit</span>
             <Select value={layer.fit || "free"} onChange={(e) => patch({ fit: e.target.value })}>
               <option value="free">Placed on a part (move and resize)</option>
+              <option value="tile">Repeating pattern (tiled over the kit)</option>
               <option value="texture">Whole kit texture (stretched over the UV layout)</option>
             </Select>
           </label>}
+          {tiled && (
+            <>
+              <Slider label="Tile size" unit="cm" min={2} max={60} step={0.5} value={round(layer.size * 100)} onChange={(v) => patch({ size: v / 100 })} />
+              <Slider label="Spacing" unit="cm" min={0} max={40} step={0.5} value={round((layer.tile?.gap ?? 0.03) * 100)}
+                onChange={(v) => patch({ tile: { ...layer.tile, gap: v / 100 } })} />
+              <label className="check">
+                <input type="checkbox" checked={layer.tile?.stagger !== false} onChange={(e) => patch({ tile: { ...layer.tile, stagger: e.target.checked } })} />
+                Stagger every other row
+              </label>
+              <p className="hint">Repeats over the body and sleeves. Use the mask below to limit where it shows.</p>
+            </>
+          )}
           {layer.fit === "texture" && !layer.role?.startsWith("logo-") && <p className="hint">Fills the whole shirt texture. Use opacity and blend below to mix it with the kit.</p>}
           <StrokeField stroke={layer.stroke} palette={palette} onChange={(stroke) => patch({ stroke })} />
         </>
@@ -607,7 +621,7 @@ function Inspector({ layer, garment, project, template, fonts, patch, uploadImag
         </>
       )}
 
-      {(placed || layer.type === "pattern") && !(layer.type === "image" && layer.fit === "texture") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern"} />}
+      {(placed || layer.type === "pattern" || tiled) && !(layer.type === "image" && layer.fit === "texture") && <TransformFields layer={layer} setT={setT} pattern={layer.type === "pattern" || tiled} />}
 
       {layer.type === "material" && (
         <>

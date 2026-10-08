@@ -116,6 +116,7 @@ function paintLayer(ctx, layer, env, depth) {
       return paintPattern(ctx, layer, env);
     case "image":
       if (layer.fit === "texture") return paintTexture(ctx, layer, env);
+      if (layer.fit === "tile") return paintTile(ctx, layer, env);
       return paintPlaced(ctx, layer, env);
     case "text":
     case "graphic":
@@ -272,6 +273,38 @@ function paintTexture(ctx, layer, env) {
   eachIsland(ctx, env, layer, null, () => {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(image, 0, 0, env.S, env.H);
+  });
+}
+
+/**
+ * An image repeated over the garment like a pattern: tiles of `size` metres (the longer side) with `tile.gap` between
+ * them, optionally every other row shifted by half a tile. Drawn upright on every panel, moved, scaled and turned by
+ * the layer's transform, and kept off the bands unless the mask names regions.
+ */
+const MAX_TILES = 3000;
+function paintTile(ctx, layer, env) {
+  const image = env.images[layer.asset];
+  if (!image) return;
+  const t = layer.transform;
+  const iw = image.naturalWidth || image.width || 1;
+  const ih = image.naturalHeight || image.height || 1;
+  const k = layer.size / Math.max(iw, ih); // metres per image pixel
+  const w = iw * k, h = ih * k;
+  const gap = layer.tile?.gap ?? 0.03;
+  const stepX = w + gap, stepY = h + gap;
+  const reach = (1.5 + Math.hypot(t.x, t.y)) / Math.max(0.05, Math.min(Math.abs(t.scaleX), Math.abs(t.scaleY)));
+  const nx = Math.ceil(reach / stepX) + 1, ny = Math.ceil(reach / stepY) + 1;
+  if ((2 * nx + 1) * (2 * ny + 1) > MAX_TILES) return; // too small to read: skip rather than freeze
+  const src = layer.tint ? tinted(image, env.color(layer.tint)) : image;
+  const accept = layer.mask?.include ? null : ({ kind }) => kind === "body" || kind === "sleeve" || kind === "sock";
+  eachIsland(ctx, env, layer, accept, ({ frame }) => {
+    frame.local(ctx); // metres, y up
+    applyTransform(ctx, t);
+    ctx.scale(1, -1); // images are drawn y down
+    for (let j = -ny; j <= ny; j++) {
+      const shift = layer.tile?.stagger && j % 2 ? stepX / 2 : 0;
+      for (let i = -nx; i <= nx; i++) ctx.drawImage(src, i * stepX + shift - w / 2, -(j * stepY) - h / 2, w, h);
+    }
   });
 }
 
