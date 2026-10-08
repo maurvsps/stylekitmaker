@@ -529,6 +529,138 @@ export const PATTERNS = [
     },
   },
   {
+    id: "wide-hoops",
+    label: "Wide hoops",
+    slots: ["Hoops"],
+    paint(ctx, [a], { reach: R }) {
+      const b = 0.13;
+      for (let k = 0; (2 * k + 1) * b < R; k++) box(ctx, a, -R, (2 * k + 1) * b, R, (2 * k + 2) * b);
+    },
+  },
+  {
+    id: "chevron-stack",
+    label: "Stacked chevrons",
+    slots: ["Chevrons"],
+    paint(ctx, [a]) {
+      for (let k = 0; k < 4; k++) band(ctx, a, 0.03, [[-0.6, 0.8 - k * 0.1], [0, 0.46 - k * 0.1], [0.6, 0.8 - k * 0.1]]);
+    },
+  },
+  {
+    id: "scales",
+    label: "Scales",
+    slots: ["Lines"],
+    paint(ctx, [a], { reach: R }) {
+      const r = 0.05;
+      ctx.strokeStyle = a;
+      ctx.lineWidth = 0.007;
+      ctx.beginPath();
+      const n = Math.ceil(R / r);
+      for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+        const cx = i * 2 * r + (j % 2 ? r : 0), cy = j * r;
+        ctx.moveTo(cx + r, cy);
+        ctx.arc(cx, cy, r, 0, Math.PI);
+      }
+      ctx.stroke();
+    },
+  },
+  {
+    id: "triangles",
+    label: "Triangles",
+    slots: ["Triangles"],
+    paint(ctx, [a], { reach: R }) {
+      const s = 0.1;
+      const n = Math.ceil(R / s);
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+        const x = i * s + (j % 2 ? s / 2 : 0), y = j * s;
+        ctx.moveTo(x - s / 2, y + s / 2); ctx.lineTo(x + s / 2, y + s / 2); ctx.lineTo(x, y - s / 2); ctx.closePath();
+      }
+      ctx.fill();
+    },
+  },
+  {
+    id: "stars",
+    label: "Stars",
+    slots: ["Stars"],
+    paint(ctx, [a], { reach: R }) {
+      const s = 0.1, r = 0.03;
+      const n = Math.ceil(R / s);
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+        const cx = i * s + (j % 2 ? s / 2 : 0), cy = j * s;
+        for (let k = 0; k < 10; k++) {
+          const t = (k * Math.PI) / 5 - Math.PI / 2, rr = k % 2 ? r * 0.42 : r;
+          k ? ctx.lineTo(cx + rr * Math.cos(t), cy + rr * Math.sin(t)) : ctx.moveTo(cx + rr * Math.cos(t), cy + rr * Math.sin(t));
+        }
+        ctx.closePath();
+      }
+      ctx.fill();
+    },
+  },
+  {
+    id: "crosses",
+    label: "Crosses",
+    slots: ["Crosses"],
+    paint(ctx, [a], { reach: R }) {
+      const s = 0.08, l = 0.016, w = 0.005;
+      const n = Math.ceil(R / s);
+      for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+        box(ctx, a, i * s - l, j * s - w, i * s + l, j * s + w);
+        box(ctx, a, i * s - w, j * s - l, i * s + w, j * s + l);
+      }
+    },
+  },
+  {
+    id: "halftone",
+    label: "Halftone",
+    slots: ["Dots"],
+    // Dots that grow from the hem toward the chest.
+    paint(ctx, [a], { reach: R }) {
+      const s = 0.05;
+      const n = Math.ceil(R / s);
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      for (let j = -n; j <= n; j++) for (let i = -n; i <= n; i++) {
+        const x = i * s + (j % 2 ? s / 2 : 0), y = j * s;
+        const r = Math.max(0, Math.min(0.026, 0.026 * (1 - y / 0.8)));
+        if (r > 0.002) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 2 * Math.PI); }
+      }
+      ctx.fill();
+    },
+  },
+  {
+    id: "sunburst",
+    label: "Sunburst",
+    slots: ["Rays"],
+    paint(ctx, [a], { reach: R }) {
+      ctx.fillStyle = a;
+      const rays = 24, L = Math.max(R, 1.5) * 1.5;
+      for (let k = 0; k < rays; k++) {
+        const t0 = (k * 2 * Math.PI) / rays, t1 = t0 + Math.PI / rays;
+        ctx.beginPath();
+        ctx.moveTo(0, 0.4);
+        ctx.lineTo(0, 0.4); ctx.lineTo(L * Math.cos(t0), 0.4 + L * Math.sin(t0)); ctx.lineTo(L * Math.cos(t1), 0.4 + L * Math.sin(t1));
+        ctx.closePath();
+        ctx.fill();
+      }
+    },
+  },
+  {
+    id: "lightning",
+    label: "Lightning",
+    slots: ["Bolt"],
+    paint(ctx, [a]) {
+      ctx.fillStyle = a;
+      ctx.beginPath();
+      ctx.moveTo(0.04, 0.78); ctx.lineTo(-0.1, 0.46); ctx.lineTo(-0.02, 0.46); ctx.lineTo(-0.08, 0.18);
+      ctx.lineTo(0.1, 0.52); ctx.lineTo(0.02, 0.52); ctx.lineTo(0.12, 0.78);
+      ctx.closePath();
+      ctx.fill();
+    },
+  },
+  {
     id: "gradient",
     label: "Gradient",
     slots: ["Bottom", "Top"],

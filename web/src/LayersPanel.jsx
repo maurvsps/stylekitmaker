@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ColorButton from "./ColorPicker.jsx";
 import ColorsStep from "./ColorsStep.jsx";
 import LogoControls from "./LogoControls.jsx";
+import RangeInput from "./RangeInput.jsx";
 import { BASE_DESIGNS, GRAPHICS, MATERIALS, PATTERNS, baseDesign, fillIsland, paintPattern, pattern as patternDef, patternSlots } from "./library.js";
 import { findOpenImagePosition } from "./imagePlacement.js";
 import {
@@ -909,7 +910,7 @@ export function StrokeField({ stroke, palette, onChange }) {
 
 export function Slider({ label, unit, value, onChange, ...range }) {
   return (
-    <label className="slider">
+    <div className="slider">
       <span>
         {label}
         <output>
@@ -918,8 +919,8 @@ export function Slider({ label, unit, value, onChange, ...range }) {
           {unit}
         </output>
       </span>
-      <input type="range" value={value} onChange={(e) => onChange(Number(e.target.value))} {...range} />
-    </label>
+      <RangeInput label={typeof label === "string" ? label : undefined} value={value} onChange={onChange} {...range} />
+    </div>
   );
 }
 

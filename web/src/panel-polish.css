@@ -507,3 +507,15 @@
 .collar-thumb { width: 100%; aspect-ratio: 1; border-radius: 9px; overflow: hidden; background: #f3f3f5; display: block; }
 .collar-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .collar-name { max-width: 100%; font-size: 11px; line-height: 1.25; font-weight: 500; text-align: center; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Slider arrows: fine steps, and an easy target on touch screens */
+.range-row { display: flex; align-items: center; gap: 8px; }
+.range-row input[type="range"] { flex: 1; min-width: 0; width: auto; }
+.range-step {
+  flex: 0 0 auto; width: 28px; height: 28px; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  font-size: 18px; line-height: 1; color: var(--text); background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .12); touch-action: manipulation; user-select: none; -webkit-user-select: none;
+}
+.range-step:hover:not(:disabled) { background: rgba(255, 255, 255, .16); }
+.range-step:disabled { opacity: .35; }
+@media (pointer: coarse) { .range-step { width: 36px; height: 36px; font-size: 22px; } }

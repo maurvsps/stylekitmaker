@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import RangeInput from "./RangeInput.jsx";
 import { cleanName, cleanNumber } from "./design.js";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
 import { IDENTITY, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
@@ -57,10 +58,6 @@ const DEFAULT_SLOT_SIZES = {
 
 export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
   const designInput = useRef(null);
-  const [showGuide, setShowGuide] = useState(() => {
-    try { return !localStorage.getItem("kit-maker:guide-dismissed") && !localStorage.getItem("kit-maker:design"); }
-    catch { return true; }
-  });
   const [selection, setSelection] = useState({ shirt: COLORS_ID });
   const [tab, setTab] = useState(savedTab);
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
@@ -433,14 +430,6 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <span className="panel-sub-hint">{TABS[stepIndex].hint}</span>
       </div>
       <div className="panel-content">
-      {tab === "layers" && showGuide && <div className="quick-start">
-        <button type="button" className="quiet quick-start-close" aria-label="Dismiss getting started guide" onClick={() => {
-          setShowGuide(false);
-          try { localStorage.setItem("kit-maker:guide-dismissed", "1"); } catch { /* private browsing */ }
-        }}>x</button>
-        <strong>Make your first kit in four steps</strong>
-        <p>Everything about the shirt is a layer: pick one and its options open on top. Then add images, the player and export.</p>
-      </div>}
       {tab === "layers" && <Section title="Layers" eyebrow="01" className="layers-section">
         <LayersPanel
           project={project}
@@ -718,20 +707,13 @@ function hideAt(layers, slot, role) {
 /** Size adjustment slider */
 function SliderField({ label, value, unit, min, max, step = 1, onChange }) {
   return (
-    <label className="slider">
+    <div className="slider">
       <span>
         <span>{label}</span>
         <output>{value}{unit ? ` ${unit}` : ""}</output>
       </span>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-    </label>
+      <RangeInput label={label} min={min} max={max} step={step} value={value} onChange={onChange} />
+    </div>
   );
 }
 
