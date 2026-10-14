@@ -1,0 +1,20 @@
+FIFA Kit Creator — fifakitcreator.com
+
+Files in this folder (3D models and normal maps) are the work of FIFA Kit Creator and are used with the
+author's permission, granted by email on 2026-10-14 in reply to a request from this project's owner.
+
+Permission granted:
+  - include the files in this project, load them in this editor, and publish it on the web
+    (GitHub Pages, Netlify, Vercel);
+  - modify them as needed (scale, convert to .glb, edit UVs);
+  - free to use, non-commercial or commercial.
+Condition: credit "FIFA Kit Creator — fifakitcreator.com" in the project or README.
+
+Expected files (from fifakitcreator.com/kit-creator/static/):
+  jersey_ss.obj      3d/eafc/regular/jersey_ss.obj
+  collar_0.obj       3d/eafc/collars/collar_0.obj
+  shorts_0.obj       3d/eafc/shorts_0.obj
+  socks.obj          3d/eafc/socks.obj
+  jersey_24.png      normals/jersey_24.png
+  shorts_24.png      normals/shorts_24.png
+  socks_24.png       normals/socks_24.png

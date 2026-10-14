@@ -3,7 +3,7 @@ import RangeInput from "./RangeInput.jsx";
 import FinishPicker from "./FinishPicker.jsx";
 import { cleanName, cleanNumber } from "./design.js";
 import LayersPanel, { StrokeField } from "./LayersPanel.jsx";
-import { IDENTITY, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, walk } from "./project.js";
+import { IDENTITY, SHOWN_GARMENTS, editLayers, findLayer, findRole, makeLayer, mapLayer, newId, removeLayer, resolveColor, walk } from "./project.js";
 import { prepareArtwork, prepareLogo } from "./logoImage.js";
 import { imageSize, normalizeImageUrl, resolveRemoteImage } from "./remoteImage.js";
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
@@ -57,6 +57,8 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   // "open" is the Open Kit Creator shell: it draws its own header and icon rail and tells this panel which section to show.
   const open = variant === "open";
   const designInput = useRef(null);
+  const logoFile = useRef(null); // Open Kit Creator logos: the upload button of a spot
+  const logoFileSlot = useRef(null);
   const [selection, setSelection] = useState({ shirt: COLORS_ID });
   const [tabState, setTabState] = useState(savedTab);
   const tab = open ? section : tabState;
@@ -485,17 +487,60 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         />
       </Section>}
 
-      {tab === "logos" && <Section title="Logos">
-        <p className="section-copy">Crest, kit brand, sponsors and sleeve patches. Pick a spot to add or change its logo.</p>
-        <div className="okc-grid">
-          {logoSlots.map((s) => (
-            <button key={s.id} type="button" className={`okc-chip${filledSlots[s.id] ? " done" : ""}`}
-              onClick={() => { logo.add(s.id); }}>
-              {s.label}{filledSlots[s.id] ? " ✓" : ""}
-            </button>
-          ))}
-        </div>
-      </Section>}
+      {tab === "logos" && <div className="okc-logos">
+        {[["brand", "Brand"], ["crest", "Team"], ["shirt-sponsor", "Sponsor"], ["back-sponsor", "Back sponsor"], ["sleeve-left", "Sleeve (left)"], ["sleeve-right", "Sleeve (right)"]].map(([id, label]) => {
+          const s = logoSlots.find((x) => x.id === id);
+          const l = slotLayer(s);
+          const asset = l && project.assets[l.asset];
+          const edit = () => { select(l.id, "shirt"); setTab("layers"); };
+          return (
+            <div key={id} className={`okc-logo-slot${l ? " filled" : ""}`}>
+              <div className="okc-logo-row">
+                <button type="button" className="okc-ic" title={`Upload a ${label.toLowerCase()} logo`} aria-label={`Upload ${label}`}
+                  onClick={() => { logoFileSlot.current = s; logoFile.current.click(); }}>
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10 13V3m0 0L6 7m4-4 4 4M4 17h12" /></svg>
+                </button>
+                <button type="button" className="okc-ic" title={`Pick a ${label.toLowerCase()} from the library`} aria-label={`${label} library`} onClick={() => openSlot(s)}>
+                  <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M3 9h14v7H3zM4.5 6h11v2h-11zM6 3h8v2H6z" /></svg>
+                </button>
+                <span className="okc-logo-label">{label}{l ? ":" : ""}</span>
+                {l && (
+                  <span className="okc-logo-chip" title={asset?.name || l.name}>
+                    {asset?.src && <img src={asset.src} alt="" />}
+                    <span>{l.clubData?.name || asset?.name || l.name}</span>
+                    <button type="button" aria-label={`Remove ${label}`} onClick={() => setProject((p) => editLayers(p, "shirt", (ls) => removeLayer(ls, l.id)))}>×</button>
+                  </span>
+                )}
+              </div>
+              {l && (
+                <div className="okc-logo-sub">
+                  <label className="okc-logo-check">
+                    <input type="checkbox" checked={l.visible} onChange={(e) => setProject((p) => editLayers(p, "shirt", (ls) => mapLayer(ls, l.id, (x) => ({ ...x, visible: e.target.checked }))))} />
+                    <span className="okc-swatch" style={{ background: l.tint ? resolveColor(l.tint, project.palette) : "#ffffff" }} />
+                    Shirt
+                  </label>
+                  <button type="button" className="okc-ic" title="Position, size and colour" aria-label={`Edit ${label}`} onClick={edit}>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" /><circle cx="10" cy="10" r="2" fill="currentColor" /></svg>
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button type="button" className="okc-custom-pos" onClick={() => {
+          const first = logoSlots.map(slotLayer).find(Boolean);
+          if (first) select(first.id, "shirt");
+          setTab("layers");
+        }}>
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 2 7 5h2v4H5V7L2 10l3 3v-2h4v4H7l3 3 3-3h-2v-4h4v2l3-3-3-3v2h-4V5h2z" /></svg>
+          Custom positioning
+        </button>
+        <input ref={logoFile} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
+          const file = e.target.files[0];
+          e.target.value = "";
+          if (file && logoFileSlot.current) slotFile(logoFileSlot.current)(file).catch((err) => onError(err.message));
+        }} />
+      </div>}
 
       {tab === "effects" && <Section title="Material effects">
         <p className="section-copy">A fabric finish over the kit: it changes how light hits the cloth. Added on top of the layer list.</p>

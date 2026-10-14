@@ -6,6 +6,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { cuffLength } from "./library.js";
+import { heightToNormal } from "./kitTexture.js";
 
 const BACKGROUND = 0x000000;
 const draco = new DRACOLoader().setDecoderPath("draco/");
@@ -42,7 +43,10 @@ const loadAo = (name) => {
  * template (where the ribbed trims are). The ref exposes screenshot() and view().
  */
 const Viewer = forwardRef(function Viewer(
-  { models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2, handTool = false },
+  {
+    models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2, handTool = false,
+    rig = "studio", turntableLighting = "soft", freeView = false,
+  },
   ref,
 ) {
   const host = useRef(null);
@@ -85,6 +89,9 @@ const Viewer = forwardRef(function Viewer(
 
     const kit = new THREE.Group();
     scene.add(kit);
+    const turntableLights = makeTurntableLights();
+    turntableLights.visible = false;
+    scene.add(turntableLights);
 
     const camera = new THREE.PerspectiveCamera(30, 1, 0.01, 50);
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -110,7 +117,8 @@ const Viewer = forwardRef(function Viewer(
       dirty = true;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      if (!fitted) {
+      if (three.current?.turn.on && !three.current.turn.free) placeTurntableCamera(three.current);
+      else if (!fitted) {
         fitDistance(camera, controls);
         fitted = true; // after that, leave the user's zoom alone (mobile browsers resize as the URL bar hides)
       }
@@ -118,9 +126,16 @@ const Viewer = forwardRef(function Viewer(
     const observer = new ResizeObserver(resize);
     observer.observe(el);
     resize();
-    renderer.setAnimationLoop(() => {
+    renderer.setAnimationLoop((time) => {
       const t = three.current;
-      const moved = controls.update();
+      let moved = controls.update();
+      const turn = t?.turn;
+      if (turn?.on && !turn.free && turn.rotating) {
+        turn.angle = (time * TURN_SPEED) % (Math.PI * 2);
+        kit.rotation.y = turn.angle;
+        moved = true;
+      }
+      if (turn?.on && turn.free && moved) followCamera(t);
       const now = t ? textureStamp(t) : 0;
       if (!moved && !dirty && now === stamp) return;
       dirty = false;
@@ -129,11 +144,62 @@ const Viewer = forwardRef(function Viewer(
     });
 
     three.current = {
-      renderer, scene, camera, controls, kit, garments: {}, materials: [], lights: { key, fill, rim, hemi },
+      renderer, scene, camera, controls, kit, garments: {}, materials: [], lights: { key, fill, rim, hemi }, turntableLights,
       invalidate: () => (dirty = true),
+      // Turntable rig: the camera stays put and the kit turns (see setRig).
+      turn: { on: false, free: false, angle: 0, rotating: false, zoom: 1, pan: new THREE.Vector2(), drag: null },
+      handTool: false,
     };
+    // Turntable: drag turns the kit (or pans with the hand tool), the wheel zooms. Free view uses the orbit controls.
+    const dom = renderer.domElement;
+    const onDown = (e) => {
+      const t = three.current;
+      if (!t?.turn.on || t.turn.free || (e.pointerType === "mouse" && e.button !== 0)) return;
+      t.turn.drag = { id: e.pointerId, x: e.clientX, y: e.clientY, angle: t.turn.angle, pan: t.turn.pan.clone(), panning: t.handTool };
+      dom.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e) => {
+      const t = three.current;
+      const drag = t?.turn.drag;
+      if (!drag || drag.id !== e.pointerId) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (drag.panning) {
+        const span = 2 * camera.position.distanceTo(controls.target) * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const perPixel = span / (el.clientHeight || 1);
+        t.turn.pan.set(drag.pan.x - dx * perPixel, drag.pan.y + dy * perPixel);
+        placeTurntableCamera(t);
+      } else {
+        t.turn.rotating = false;
+        t.turn.angle = drag.angle + dx * TURN_PER_PIXEL;
+        kit.rotation.y = t.turn.angle;
+      }
+      t.invalidate();
+    };
+    const onUp = (e) => {
+      const t = three.current;
+      if (t?.turn.drag?.id === e.pointerId) t.turn.drag = null;
+    };
+    const onWheel = (e) => {
+      const t = three.current;
+      if (!t?.turn.on || t.turn.free) return;
+      e.preventDefault();
+      t.turn.zoom = THREE.MathUtils.clamp(t.turn.zoom * Math.exp(e.deltaY * 0.001), 0.3, 1.8);
+      placeTurntableCamera(t);
+      t.invalidate();
+    };
+    dom.addEventListener("pointerdown", onDown);
+    dom.addEventListener("pointermove", onMove);
+    dom.addEventListener("pointerup", onUp);
+    dom.addEventListener("pointercancel", onUp);
+    dom.addEventListener("wheel", onWheel, { passive: false });
     if (import.meta.env.DEV) window.__kit = three.current; // for screenshots and debugging in the dev server
     return () => {
+      dom.removeEventListener("pointerdown", onDown);
+      dom.removeEventListener("pointermove", onMove);
+      dom.removeEventListener("pointerup", onUp);
+      dom.removeEventListener("pointercancel", onUp);
+      dom.removeEventListener("wheel", onWheel);
       observer.disconnect();
       renderer.setAnimationLoop(null);
       controls.dispose();
@@ -147,6 +213,7 @@ const Viewer = forwardRef(function Viewer(
   useEffect(() => {
     const controls = three.current?.controls;
     if (!controls) return;
+    three.current.handTool = handTool;
     controls.enablePan = handTool;
     controls.mouseButtons.LEFT = handTool ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
     controls.touches.ONE = handTool ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
@@ -167,6 +234,7 @@ const Viewer = forwardRef(function Viewer(
           if (o.isMesh) o.castShadow = o.receiveShadow = true;
         });
         const anisotropy = t.renderer.capabilities.getMaxAnisotropy();
+        const seams = seamMap(name, object);
         object.traverse((o) => {
           if (o.isMesh) {
             // The collar mesh shows the collar's own, sharper texture (same design, see collarTemplate).
@@ -182,6 +250,10 @@ const Viewer = forwardRef(function Viewer(
             }
             applyMaps(o.material, t.maps?.[garment]);
             applyRibs(o.material, t.templates?.[name]);
+            if (seams && !o.material.name.endsWith("_inner")) {
+              o.material.userData.seam.value = seams;
+              o.material.defines = { ...o.material.defines, USE_SEAM: "" };
+            }
           }
         });
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
@@ -227,10 +299,20 @@ const Viewer = forwardRef(function Viewer(
     t.invalidate();
   }, [templates]);
 
+  // Camera rig: the studio orbit, or the turntable (fixed camera, the kit turns) with an optional free view.
+  useEffect(() => {
+    const t = three.current;
+    if (t) setRig(t, rig === "turntable", freeView);
+  }, [rig, freeView]);
+
   // Lighting presets: the same rig, re-balanced.
   useEffect(() => {
     const t = three.current;
     if (!t) return;
+    if (rig === "turntable") {
+      applyTurntableLighting(t, turntableLighting);
+      return;
+    }
     const preset = LIGHTING[lighting] || LIGHTING.studio;
     for (const [name, [intensity, x, y, z]] of Object.entries(preset.lights)) {
       t.lights[name].intensity = intensity;
@@ -241,7 +323,7 @@ const Viewer = forwardRef(function Viewer(
     t.renderer.toneMappingExposure = preset.exposure ?? 0.9;
     t.renderer.shadowMap.needsUpdate = true;
     t.invalidate();
-  }, [lighting]);
+  }, [lighting, turntableLighting, rig]);
 
   useImperativeHandle(ref, () => ({
     /**
@@ -263,7 +345,9 @@ const Viewer = forwardRef(function Viewer(
 
     /** Turn the camera to a preset: "front", "three-quarter", "side", "back" or "close-up" (the chest). */
     view(preset) {
-      const { camera, controls } = three.current;
+      const t = three.current;
+      if (t.turn.on) return turntableView(t, preset);
+      const { camera, controls } = t;
       const close = preset === "close-up";
       controls.target.set(0, close ? 0.48 : CENTRE_Y, 0);
       const yaw = { front: 0, back: Math.PI, "three-quarter": 0.45, side: Math.PI / 2, "close-up": 0.15 }[preset] ?? 0;
@@ -280,6 +364,200 @@ const Viewer = forwardRef(function Viewer(
 
   return <div className={`viewer${handTool ? " hand-tool" : ""}`} ref={host} />;
 });
+
+// ---------------------------------------------------------------- turntable rig
+// The alternative viewer of the Open Kit Creator layout, modelled on how fifakitcreator.com shows a kit: a long lens
+// (20 degrees) that stays put while the kit itself turns, named angles, a slow spin, and a free view where the
+// lights travel with the camera so the side facing the viewer is always lit.
+
+const TURN_FOV = 20;
+const STUDIO_FOV = 30;
+const TURN_PER_PIXEL = 0.02; // radians the kit turns per pixel dragged
+const TURN_SPEED = 0.0006; // radians per millisecond while spinning (about one turn in 10 s)
+/** Kit angle per named view (0 shows the front). */
+export const TURNTABLE_VIEWS = [
+  ["front", "Front", 0],
+  ["side", "Side", -Math.PI * 0.2],
+  ["side_right", "Side right", Math.PI * 0.2],
+  ["lateral_left", "Lateral left", -Math.PI / 2],
+  ["lateral_right", "Lateral right", Math.PI / 2],
+  ["back", "Back", Math.PI],
+  ["side_back", "Side (back)", Math.PI * 0.8],
+];
+const VIEW_ANGLE = Object.fromEntries(TURNTABLE_VIEWS.map(([id, , a]) => [id, a]));
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+
+/** Six lights the turntable presets balance: ambient, two from the front, two rims from above behind, and sky. */
+function makeTurntableLights() {
+  const group = new THREE.Group();
+  group.name = "turntable-lights";
+  const names = ["ambient", "frontLeft", "frontRight", "rimLeft", "rimRight", "sky"];
+  const lights = [
+    new THREE.AmbientLight(0xffffff, 0),
+    ...[0, 1, 2, 3].map(() => new THREE.DirectionalLight(0xffffff, 0)),
+    new THREE.HemisphereLight(0xffffff, 0x000000, 0),
+  ];
+  lights.forEach((l, i) => {
+    l.name = names[i];
+    l.userData.base = new THREE.Vector3(0, 1, 0);
+    group.add(l);
+  });
+  return group;
+}
+
+// Presets: per light [intensity, [x, y, z] direction, colour, ground colour (sky light)]; env = room reflections.
+// Keep the ambient low: it has no direction, so it flattens relief and shows no gloss. The finishes and material
+// effects (satin, metallic, quilted, mesh...) read through the directional lights and the room reflections.
+const TURNTABLE_LIGHTING = {
+  soft: {
+    label: "Soft box", env: 0.65, exposure: 1,
+    lights: { ambient: [0.3], frontLeft: [1.7, [-0.7, 0.45, 1]], frontRight: [0.8, [0.6, 0.1, 1]], rimLeft: [0.9, [-0.5, 2, -1]], rimRight: [0.9, [0.5, 2, -1]], sky: [0.5, [0, 1, 0], "#ffffff", "#5a5a5a"] },
+  },
+  studio: {
+    label: "Studio", env: 0.5, exposure: 1,
+    lights: { frontLeft: [1.1, [-0.6, 0.3, 1]], frontRight: [0.6, [0.5, 0, 1]], rimLeft: [0.5, [-0.5, 2, -1]], rimRight: [0.5, [0.5, 2, -1]], sky: [1.5, [0, 1, 0], "#ffffff", "#5a5a5a"] },
+  },
+  contrast: {
+    label: "Contrast", env: 0.4, exposure: 1,
+    lights: { frontLeft: [1.6, [-0.3, 1, 1]], frontRight: [0.5, [0, -1, 1]], rimLeft: [0.6, [-0.5, 2, -1]], rimRight: [0.6, [0.5, 2, -1]], sky: [1.4, [0, 1, 0], "#ffffff", "#000000"] },
+  },
+  day: {
+    label: "Day", env: 0.5, exposure: 1,
+    lights: { frontLeft: [2.6, [0, 40, 30], "#fff5e5"], sky: [1.4, [0, 50, 0], "#4d8fff", "#ffc880"] },
+  },
+  dayLeft: {
+    label: "Day (left)", env: 0.5, exposure: 1,
+    lights: { frontLeft: [2.6, [-30, 52, 30], "#fff5e5"], sky: [1.4, [0, 50, 0], "#4d8fff", "#ffc880"] },
+  },
+  dayRight: {
+    label: "Day (right)", env: 0.5, exposure: 1,
+    lights: { frontLeft: [2.6, [30, 52, 30], "#fff5e5"], sky: [1.4, [0, 50, 0], "#4d8fff", "#ffc880"] },
+  },
+  night: {
+    label: "Night", env: 0.3, exposure: 1,
+    lights: { ambient: [0.2], frontLeft: [1.6, [-0.5, 1, 1]], frontRight: [1.4, [0.5, 1, 1]], rimLeft: [1.2, [-0.5, 1, -1]], rimRight: [1.2, [0.5, 1, -1]] },
+  },
+  darkLeft: {
+    label: "Dark (left)", env: 0.2, exposure: 1,
+    lights: { ambient: [0.15], frontRight: [3.6, [-4, 3, 1]], rimLeft: [0.6, [-0.5, 2, -1]], rimRight: [0.6, [0.5, 2, -1]] },
+  },
+  darkRight: {
+    label: "Dark (right)", env: 0.2, exposure: 1,
+    lights: { ambient: [0.15], frontRight: [3.6, [4, 3, 1]], rimLeft: [0.6, [-0.5, 2, -1]], rimRight: [0.6, [0.5, 2, -1]] },
+  },
+  environment: { label: "Environment only", env: 1.1, exposure: 1, lights: {} },
+};
+export const TURNTABLE_LIGHTING_PRESETS = Object.entries(TURNTABLE_LIGHTING).map(([id, p]) => [id, p.label]);
+
+function applyTurntableLighting(t, name) {
+  const preset = TURNTABLE_LIGHTING[name] || TURNTABLE_LIGHTING.soft;
+  for (const light of t.turntableLights.children) {
+    const [intensity = 0, dir, color, ground] = preset.lights[light.name] || [];
+    light.intensity = intensity;
+    if (dir) light.userData.base.set(...dir).normalize().multiplyScalar(5);
+    light.color.set(color || "#ffffff");
+    if (light.isHemisphereLight) light.groundColor.set(ground || "#000000");
+  }
+  t.scene.environmentIntensity = preset.env;
+  t.renderer.toneMappingExposure = preset.exposure;
+  followCamera(t);
+  t.invalidate();
+}
+
+/** Free view: the lights and the room reflections turn with the camera, so the side facing it stays lit. */
+function followCamera(t) {
+  const { camera, controls, turntableLights, scene, turn } = t;
+  const azimuth = turn.on && turn.free ? Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z) : 0;
+  for (const light of turntableLights.children) light.position.copy(light.userData.base).applyAxisAngle(Y_AXIS, azimuth);
+  scene.environmentRotation.y = azimuth;
+}
+
+/** Fixed turntable camera: straight at the kit's centre, at the fitted distance times the zoom, moved by the pan. */
+function placeTurntableCamera(t) {
+  const { camera, controls, turn } = t;
+  controls.target.set(turn.pan.x, CENTRE_Y + turn.pan.y, 0);
+  const d = fitDistance(camera, controls, false) * turn.zoom;
+  camera.position.set(turn.pan.x, CENTRE_Y + turn.pan.y, d);
+  camera.lookAt(controls.target);
+  controls.update();
+}
+
+/** Free-view camera at the angle the turntable shows (turning the kit by a equals orbiting the camera by -a). */
+function placeOrbitCamera(t, angle) {
+  const { camera, controls } = t;
+  controls.target.set(0, CENTRE_Y, 0);
+  const d = fitDistance(camera, controls, false);
+  camera.position.set(Math.sin(-angle) * d, CENTRE_Y, Math.cos(-angle) * d);
+  controls.update();
+}
+
+function setRig(t, on, free) {
+  const { turn, camera, controls, kit, lights, turntableLights } = t;
+  const was = turn.on;
+  if (on && !was) {
+    // A fresh turntable starts at the front, unzoomed.
+    turn.angle = 0;
+    turn.zoom = 1;
+    turn.pan.set(0, 0);
+    turn.rotating = false;
+  } else if (on && turn.free && !free) {
+    // Leaving the free view: keep looking from where the camera was (orbiting by a equals turning the kit by -a).
+    turn.angle = -Math.atan2(camera.position.x - controls.target.x, camera.position.z - controls.target.z);
+  }
+  turn.on = on;
+  turn.free = on && free;
+  turn.drag = null;
+  for (const light of Object.values(lights)) light.visible = !on;
+  turntableLights.visible = on;
+  camera.fov = on ? TURN_FOV : STUDIO_FOV;
+  camera.updateProjectionMatrix();
+  if (!on) {
+    turn.rotating = false;
+    kit.rotation.y = 0;
+    controls.enabled = true;
+    if (was) {
+      controls.target.set(0, CENTRE_Y, 0);
+      camera.position.set(0.26, CENTRE_Y + 0.05, 1);
+      fitDistance(camera, controls);
+    }
+  } else if (turn.free) {
+    turn.rotating = false;
+    kit.rotation.y = 0;
+    controls.enabled = true;
+    placeOrbitCamera(t, turn.angle);
+  } else {
+    controls.enabled = false;
+    kit.rotation.y = turn.angle;
+    placeTurntableCamera(t);
+  }
+  followCamera(t);
+  t.renderer.shadowMap.needsUpdate = true;
+  t.invalidate();
+}
+
+/** A named turntable view, "rotate" to spin, or a studio preset name (mapped to the nearest angle). */
+function turntableView(t, preset) {
+  const { turn, kit } = t;
+  const alias = { "three-quarter": "side_right", "close-up": "front" };
+  const id = alias[preset] || preset;
+  if (id === "rotate") {
+    if (turn.free) setRig(t, true, false);
+    turn.rotating = true;
+    t.invalidate();
+    return;
+  }
+  turn.rotating = false;
+  turn.angle = VIEW_ANGLE[id] ?? 0;
+  turn.pan.set(0, 0);
+  turn.zoom = preset === "close-up" ? 0.55 : 1;
+  if (turn.free) placeOrbitCamera(t, turn.angle);
+  else {
+    kit.rotation.y = turn.angle;
+    placeTurntableCamera(t);
+  }
+  followCamera(t);
+  t.invalidate();
+}
 
 /** Sum of the versions of every texture the kit's materials draw: it changes whenever one is repainted. */
 function textureStamp(t) {
@@ -341,6 +619,107 @@ function capture(t, aspect, long = 3840) {
   }
 }
 
+
+// ---------------------------------------------------------------- seams
+// Every edge of the sewing pattern (the UV islands: side seams, armholes, shoulders, collar, hems and cuffs) gets a
+// sewn look in a normal map: a soft fold right at the edge, where the two pieces are joined, and a row of stitches a
+// few millimetres inside each piece. Built once per model from its geometry: an edge that only one triangle uses is
+// the edge of a piece (glTF splits the vertices along UV seams).
+
+const SEAM_SIZE = 2048;
+const seamCache = new Map();
+
+function seamMap(name, object) {
+  if (seamCache.has(name)) return seamCache.get(name);
+  const S = SEAM_SIZE;
+  const height = document.createElement("canvas");
+  height.width = height.height = S;
+  const ctx = height.getContext("2d", { willReadFrequently: true });
+  ctx.fillStyle = "rgb(128,128,128)";
+  ctx.fillRect(0, 0, S, S);
+  ctx.lineCap = "round";
+  let edges = 0;
+  object.traverse((o) => {
+    if (!o.isMesh || o.material?.name?.endsWith("_inner")) return;
+    const g = o.geometry;
+    const uv = g.attributes.uv;
+    if (!uv) return;
+    const index = g.index ? g.index.array : null;
+    const count = index ? index.length : g.attributes.position.count;
+    const at = (i) => (index ? index[i] : i);
+    // Edges used once, with the triangle's third corner (it says which side is inside the piece).
+    const seen = new Map();
+    for (let f = 0; f < count; f += 3) {
+      const tri = [at(f), at(f + 1), at(f + 2)];
+      for (let k = 0; k < 3; k++) {
+        const a = tri[k];
+        const b = tri[(k + 1) % 3];
+        const key = a < b ? `${a}_${b}` : `${b}_${a}`;
+        if (seen.has(key)) seen.set(key, null);
+        else seen.set(key, [a, b, tri[(k + 2) % 3]]);
+      }
+    }
+    const px = (i) => [uv.getX(i) * S, uv.getY(i) * S]; // canvas top = v 0 (flipY = false)
+    const folds = new Path2D();
+    const stitches = new Path2D();
+    for (const e of seen.values()) {
+      if (!e) continue;
+      const [a, b, c] = e.map(px);
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const len = Math.hypot(dx, dy);
+      if (len < 0.5 || len > S * 0.2) continue;
+      // Unit normal pointing into the piece.
+      let nx = -dy / len;
+      let ny = dx / len;
+      if ((c[0] - a[0]) * nx + (c[1] - a[1]) * ny < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      folds.moveTo(a[0], a[1]);
+      folds.lineTo(b[0], b[1]);
+      const off = SEAM.stitchInset * S;
+      stitches.moveTo(a[0] + nx * off, a[1] + ny * off);
+      stitches.lineTo(b[0] + nx * off, b[1] + ny * off);
+      edges++;
+    }
+    // The fold: the cloth turns down into the seam.
+    ctx.strokeStyle = "rgb(70,70,70)";
+    ctx.lineWidth = SEAM.foldWidth * S;
+    ctx.stroke(folds);
+    ctx.strokeStyle = "rgb(100,100,100)";
+    ctx.lineWidth = SEAM.foldWidth * S * 2.2;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke(folds);
+    ctx.globalAlpha = 1;
+    // The stitch row: a shallow channel, then raised stitches along it.
+    ctx.strokeStyle = "rgb(112,112,112)";
+    ctx.lineWidth = SEAM.stitchWidth * S * 1.8;
+    ctx.stroke(stitches);
+    ctx.setLineDash([SEAM.stitchLength * S, SEAM.stitchGap * S]);
+    ctx.strokeStyle = "rgb(190,190,190)";
+    ctx.lineWidth = SEAM.stitchWidth * S;
+    ctx.stroke(stitches);
+    ctx.setLineDash([]);
+  });
+  if (!edges) {
+    seamCache.set(name, null);
+    return null;
+  }
+  const out = document.createElement("canvas");
+  out.width = out.height = S;
+  heightToNormal(height, out, SEAM.strength);
+  const texture = new THREE.CanvasTexture(out);
+  texture.flipY = false;
+  texture.colorSpace = THREE.NoColorSpace;
+  texture.anisotropy = 8;
+  seamCache.set(name, texture);
+  return texture;
+}
+
+// Sizes as fractions of the texture (about 0.84 texture units per metre on the body: 0.0025 is about 3 mm).
+const SEAM = { foldWidth: 0.0016, stitchInset: 0.0035, stitchWidth: 0.0009, stitchLength: 0.0022, stitchGap: 0.0012, strength: 1.4 };
+
 // ---------------------------------------------------------------- fabric material
 
 /**
@@ -355,7 +734,7 @@ function makeFabric(name, map, ao) {
     name, map, side: THREE.DoubleSide,
     roughness: FABRIC.roughness, metalness: 0, sheen: 0.35, sheenRoughness: 0.6, sheenColor: new THREE.Color(0x6a6a6a),
     aoMap: ao, aoMapIntensity: sleeve ? 0.45 : 1,
-    normalMap: meshTexture(), normalScale: new THREE.Vector2(0.6, 0.6),
+    normalMap: meshTexture(), normalScale: new THREE.Vector2(0.4, 0.4),
   });
   if (name === "shirt_collar") {
     // The trim sits on the same cloth at the shoulder seam; keep tiny depth ties from showing shirt fragments.
@@ -365,15 +744,17 @@ function makeFabric(name, map, ao) {
   }
   if (inner) material.defines = { ...material.defines, USE_INNER: "" }; // its own shader program
   const relief = { value: null };
+  const seam = { value: null };
   const reliefUv = { value: new THREE.Matrix3() };
   const ribRects = { value: Array.from({ length: RIB_ZONES }, () => new THREE.Vector4(-1, -1, -1, -1)) };
   const ribPeriod = { value: 1 };
-  material.userData = { relief, reliefUv, ribRects, ribPeriod };
+  material.userData = { relief, reliefUv, ribRects, ribPeriod, seam };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.reliefMap = relief;
     shader.uniforms.reliefUv = reliefUv;
     shader.uniforms.ribRects = ribRects;
     shader.uniforms.ribPeriod = ribPeriod;
+    shader.uniforms.seamMap = seam;
     let fs = shader.fragmentShader;
     // The inside is the reverse of the printed fabric. Keep its colour visible in the neck opening.
     fs = fs.replace(
@@ -410,6 +791,9 @@ function makeFabric(name, map, ao) {
       "#include <normalmap_pars_fragment>",
       `#include <normalmap_pars_fragment>
 uniform mat3 reliefUv;
+#ifdef USE_SEAM
+uniform sampler2D seamMap;
+#endif
 #ifdef USE_RELIEF
 uniform sampler2D reliefMap;
 #endif
@@ -446,6 +830,11 @@ uniform float ribPeriod;
 	#ifdef USE_RELIEF
 		vec3 reliefN = texture2D( reliefMap, ( reliefUv * vec3( vMapUv, 1.0 ) ).xy ).xyz * 2.0 - 1.0;
 		mapN = normalize( vec3( mapN.xy + reliefN.xy, mapN.z * reliefN.z ) ); // whiteout blend: knit on top of the relief
+	#endif
+	#ifdef USE_SEAM
+		// Seams and stitching (seamMap): the fold where two pieces meet and the row of stitches beside it.
+		vec3 seamN = texture2D( seamMap, ( reliefUv * vec3( vMapUv, 1.0 ) ).xy ).xyz * 2.0 - 1.0;
+		mapN = normalize( vec3( mapN.xy + seamN.xy, mapN.z * seamN.z ) );
 	#endif`,
       ),
     );
@@ -554,7 +943,7 @@ function makeMeshFabric() {
           d = Math.min(d, Math.hypot(x / n - hx, y / n - hy - oy));
         }
       }
-      h[y * n + x] = Math.min(1, d / 0.16) ** 0.8; // 0 in a hole, rising to the knit surface
+      h[y * n + x] = Math.min(1, d / 0.11) ** 0.8; // 0 in a (small) hole, rising to the flat knit surface
     }
   }
   const c = document.createElement("canvas");
@@ -577,7 +966,7 @@ function makeMeshFabric() {
   ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(140, 140); // about 4 mm per cell on the shirt
+  t.repeat.set(210, 210); // about 2.7 mm per cell on the shirt, like a fine performance knit
   t.colorSpace = THREE.NoColorSpace;
   t.anisotropy = 8;
   return t;

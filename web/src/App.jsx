@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Viewer, { LIGHTING_PRESETS } from "./Viewer.jsx";
+import Viewer, { LIGHTING_PRESETS, TURNTABLE_LIGHTING_PRESETS } from "./Viewer.jsx";
 import TextureView from "./TextureView.jsx";
 import FlatView from "./FlatView.jsx";
 import { makeShareLink, readShareLink, shrinkImage } from "./myKits.js";
@@ -9,12 +9,10 @@ import ExportSheet from "./ExportSheet.jsx";
 import { FONTS, fontCss, resolveTemplate } from "./design.js";
 import { DEFAULT_PROJECT, GARMENTS, fontsInUse, sanitizeProject, serializeProject, walk } from "./project.js";
 import { KitRenderer } from "./kitRenderer.js";
-import Select from "./Select.jsx";
 import OpenKitCreator from "./OpenKitCreator.jsx";
 
 const TEXTURE_SIZES = [1024, 2048, 4096];
 const PREFS_KEY = "kit-maker:prefs"; // view settings of this browser (not part of the design)
-const CAMERAS = [["front", "Front"], ["three-quarter", "3/4"], ["side", "Side"], ["back", "Back"], ["close-up", "Close-up"]];
 const STORAGE_KEY = "kit-maker:design"; // holds a version 1 design in older browsers; migrated on read
 // Pages hosted where downloads are blocked (the claude.ai artifact build) show exports in a sheet instead.
 const CAN_DOWNLOAD = !import.meta.env.VITE_NO_DOWNLOAD;
@@ -38,6 +36,7 @@ export default function App() {
   const [view, setView] = useState("3d"); // "3d" | "flat" | "texture"
   const [section, setSection] = useState("layers"); // Open Kit Creator: the rail section shown in the left panel
   const [handTool, setHandTool] = useState(false);
+  const [freeView, setFreeView] = useState(false); // turntable rig: orbit the camera instead of turning the kit
 
   // Hold Space to pan: the hand tool is on while the key is down (the toolbar button still toggles it).
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -141,8 +140,6 @@ export default function App() {
   const [busyNote, setBusyNote] = useState(null); // shown over the stage while a big render runs
   const shooting = useRef(false);
   const [saveStatus, setSaveStatus] = useState("saving");
-  const [previewHeight, setPreviewHeight] = useState(null);
-  const app = useRef(null);
   const viewer = useRef(null);
   const renderer = useMemo(() => new KitRenderer(prefs.textureSize, 0.5), []); // eslint-disable-line react-hooks/exhaustive-deps
   const textures = renderer.textures;
@@ -353,8 +350,6 @@ export default function App() {
       setView("3d");
       viewer.current?.view(preset);
     },
-    openKitCreator: () => { setView("3d"); setPref("mode", "open"); },
-    openStudio: () => { setView("3d"); setPref("mode", "studio"); },
     undo,
     redo,
     canUndo: history.current.past.length > 0,
@@ -379,7 +374,8 @@ export default function App() {
       {kits && (
         <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
           onLoading={onLoading}
-          onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld} />
+          onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld}
+          rig={prefs.okcRig === "turntable" ? "turntable" : "studio"} turntableLighting={prefs.ttLighting} freeView={freeView} />
       )}
       {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
       {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
@@ -422,8 +418,7 @@ export default function App() {
     project, setProject, garment, setGarment, templates, models, shirts: shirtNames, fonts: FONTS, actions, onError: setError,
   };
 
-  if (prefs.mode === "open") {
-    return (
+  return (
       <>
         <OpenKitCreator
           section={section} setSection={setSection} view={view} setView={setView} stage={stageContent}
@@ -432,84 +427,29 @@ export default function App() {
           setTemplate={(template) => setProject((p) => ({ ...p, template }))}
           lighting={prefs.lighting} setLighting={(v) => setPref("lighting", v)}
           handTool={handTool || spaceHeld} setHandTool={setHandTool}
-          onStudio={actions.openStudio}
-          notice={prefs.okcNotice === false ? null : "Open Kit Creator layout: switch back to the classic studio any time with “Studio view”."}
+          rig={prefs.okcRig} setRig={(v) => { setFreeView(false); setPref("okcRig", v); }}
+          turntableLighting={prefs.ttLighting} setTurntableLighting={(v) => setPref("ttLighting", v)}
+          freeView={freeView} setFreeView={setFreeView}
+          kitName={prefs.kitName} setKitName={(v) => setPref("kitName", v.slice(0, 40))}
+          notice={prefs.okcNotice === false ? null : "Drag the kit to turn it. Pick a view below, or switch on the free view to orbit the camera."}
           dismissNotice={() => setPref("okcNotice", false)}
         />
         {overlays}
       </>
-    );
-  }
-
-  return (
-    <div className="app" ref={app} style={previewHeight == null ? undefined : { "--preview-height": `${previewHeight}px` }}>
-      <main className="stage">
-        {stageContent}
-        <div className="stage-tools">
-          <div className="seg" role="group" aria-label="History">
-            <button type="button" onClick={undo} disabled={!actions.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-            <button type="button" onClick={redo} disabled={!actions.canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
-          </div>
-          <div className="seg" role="group" aria-label="View">
-            <button type="button" className={view === "3d" ? "on" : ""} aria-pressed={view === "3d"} onClick={() => setView("3d")}>3D</button>
-            <button type="button" className={view === "flat" ? "on" : ""} aria-pressed={view === "flat"} onClick={() => setView("flat")} title="Front and back laid flat">Flat</button>
-            <button type="button" className={view === "texture" ? "on" : ""} aria-pressed={view === "texture"} onClick={() => setView("texture")}>
-              Texture
-            </button>
-          </div>
-          {view === "3d" && <div className="seg" role="group" aria-label="3D navigation">
-            <button type="button" className={handTool || spaceHeld ? "on" : ""} aria-pressed={handTool || spaceHeld}
-              aria-label="Hand tool" title="Hand tool: hold Space and drag to move the view"
-              onClick={() => setHandTool((active) => !active)}><span aria-hidden="true">✋</span><span className="pan-label"> Pan</span></button>
-          </div>}
-          {view === "3d" && <Select value={prefs.lighting} onChange={(e) => setPref("lighting", e.target.value)} aria-label="Lighting" title="Lighting preset">
-            {LIGHTING_PRESETS.map((l) => (
-              <option key={l} value={l}>
-                {l[0].toUpperCase() + l.slice(1)}
-              </option>
-            ))}
-          </Select>}
-        </div>
-        <div className="view-buttons" role="group" aria-label="Camera" hidden={view !== "3d"}>
-          {CAMERAS.map(([v, label]) => (
-            <button key={v} type="button" onClick={() => actions.view(v)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </main>
-      <div className="preview-resize" role="separator" aria-label="Resize 3D preview" aria-orientation="horizontal"
-        aria-valuemin={25} aria-valuemax={75}
-        aria-valuenow={Math.round(((previewHeight ?? window.innerHeight * 0.46) / window.innerHeight) * 100)}
-        tabIndex={0}
-        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); }}
-        onPointerMove={(e) => {
-          if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-          const top = app.current.getBoundingClientRect().top;
-          setPreviewHeight(Math.max(200, Math.min(app.current.clientHeight - 200, e.clientY - top)));
-        }}
-        onKeyDown={(e) => {
-          if (!["ArrowUp", "ArrowDown", "Home"].includes(e.key)) return;
-          e.preventDefault();
-          if (e.key === "Home") return setPreviewHeight(null);
-          setPreviewHeight(Math.max(200, Math.min(app.current.clientHeight - 200,
-            (previewHeight ?? app.current.clientHeight * 0.46) + (e.key === "ArrowDown" ? 24 : -24))));
-        }}><span aria-hidden="true" /></div>
-      {overlays}
-      <Panel {...panelProps} />
-    </div>
   );
 }
 
 function readPrefs() {
-  const prefs = { textureSize: 1024, lighting: "studio", transparent: false, mode: "studio", okcNotice: true };
+  const prefs = { textureSize: 1024, lighting: "studio", transparent: false, okcNotice: true, okcRig: "turntable", ttLighting: "soft", kitName: "" };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
     if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
-    if (saved.mode === "open" || saved.mode === "studio") prefs.mode = saved.mode;
+    if (typeof saved.kitName === "string") prefs.kitName = saved.kitName.slice(0, 40);
     if (saved.okcNotice === false) prefs.okcNotice = false;
+    if (saved.okcRig === "turntable" || saved.okcRig === "classic") prefs.okcRig = saved.okcRig;
+    if (TURNTABLE_LIGHTING_PRESETS.some(([id]) => id === saved.ttLighting)) prefs.ttLighting = saved.ttLighting;
   } catch {
     // defaults
   }

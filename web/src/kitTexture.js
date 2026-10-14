@@ -427,6 +427,7 @@ function placeGraphic(ctx, layer, env, frame, x, y) {
 // (islands, masks, transform), then filled with its grey / roughness / metalness and laid onto the maps.
 
 export const FABRIC_ROUGHNESS = 0.8;
+const SMOOTH_PRINT = { roughness: 0.42, relief: 0.15 }; // smooth prints without their own finish
 const FLAT = 128;
 
 export function drawMaterial(height, orm, garment, template, project, images = {}, irid = null) {
@@ -497,15 +498,18 @@ function finishLayer(h, o, layer, env, alpha) {
     sctx.fillRect(0, 0, env.S, env.S);
     lay(env.irid);
   }
-  if (layer.texture === "smooth" && !hasCustomOrm) {
+  const smooth = layer.texture === "smooth";
+  if (smooth && !hasCustomOrm) {
+    // A heat-pressed print: no knit, a soft sheen (glossier than the cloth) and a faint lift off the fabric.
     silhouette();
-    sctx.fillStyle = ormColor(f.roughness ?? FABRIC_ROUGHNESS, f.metalness ?? 0, 0);
+    sctx.fillStyle = ormColor(SMOOTH_PRINT.roughness, f.metalness ?? 0, 0);
     sctx.fillRect(0, 0, env.S, env.S);
     lay(o);
   }
-  if (f.relief || f.stitch || f.grain) {
+  const relief = f.relief || (f.stitch ? 0.35 : 0) || (smooth ? SMOOTH_PRINT.relief : 0);
+  if (relief || f.grain) {
     silhouette();
-    const g = FLAT + Math.round((f.relief || (f.stitch ? 0.35 : 0)) * 110);
+    const g = FLAT + Math.round(relief * 110);
     sctx.fillStyle = f.stitch ? stitchPattern(sctx, env.S, g) : grey(g);
     sctx.fillRect(0, 0, env.S, env.S);
     if (f.grain) {

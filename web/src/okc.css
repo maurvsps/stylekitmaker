@@ -152,3 +152,81 @@ aside.panel.okc-panel {
   position: static; inset: auto; width: auto; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0;
   box-shadow: none; backdrop-filter: none; background: transparent; padding: 0; overflow: visible; grid-column: auto; grid-row: auto;
 }
+
+/* Turntable 3D: the rig toggle, the "Change view" control and its hint */
+.okc-viewtools .okc-rig { width: auto; gap: 6px; padding: 6px 10px 6px 8px; display: flex; align-items: center; font-size: 13px; }
+.okc-viewtools .okc-rig svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.okc-turn { align-items: center; bottom: 84px; } /* above the Studio view pill and the bottom buttons */
+.okc-turn select { height: 28px; padding: 0 10px; border: 0; border-radius: 999px; background: rgba(40, 40, 40, .9); color: var(--okc-text); font: inherit; font-size: 13px; cursor: pointer; }
+.okc-turn button.on { background: var(--g); color: #000; }
+.okc-turn-hint { margin-left: 6px; font-size: 12px; color: var(--okc-dim); white-space: nowrap; }
+@media (max-width: 820px) { .okc-turn-hint { display: none; } }
+
+/* Closer to the original: flat grey buttons (#3a3a3a, 24px), the kit name field and the plain section header */
+.okc-panel .okc-add button, .okc-panel .okc-chip { background: #3a3a3a; min-height: 24px; padding: 3px 8px; font-size: 14px; }
+.okc-panel .okc-add button:hover, .okc-panel .okc-chip:hover { background: #4a4a4a; }
+.okc-kit-name { width: 100%; padding: 4px 6px; border: 0; border-radius: 4px; background: #3a3a3a; color: var(--okc-text); font: inherit; font-size: 14px; }
+.okc-settings h2, .okc-panel .section h2 { font-size: 18px; font-weight: 700; border: 0; padding-bottom: 0; }
+
+/* Camera buttons sit above the bottom buttons (FAQ, Showcase, Download) in both 3D modes. */
+.okc-angles { bottom: 64px; }
+.okc-turn { bottom: 64px; }
+
+/* ---------------- Layers: compact rows as on the original (eye, swatch, name, position, delete) */
+.okc-panel .layers-section > h2 { display: none; }
+.okc-layers { display: grid; gap: 6px; }
+.okc-layer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.okc-layer-row { display: flex; align-items: center; gap: 4px; height: 21px; padding-right: 2px; border-radius: 3px; font-size: 13px; }
+.okc-layer-item.on > .okc-layer-row, .okc-layer-row:hover { background: rgba(255, 255, 255, .07); }
+.okc-layer-item.hidden-layer .okc-layer-name, .okc-layer-item.hidden-layer .okc-swatch { opacity: .4; }
+.okc-layer-row button { border: 0; background: transparent; color: var(--okc-text); cursor: pointer; padding: 0; min-height: 0; }
+.okc-eye { width: 18px; height: 18px; display: grid; place-items: center; }
+.okc-eye svg { width: 15px; height: 15px; }
+.okc-swatch { width: 14px; height: 14px; flex: 0 0 auto; border-radius: 2px; background: #2c2c2c; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); display: inline-grid; place-items: center; font-size: 10px; overflow: hidden; }
+.okc-swatch.img { background: #fff; }
+.okc-swatch img { width: 100%; height: 100%; object-fit: contain; }
+.okc-layer-name { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px !important; }
+.okc-target { width: 18px; height: 18px; display: grid; place-items: center; opacity: .8; }
+.okc-target svg { width: 14px; height: 14px; }
+.okc-x { width: 16px; font-size: 16px; line-height: 1; color: var(--okc-dim) !important; }
+.okc-x:hover { color: #ff8a80 !important; }
+.okc-layer-options { margin: 4px 0 8px 18px; padding: 8px; border-radius: 6px; background: #232323; border: 1px solid rgba(255, 255, 255, .1); display: grid; gap: 10px; }
+.okc-layer-options .layer-actions button { min-height: 24px; padding: 2px 8px; font-size: 12px; }
+
+/* ---------------- Logos: one row per spot (upload, library, name, logo chip) */
+.okc-logos { display: grid; gap: 0; padding-top: 4px; }
+.okc-logo-slot { padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, .1); }
+.okc-logo-row, .okc-logo-sub { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.okc-logo-sub { margin: 6px 0 0 4px; justify-content: space-between; }
+.okc-ic { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: var(--okc-text); cursor: pointer; opacity: .85; }
+.okc-ic:hover { opacity: 1; color: var(--g); }
+.okc-ic svg { width: 15px; height: 15px; }
+.okc-logo-label { font-size: 13px; white-space: nowrap; }
+.okc-logo-chip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 2px 0 4px; border-radius: 4px; background: #3a3a3a; font-size: 12px; }
+.okc-logo-chip img { width: 18px; height: 14px; object-fit: contain; background: #fff; border-radius: 2px; }
+.okc-logo-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.okc-logo-chip button { border: 0; background: transparent; color: var(--okc-text); cursor: pointer; font-size: 15px; padding: 0 4px; }
+.okc-logo-check { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.okc-logo-check input { width: 16px; height: 16px; accent-color: #6a6a6a; }
+.okc-custom-pos { justify-self: start; margin-top: 10px; display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border: 0; border-radius: 4px; background: #3a3a3a; color: var(--okc-text); font-size: 13px; cursor: pointer; }
+.okc-custom-pos svg { width: 14px; height: 14px; }
+.okc-custom-pos:hover { background: #4a4a4a; }
+
+/* The studio panel paints every button as an accent pill: undo that for these flat icon buttons. */
+aside.panel.okc-panel button.okc-ic, aside.panel.okc-panel .okc-layer-row button, aside.panel.okc-panel .okc-logo-chip button {
+  background: transparent; color: var(--okc-text); box-shadow: none; border: 0; border-radius: 3px; min-height: 0; min-width: 0; padding: 0; font-weight: 400;
+}
+aside.panel.okc-panel button.okc-ic:hover, aside.panel.okc-panel .okc-layer-row button:hover { background: rgba(255, 255, 255, .1); color: var(--okc-text); }
+aside.panel.okc-panel button.okc-custom-pos, aside.panel.okc-panel .okc-add button {
+  background: #3a3a3a; color: var(--okc-text); box-shadow: none; border: 0; border-radius: 4px; min-height: 24px; padding: 3px 8px; font-weight: 400; font-size: 14px;
+}
+aside.panel.okc-panel button.okc-custom-pos:hover, aside.panel.okc-panel .okc-add button:hover { background: #4a4a4a; }
+aside.panel.okc-panel .okc-layer-row .okc-layer-name { padding: 0 2px; justify-content: flex-start; }
+
+aside.panel.okc-panel .okc-layer-item { background: none; border: 0; box-shadow: none; padding: 0; margin: 0; }
+aside.panel.okc-panel .okc-layer-row { background: none; border: 0; }
+aside.panel.okc-panel .okc-layer-item.on > .okc-layer-row, aside.panel.okc-panel .okc-layer-row:hover { background: rgba(255, 255, 255, .07); }
+aside.panel.okc-panel .okc-layer-options { margin: 4px 0 8px; min-width: 0; overflow: hidden; }
+aside.panel.okc-panel .okc-layer-options .layer-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+aside.panel.okc-panel .okc-layer-options .layer-actions button { flex: 0 0 auto; }
+aside.panel.okc-panel .okc-layer-options fieldset { min-width: 0; margin: 0; padding: 6px; }

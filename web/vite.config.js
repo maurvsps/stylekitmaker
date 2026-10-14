@@ -45,9 +45,33 @@ function kitModels() {
   };
 }
 
+// Third-party models (assets/third_party/fifakitcreator, used with permission: see CREDIT.txt there), served at
+// /third_party/fifakitcreator/ in dev and copied into the build.
+const fkcDir = fileURLToPath(new URL("../assets/third_party/fifakitcreator/", import.meta.url));
+
+function thirdPartyModels() {
+  const files = () => (existsSync(fkcDir) ? readdirSync(fkcDir).filter((f) => /\.(obj|png|txt)$/i.test(f)) : []);
+  return {
+    name: "third-party-models",
+    configureServer(server) {
+      server.middlewares.use("/third_party/fifakitcreator/", (req, res, next) => {
+        const file = decodeURIComponent((req.url || "").split("?")[0].replace(/^\//, ""));
+        if (!files().includes(file)) return next();
+        res.setHeader("Content-Type", file.endsWith(".png") ? "image/png" : "text/plain");
+        res.end(readFileSync(fkcDir + file));
+      });
+    },
+    generateBundle() {
+      for (const file of files()) {
+        this.emitFile({ type: "asset", fileName: `third_party/fifakitcreator/${file}`, source: readFileSync(fkcDir + file) });
+      }
+    },
+  };
+}
+
 export default defineConfig(({ command }) => ({
   base: "./", // relative URLs, so the build works from any folder
   publicDir: command === "build" ? false : "../public",
-  plugins: [react(), dracoDecoder(), kitModels()],
+  plugins: [react(), dracoDecoder(), kitModels(), thirdPartyModels()],
   server: { port: 5174 },
 }));

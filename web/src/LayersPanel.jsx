@@ -156,6 +156,74 @@ export default function LayersPanel({
   const at = layer && locate(layers, layer.id);
   const slot = layer && logo ? logo.slotOf(layer) : null;
   const filledLogos = logo ? logo.filled : {};
+
+  // Open Kit Creator: one compact row per layer (top layer first); a row's options open right under it.
+  if (variant === "open") {
+    const rows = flatten(layers);
+    const removeRow = (l) => {
+      edit((ls) => removeLayer(ls, l.id));
+      if (l.id === selected) select(null);
+    };
+    return (
+      <div className="okc-layers" ref={root}>
+        <ul className="okc-layer-list" aria-label="Layers">
+          {rows.map(({ layer: l, depth }) => {
+            const on = l.id === selected;
+            const placed = "surface" in l && l.fit !== "texture" && l.fit !== "tile";
+            return (
+              <li key={l.id} className={`okc-layer-item${on ? " on" : ""}${l.visible ? "" : " hidden-layer"}`}>
+                <div className="okc-layer-row" style={{ paddingLeft: 2 + depth * 14 }}>
+                  <button type="button" className="okc-eye" aria-label={l.visible ? `Hide ${l.name}` : `Show ${l.name}`}
+                    onClick={() => patch(l.id, { visible: !l.visible })}><EyeIcon off={!l.visible} /></button>
+                  <Swatch layer={l} project={project} />
+                  <button type="button" className="okc-layer-name" aria-expanded={on} onClick={() => (on ? select(null) : pick(l.id))}>
+                    {l.name}
+                  </button>
+                  {placed && (
+                    <button type="button" className="okc-target" title="Position and size" aria-label={`Position ${l.name}`} onClick={() => pick(l.id)}>
+                      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4" /><circle cx="10" cy="10" r="2" fill="currentColor" /></svg>
+                    </button>
+                  )}
+                  <button type="button" className="okc-x" disabled={l.locked} aria-label={`Delete ${l.name}`} onClick={() => removeRow(l)}>×</button>
+                </div>
+                {on && layer && (
+                  <div className="okc-layer-options">
+                    <div className="row layer-actions">
+                      <button type="button" className="quiet" title="Move up" aria-label="Move up" disabled={layer.locked || at.index >= at.list.length - 1} onClick={act.up}>↑</button>
+                      <button type="button" className="quiet" title="Move down" aria-label="Move down" disabled={layer.locked || at.index === 0} onClick={act.down}>↓</button>
+                      <button type="button" className="quiet" disabled={layer.locked} onClick={() => setRenaming(layer.id)}>Rename</button>
+                      <button type="button" className="quiet" onClick={act.duplicate} title="Ctrl+D">Duplicate</button>
+                    </div>
+                    {renaming === layer.id && (
+                      <RenameField value={layer.name} onDone={(name) => {
+                        setRenaming(null);
+                        if (name != null && name.trim()) patch(layer.id, { name: name.trim().slice(0, 40) });
+                      }} />
+                    )}
+                    {slot && <LogoControls layer={layer} slot={slot} project={project} logo={logo} />}
+                    <Inspector key={layer.id} layer={layer} garment={garment} project={project} template={template} fonts={fonts}
+                      patch={(fields) => patch(layer.id, fields)} uploadImage={uploadImage} addLink={addLink} isLogo={!!slot} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <div className="okc-add" role="group" aria-label="Add layer">
+          <h3>Add layer</h3>
+          {[["base", "Base design"], ["graphic", "Graphic"], ["pattern", "Pattern"], ["text", "Text"], ["logo:crest", "Logo"], ["image", "Image"], ["trim", "Sleeve cuffs"], ["material", "Material"], ["group", "Group"]].map(([t, label]) => (
+            <button key={t} type="button" onClick={() => onAdd(t)}>{label}</button>
+          ))}
+          {clip && <button type="button" onClick={act.paste} title={`Paste "${clip}" (Ctrl+V)`}>Paste</button>}
+        </div>
+        <input ref={imageInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
+          if (e.target.files[0]) onImageFile(e.target.files[0]);
+          e.target.value = "";
+        }} />
+      </div>
+    );
+  }
+
   return (
     <div className="layers layer-studio" ref={root}>
       {SHOWN_GARMENTS.length > 1 && <div className="tabs" role="tablist" aria-label="Garment">
@@ -248,7 +316,7 @@ export default function LayersPanel({
         {variant === "open" ? (
           <div className="okc-add" role="group" aria-label="Add layer">
             <h3>Add layer</h3>
-            {[["base", "Base design"], ["image", "Image…"], ["pattern", "Pattern"], ["text", "Text"], ["graphic", "Graphic"], ["trim", "Sleeve cuffs / trim"], ["material", "Material"], ["group", "Group"]].map(([t, label]) => (
+            {[["base", "Base design"], ["graphic", "Graphic"], ["pattern", "Pattern"], ["text", "Text"], ["logo:crest", "Logo"], ["image", "Image"], ["trim", "Sleeve cuffs"], ["material", "Material"], ["group", "Group"]].map(([t, label]) => (
               <button key={t} type="button" onClick={() => onAdd(t)}>{label}</button>
             ))}
           </div>
@@ -437,6 +505,17 @@ function RenameField({ value, onDone }) {
       }}
     />
   );
+}
+
+/** The colour square of a layer row: its main colour, or the picture of an image layer. */
+function Swatch({ layer: l, project }) {
+  if (l.type === "image") {
+    const src = project.assets[l.asset]?.src;
+    return <span className="okc-swatch img">{src && <img src={src} alt="" />}</span>;
+  }
+  const raw = l.type === "base" ? Object.values(l.colors || {})[0] : l.type === "pattern" ? l.colors?.[0] : l.color;
+  const icon = l.type === "group" ? "▤" : l.type === "material" ? "✦" : null;
+  return <span className="okc-swatch" style={raw ? { background: resolveColor(raw, project.palette) } : undefined}>{!raw && icon}</span>;
 }
 
 const EyeIcon = ({ off }) => (
