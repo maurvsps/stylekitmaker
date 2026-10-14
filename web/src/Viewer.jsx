@@ -287,6 +287,7 @@ const Viewer = forwardRef(function Viewer(
     for (const [garment, { object }] of Object.entries(t.garments)) {
       object.traverse((o) => o.isMesh && applyMaps(o.material, maps?.[garment]));
     }
+    t.fkc?.traverse((o) => o.isMesh && applyMaps(o.material, maps?.shirt));
     t.invalidate();
   }, [maps]);
 
@@ -301,9 +302,9 @@ const Viewer = forwardRef(function Viewer(
     t.invalidate();
   }, [templates]);
 
-  // FIFA Kit Creator's shirt (assets/third_party/fifakitcreator, used with permission): shown instead of ours.
-  const baseColorRef = useRef(baseColor);
-  baseColorRef.current = baseColor; // the colour to paint it once it has loaded
+  // FIFA Kit Creator's shirt (assets/third_party/fifakitcreator, used with permission): shown instead of ours. Its
+  // geometry gets new UVs in the selected shirt template's layout, so every layer paints on it like on our shirt.
+  const template = templates?.[models.shirt];
   useEffect(() => {
     const t = three.current;
     if (!t) return;
@@ -317,13 +318,18 @@ const Viewer = forwardRef(function Viewer(
       show(false);
       return;
     }
-    loadFkcShirt().then((group) => {
+    if (!template) return; // wait for the UV template
+    Promise.all([loadFkcFiles(), loadGlb(models.shirt)]).then(([files, ours]) => {
       if (cancelled || !three.current) return;
-      if (!t.fkc) {
-        t.fkc = group;
-        t.kit.add(group);
+      if (t.fkc) {
+        t.kit.remove(t.fkc);
+        t.fkc.traverse((o) => o.isMesh && (o.geometry.dispose(), o.material.dispose()));
       }
-      group.traverse((o) => o.isMesh && o.material.color.set(baseColorRef.current));
+      const group = buildFkcShirt(files, template, textures.shirt, t.maps?.shirt, t.renderer.capabilities.getMaxAnisotropy(), ours.scene);
+      t.fkc = group;
+      t.kit.add(group);
+      t.materials = [];
+      t.kit.traverse((o) => o.isMesh && o.material && t.materials.push(o.material));
       show(true);
     }, (err) => {
       console.error("FIFA Kit Creator model", err);
@@ -332,13 +338,7 @@ const Viewer = forwardRef(function Viewer(
     return () => {
       cancelled = true;
     };
-  }, [fkcModel, onError]);
-
-  useEffect(() => {
-    const t = three.current;
-    t?.fkc?.traverse((o) => o.isMesh && o.material.color.set(baseColor));
-    t?.invalidate();
-  }, [baseColor, fkcModel]);
+  }, [fkcModel, template, textures, onError]);
 
   // Camera rig: the studio orbit, or the turntable (fixed camera, the kit turns) with an optional free view.
   useEffect(() => {
@@ -663,39 +663,284 @@ function capture(t, aspect, long = 3840) {
 
 // ---------------------------------------------------------------- FIFA Kit Creator shirt
 // Their models are in centimetres on a mannequin (the shirt from y = 162 to 298); ours are in metres with the hem at
-// 0. Their UV layout is their own, so the kit layers do not paint on it yet: it shows in the primary colour with
-// their fold normal map.
+// 0. Their own UVs stay as a second channel (uv1) for their fold normal map; the first channel is rebuilt in our
+// template's layout, piece by piece, in each island's frame (front and back: metres across and up from the hem;
+// sleeves: around from the top line and down from the shoulder; collar: around from the front centre). Each piece is
+// stretched to its island's extent, so a layer placed on our shirt lands in the same place on theirs.
 
 const FKC_DIR = "third_party/fifakitcreator/";
-let fkcShirt;
-function loadFkcShirt() {
-  fkcShirt ??= (async () => {
-    const obj = new OBJLoader();
-    const [jersey, collar, normal] = await Promise.all([
-      obj.loadAsync(`${FKC_DIR}jersey_ss.obj`),
-      obj.loadAsync(`${FKC_DIR}collar_0.obj`),
-      new THREE.TextureLoader().loadAsync(`${FKC_DIR}jersey_24.png`).catch(() => null),
-    ]);
-    if (normal) normal.colorSpace = THREE.NoColorSpace;
-    const group = new THREE.Group();
-    group.name = "fifakitcreator-shirt";
-    for (const part of [jersey, collar]) {
-      part.traverse((o) => {
-        if (!o.isMesh) return;
-        o.material = new THREE.MeshPhysicalMaterial({
-          color: 0xffffff, roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, side: THREE.DoubleSide,
-          normalMap: part === jersey ? normal : null,
-        });
-        o.castShadow = o.receiveShadow = true;
-      });
-      group.add(part);
+const FKC_HEIGHT = 0.75; // metres, hem to the top of the shoulders, like our shirt
+let fkcFiles;
+function loadFkcFiles() {
+  const obj = new OBJLoader();
+  const firstGeometry = (group) => {
+    let g = null;
+    group.traverse((o) => !g && o.isMesh && (g = o.geometry));
+    return g;
+  };
+  fkcFiles ??= Promise.all([
+    obj.loadAsync(`${FKC_DIR}jersey_ss.obj`),
+    obj.loadAsync(`${FKC_DIR}collar_0.obj`),
+    new THREE.TextureLoader().loadAsync(`${FKC_DIR}jersey_24.png`).catch(() => null),
+  ]).then(([jersey, collar, folds]) => {
+    if (folds) {
+      folds.colorSpace = THREE.NoColorSpace;
+      folds.channel = 1; // their UVs
     }
-    group.scale.setScalar(0.01); // cm -> m
-    group.position.y = -1.618; // their hem (y = 161.8 cm) on our hem line (y = 0)
-    return group;
-  })();
-  fkcShirt.catch(() => (fkcShirt = null)); // a missing file can be added and retried
-  return fkcShirt;
+    return { jersey: firstGeometry(jersey), collar: firstGeometry(collar), folds };
+  });
+  fkcFiles.catch(() => (fkcFiles = null)); // a missing file can be added and retried
+  return fkcFiles;
+}
+
+function buildFkcShirt(files, template, map, maps, anisotropy, ours) {
+  const group = new THREE.Group();
+  group.name = "fifakitcreator-shirt";
+  map.anisotropy = anisotropy;
+  const parts = [
+    ["shirt_body", files.jersey, (g) => remapJersey(g, template, ours)],
+    ["shirt_collar", files.collar, (g) => remapCollar(g, template)],
+  ];
+  for (const [name, source, remap] of parts) {
+    const g = (source.index ? source.toNonIndexed() : source.clone());
+    g.setAttribute("uv1", g.attributes.uv.clone());
+    remap(g);
+    const material = makeFabric(name, map, null);
+    if (name === "shirt_body" && files.folds) {
+      material.normalMap = files.folds; // their folds and creases instead of our knit tile
+      material.normalScale.set(1, 1);
+    }
+    applyMaps(material, maps);
+    applyRibs(material, template);
+    const mesh = new THREE.Mesh(g, material);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData.garment = "shirt";
+    group.add(mesh);
+  }
+  // Their units are not metres (the shirt is 136 units tall): scale it to our shirt's height, hem on our hem line
+  // (y = 0), centred on the vertical axis.
+  const box = new THREE.Box3().setFromBufferAttribute(files.jersey.attributes.position);
+  const s = FKC_HEIGHT / (box.max.y - box.min.y);
+  group.scale.setScalar(s);
+  group.position.set(-s * (box.min.x + box.max.x) / 2, -s * box.min.y, -s * (box.min.z + box.max.z) / 2);
+  return group;
+}
+
+/** An island's texture position of a point (p, q) of its frame (metres). */
+function islandUv(isl, p, q) {
+  return [isl.rect[0] + isl.scale * (p - isl.pmin), isl.rect[1] + isl.scale * (isl.qmax - q)];
+}
+const islandBox = (isl) => ({ p0: isl.pmin, p1: isl.pmin + isl.rect[2] / isl.scale, q0: isl.qmax - isl.rect[3] / isl.scale, q1: isl.qmax });
+const lerp = (x, a0, a1, b0, b1) => b0 + ((x - a0) / (a1 - a0 || 1)) * (b1 - b0);
+/** An angle (-PI..PI, 0 = the reference line) spread over [p0, p1] with 0 at p = 0 when the range spans it. */
+const angleToP = (a, box) => (box.p0 < 0 && box.p1 > 0 ? (a < 0 ? (-a / Math.PI) * box.p0 : (a / Math.PI) * box.p1) : lerp(a, -Math.PI, Math.PI, box.p0, box.p1));
+/** Keep a triangle's three angles on one side of the seam (where -PI meets PI). */
+function unwrap(a) {
+  if (Math.max(...a) - Math.min(...a) <= Math.PI) return a;
+  return a.map((x) => (x < 0 ? x + 2 * Math.PI : x));
+}
+
+function remapJersey(g, T, ours) {
+  const P = g.attributes.position;
+  const uv = g.attributes.uv1; // their layout: tells which triangles belong to one piece
+  const n = P.count;
+  const tris = n / 3;
+  const v = (i) => new THREE.Vector3(P.getX(i), P.getY(i), P.getZ(i));
+
+  // Their UV pieces: triangles that share a UV corner belong together.
+  const parent = Array.from({ length: tris }, (_, i) => i);
+  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const corner = new Map();
+  for (let i = 0; i < n; i++) {
+    const key = `${Math.round(uv.getX(i) * 1e5)}_${Math.round(uv.getY(i) * 1e5)}`;
+    const tri = (i / 3) | 0;
+    if (corner.has(key)) parent[find(tri)] = find(corner.get(key));
+    else corner.set(key, tri);
+  }
+
+  // Body width from the hem: anything further out is a sleeve.
+  let yMin = Infinity, yMax = -Infinity;
+  for (let i = 0; i < n; i++) {
+    yMin = Math.min(yMin, P.getY(i));
+    yMax = Math.max(yMax, P.getY(i));
+  }
+  let half = 0;
+  for (let i = 0; i < n; i++) if (P.getY(i) < yMin + 0.25 * (yMax - yMin)) half = Math.max(half, Math.abs(P.getX(i)));
+  const pieces = new Map(); // root -> { tris, sx }
+  for (let t = 0; t < tris; t++) {
+    const r = find(t);
+    if (!pieces.has(r)) pieces.set(r, { tris: [], sx: 0, ax: 0 });
+    const pc = pieces.get(r);
+    pc.tris.push(t);
+    for (let k = 0; k < 3; k++) {
+      pc.sx += P.getX(t * 3 + k);
+      pc.ax += Math.abs(P.getX(t * 3 + k));
+    }
+  }
+  const role = new Array(tris);
+  for (const pc of pieces.values()) {
+    const mean = pc.ax / (pc.tris.length * 3);
+    const side = pc.sx >= 0 ? "sleeve_left" : "sleeve_right"; // +X is the wearer's left
+    for (const t of pc.tris) role[t] = mean > half * 1.05 ? side : null;
+  }
+  // Body triangles: front or back by which way they face.
+  const e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  for (let t = 0; t < tris; t++) {
+    if (role[t]) continue;
+    e1.subVectors(v(t * 3 + 1), v(t * 3));
+    e2.subVectors(v(t * 3 + 2), v(t * 3));
+    const nz = e1.cross(e2).z;
+    const nx = P.getX(t * 3) + P.getX(t * 3 + 1) + P.getX(t * 3 + 2);
+    role[t] = nz >= 0 ? "front" : "back";
+    void nx;
+  }
+
+  const out = new Float32Array(n * 2);
+  const set = (i, [x, y]) => {
+    out[i * 2] = x;
+    out[i * 2 + 1] = y;
+  };
+
+  // Front and back: x across (the back as seen from behind), y up from the hem. Column by column, their top edge
+  // (neckline, shoulders) is stretched onto ours, so the neck opening and the trims line up with our template.
+  for (const name of ["front", "back"]) {
+    const isl = T.islands[name];
+    if (!isl) continue;
+    const box = islandBox(isl);
+    const pOf = (i) => lerp(name === "back" ? -P.getX(i) : P.getX(i), -half, half, box.p0, box.p1);
+    const theirs = new Float32Array(TOP_BINS).fill(-Infinity);
+    for (let t = 0; t < tris; t++) {
+      if (role[t] !== name) continue;
+      for (let k = 0; k < 3; k++) {
+        const i = t * 3 + k;
+        const b = topBin(pOf(i), box);
+        theirs[b] = Math.max(theirs[b], P.getY(i));
+      }
+    }
+    fillBins(theirs);
+    const mine = ourTopEdge(ours, isl, box) || new Float32Array(TOP_BINS).fill(box.q1);
+    for (let t = 0; t < tris; t++) {
+      if (role[t] !== name) continue;
+      for (let k = 0; k < 3; k++) {
+        const i = t * 3 + k;
+        const pp = pOf(i);
+        const top = sampleBins(theirs, pp, box);
+        const q = lerp(Math.min(P.getY(i), top), yMin, top, box.q0, sampleBins(mine, pp, box));
+        set(i, islandUv(isl, pp, q));
+      }
+    }
+  }
+
+  // Sleeves: around the sleeve's axis (0 on top) and along it from the shoulder.
+  for (const name of ["sleeve_left", "sleeve_right"]) {
+    const isl = T.islands[name];
+    const mine = [];
+    for (let t = 0; t < tris; t++) if (role[t] === name) mine.push(t);
+    if (!isl || !mine.length) continue;
+    const xs = mine.flatMap((t) => [0, 1, 2].map((k) => Math.abs(P.getX(t * 3 + k)))).sort((a, b) => a - b);
+    const lo = xs[Math.floor(xs.length * 0.1)];
+    const hi = xs[Math.floor(xs.length * 0.9)];
+    const shoulder = new THREE.Vector3(), cuff = new THREE.Vector3();
+    let ns = 0, nc = 0;
+    for (const t of mine) {
+      for (let k = 0; k < 3; k++) {
+        const i = t * 3 + k;
+        const ax = Math.abs(P.getX(i));
+        if (ax <= lo) (shoulder.add(v(i)), ns++);
+        if (ax >= hi) (cuff.add(v(i)), nc++);
+      }
+    }
+    shoulder.divideScalar(ns || 1);
+    cuff.divideScalar(nc || 1);
+    const axis = cuff.clone().sub(shoulder).normalize();
+    const up = new THREE.Vector3(0, 1, 0).addScaledVector(axis, -axis.y).normalize();
+    const side = new THREE.Vector3().crossVectors(axis, up);
+    if (name === "sleeve_right") side.negate(); // the same way round on both arms
+    let tMax = 0;
+    const d = new THREE.Vector3();
+    for (const t of mine) for (let k = 0; k < 3; k++) tMax = Math.max(tMax, d.subVectors(v(t * 3 + k), shoulder).dot(axis));
+    const box = islandBox(isl);
+    for (const t of mine) {
+      const ang = [0, 1, 2].map((k) => {
+        d.subVectors(v(t * 3 + k), shoulder);
+        return Math.atan2(d.dot(side), d.dot(up));
+      });
+      const a = unwrap(ang);
+      for (let k = 0; k < 3; k++) {
+        const i = t * 3 + k;
+        const along = Math.max(0, d.subVectors(v(i), shoulder).dot(axis));
+        set(i, islandUv(isl, angleToP(a[k], box), lerp(along, 0, tMax, box.q1, box.q0)));
+      }
+    }
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(out, 2));
+}
+
+// The top edge of a front or back piece, as the highest q in each of TOP_BINS columns across the island.
+const TOP_BINS = 48;
+const topBin = (p, box) => Math.max(0, Math.min(TOP_BINS - 1, Math.floor(((p - box.p0) / (box.p1 - box.p0)) * TOP_BINS)));
+/** Columns with no point take the value of their neighbours. */
+function fillBins(a) {
+  const known = [...a.keys()].filter((i) => Number.isFinite(a[i]));
+  if (!known.length) return a;
+  for (let i = 0; i < a.length; i++) {
+    if (Number.isFinite(a[i])) continue;
+    const l = known.filter((k) => k < i).pop();
+    const r = known.find((k) => k > i);
+    a[i] = l === undefined ? a[r] : r === undefined ? a[l] : lerp(i, l, r, a[l], a[r]);
+  }
+  return a;
+}
+/** The value at p, interpolated between the column centres. */
+function sampleBins(a, p, box) {
+  const f = ((p - box.p0) / (box.p1 - box.p0)) * TOP_BINS - 0.5;
+  const i = Math.max(0, Math.min(TOP_BINS - 1, Math.floor(f)));
+  const j = Math.min(TOP_BINS - 1, i + 1);
+  const w = Math.max(0, Math.min(1, f - i));
+  return a[i] * (1 - w) + a[j] * w;
+}
+/** Our shirt's top edge in an island's frame, read from our model's own UVs (null without the model). */
+function ourTopEdge(ours, isl, box) {
+  if (!ours) return null;
+  const top = new Float32Array(TOP_BINS).fill(-Infinity);
+  const [rx, ry, rw, rh] = isl.rect;
+  ours.traverse((o) => {
+    if (!o.isMesh || o.material?.name !== "shirt_body") return;
+    const uv = o.geometry.attributes.uv;
+    for (let i = 0; i < uv.count; i++) {
+      const u = uv.getX(i);
+      const w = uv.getY(i);
+      if (u < rx || u > rx + rw || w < ry || w > ry + rh) continue;
+      const p = isl.pmin + (u - rx) / isl.scale;
+      const q = isl.qmax - (w - ry) / isl.scale;
+      const b = topBin(p, box);
+      top[b] = Math.max(top[b], q);
+    }
+  });
+  return fillBins(top);
+}
+
+function remapCollar(g, T) {
+  const isl = T.islands.collar;
+  const P = g.attributes.position;
+  const n = P.count;
+  if (!isl) return;
+  g.computeBoundingBox();
+  const b = g.boundingBox;
+  const cx = (b.min.x + b.max.x) / 2;
+  const cz = (b.min.z + b.max.z) / 2;
+  const box = islandBox(isl);
+  const out = new Float32Array(n * 2);
+  for (let t = 0; t < n / 3; t++) {
+    const a = unwrap([0, 1, 2].map((k) => Math.atan2(P.getX(t * 3 + k) - cx, P.getZ(t * 3 + k) - cz))); // 0 at the front
+    for (let k = 0; k < 3; k++) {
+      const i = t * 3 + k;
+      const [x, y] = islandUv(isl, angleToP(a[k], box), lerp(P.getY(i), b.min.y, b.max.y, box.q0, box.q1));
+      out[i * 2] = x;
+      out[i * 2 + 1] = y;
+    }
+  }
+  g.setAttribute("uv", new THREE.BufferAttribute(out, 2));
 }
 
 // ---------------------------------------------------------------- seams
