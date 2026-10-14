@@ -375,7 +375,8 @@ export default function App() {
         <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
           onLoading={onLoading}
           onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld}
-          rig={prefs.okcRig === "turntable" ? "turntable" : "studio"} turntableLighting={prefs.ttLighting} freeView={freeView} />
+          rig={prefs.okcRig === "turntable" ? "turntable" : "studio"} turntableLighting={prefs.ttLighting} freeView={freeView}
+          fkcModel={prefs.fkcModel} baseColor={project.palette[0]} />
       )}
       {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
       {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
@@ -431,6 +432,7 @@ export default function App() {
           turntableLighting={prefs.ttLighting} setTurntableLighting={(v) => setPref("ttLighting", v)}
           freeView={freeView} setFreeView={setFreeView}
           kitName={prefs.kitName} setKitName={(v) => setPref("kitName", v.slice(0, 40))}
+          fkcModel={prefs.fkcModel} setFkcModel={(v) => setPref("fkcModel", v)}
           notice={prefs.okcNotice === false ? null : "Drag the kit to turn it. Pick a view below, or switch on the free view to orbit the camera."}
           dismissNotice={() => setPref("okcNotice", false)}
         />
@@ -440,12 +442,13 @@ export default function App() {
 }
 
 function readPrefs() {
-  const prefs = { textureSize: 1024, lighting: "studio", transparent: false, okcNotice: true, okcRig: "turntable", ttLighting: "soft", kitName: "" };
+  const prefs = { textureSize: 1024, lighting: "studio", transparent: false, okcNotice: true, okcRig: "turntable", ttLighting: "soft", kitName: "", fkcModel: false };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
     if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
+    if (saved.fkcModel === true) prefs.fkcModel = true;
     if (typeof saved.kitName === "string") prefs.kitName = saved.kitName.slice(0, 40);
     if (saved.okcNotice === false) prefs.okcNotice = false;
     if (saved.okcRig === "turntable" || saved.okcRig === "classic") prefs.okcRig = saved.okcRig;

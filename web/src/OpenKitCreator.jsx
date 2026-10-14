@@ -41,7 +41,7 @@ const TABS = [["3d", "3D"], ["texture", "Texture"], ["upcoming", "Upcoming"], ["
 
 export default function OpenKitCreator({
   section, setSection, view, setView, stage, panel, actions, project, setProject, shirts, template, setTemplate,
-  lighting, setLighting, handTool, setHandTool, kitName, setKitName, notice, dismissNotice,
+  lighting, setLighting, handTool, setHandTool, kitName, setKitName, fkcModel, setFkcModel, notice, dismissNotice,
   rig, setRig, turntableLighting, setTurntableLighting, freeView, setFreeView,
 }) {
   const [tab, setTab] = useState("3d");
@@ -91,7 +91,7 @@ export default function OpenKitCreator({
           </nav>
           <div className="okc-content">
             {section === "settings" ? (
-              <SettingsPane {...{ kitName, setKitName, project, setProject, shirts, template, setTemplate, lighting, setLighting, actions, rig, setRig, turntableLighting, setTurntableLighting }} />
+              <SettingsPane {...{ fkcModel, setFkcModel, kitName, setKitName, project, setProject, shirts, template, setTemplate, lighting, setLighting, actions, rig, setRig, turntableLighting, setTurntableLighting }} />
             ) : panel}
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function OpenKitCreator({
   );
 }
 
-function SettingsPane({ kitName, setKitName, project, setProject, shirts, template, setTemplate, lighting, setLighting, actions, rig, setRig, turntableLighting, setTurntableLighting }) {
+function SettingsPane({ fkcModel, setFkcModel, kitName, setKitName, project, setProject, shirts, template, setTemplate, lighting, setLighting, actions, rig, setRig, turntableLighting, setTurntableLighting }) {
   const turntable = rig === "turntable";
   return (
     <div className="okc-settings">
@@ -225,9 +225,15 @@ function SettingsPane({ kitName, setKitName, project, setProject, shirts, templa
       <input className="okc-kit-name" type="text" placeholder="Name" value={kitName} maxLength={40} onChange={(e) => setKitName(e.target.value)} aria-label="Kit name" />
       <label className="okc-field">
         <span>3D Model</span>
-        <select value={template} onChange={(e) => setTemplate(e.target.value)}>
+        <select value={fkcModel ? "fkc" : template} onChange={(e) => {
+          const v = e.target.value;
+          setFkcModel(v === "fkc");
+          if (v !== "fkc") setTemplate(v);
+        }}>
           {shirts.map((k) => <option key={k.name} value={k.name}>{k.label || k.name}</option>)}
+          <option value="fkc">FIFA Kit Creator jersey (colour only for now)</option>
         </select>
+        {fkcModel && <small className="okc-credit">Model: FIFA Kit Creator — fifakitcreator.com</small>}
       </label>
       <label className="okc-field">
         <span>3D viewer</span>

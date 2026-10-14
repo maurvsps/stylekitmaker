@@ -230,3 +230,4 @@ aside.panel.okc-panel .okc-layer-options { margin: 4px 0 8px; min-width: 0; over
 aside.panel.okc-panel .okc-layer-options .layer-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 aside.panel.okc-panel .okc-layer-options .layer-actions button { flex: 0 0 auto; }
 aside.panel.okc-panel .okc-layer-options fieldset { min-width: 0; margin: 0; padding: 6px; }
+.okc-credit { color: var(--okc-dim); font-size: 11px; }

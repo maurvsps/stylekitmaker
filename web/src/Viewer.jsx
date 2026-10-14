@@ -4,6 +4,7 @@ import { ShaderChunk } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { cuffLength } from "./library.js";
 import { heightToNormal } from "./kitTexture.js";
@@ -45,7 +46,7 @@ const loadAo = (name) => {
 const Viewer = forwardRef(function Viewer(
   {
     models, textures, collar, maps, templates, onLoading, onLoaded, onError, lighting = "studio", pixelRatio = 2, handTool = false,
-    rig = "studio", turntableLighting = "soft", freeView = false,
+    rig = "studio", turntableLighting = "soft", freeView = false, fkcModel = false, baseColor = "#ffffff",
   },
   ref,
 ) {
@@ -257,6 +258,7 @@ const Viewer = forwardRef(function Viewer(
           }
         });
         if (t.garments[garment]) t.kit.remove(t.garments[garment].object);
+        object.visible = !t.fkc?.visible;
         t.garments[garment] = { name, object };
         t.kit.add(object);
         t.materials = [];
@@ -298,6 +300,45 @@ const Viewer = forwardRef(function Viewer(
     }
     t.invalidate();
   }, [templates]);
+
+  // FIFA Kit Creator's shirt (assets/third_party/fifakitcreator, used with permission): shown instead of ours.
+  const baseColorRef = useRef(baseColor);
+  baseColorRef.current = baseColor; // the colour to paint it once it has loaded
+  useEffect(() => {
+    const t = three.current;
+    if (!t) return;
+    let cancelled = false;
+    const show = (on) => {
+      if (t.fkc) t.fkc.visible = on;
+      for (const g of Object.values(t.garments)) g.object.visible = !on;
+      t.invalidate();
+    };
+    if (!fkcModel) {
+      show(false);
+      return;
+    }
+    loadFkcShirt().then((group) => {
+      if (cancelled || !three.current) return;
+      if (!t.fkc) {
+        t.fkc = group;
+        t.kit.add(group);
+      }
+      group.traverse((o) => o.isMesh && o.material.color.set(baseColorRef.current));
+      show(true);
+    }, (err) => {
+      console.error("FIFA Kit Creator model", err);
+      if (!cancelled) onError?.("The FIFA Kit Creator model files are not in assets/third_party/fifakitcreator/ yet (see CREDIT.txt there for the list).");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [fkcModel, onError]);
+
+  useEffect(() => {
+    const t = three.current;
+    t?.fkc?.traverse((o) => o.isMesh && o.material.color.set(baseColor));
+    t?.invalidate();
+  }, [baseColor, fkcModel]);
 
   // Camera rig: the studio orbit, or the turntable (fixed camera, the kit turns) with an optional free view.
   useEffect(() => {
@@ -619,6 +660,43 @@ function capture(t, aspect, long = 3840) {
   }
 }
 
+
+// ---------------------------------------------------------------- FIFA Kit Creator shirt
+// Their models are in centimetres on a mannequin (the shirt from y = 162 to 298); ours are in metres with the hem at
+// 0. Their UV layout is their own, so the kit layers do not paint on it yet: it shows in the primary colour with
+// their fold normal map.
+
+const FKC_DIR = "third_party/fifakitcreator/";
+let fkcShirt;
+function loadFkcShirt() {
+  fkcShirt ??= (async () => {
+    const obj = new OBJLoader();
+    const [jersey, collar, normal] = await Promise.all([
+      obj.loadAsync(`${FKC_DIR}jersey_ss.obj`),
+      obj.loadAsync(`${FKC_DIR}collar_0.obj`),
+      new THREE.TextureLoader().loadAsync(`${FKC_DIR}jersey_24.png`).catch(() => null),
+    ]);
+    if (normal) normal.colorSpace = THREE.NoColorSpace;
+    const group = new THREE.Group();
+    group.name = "fifakitcreator-shirt";
+    for (const part of [jersey, collar]) {
+      part.traverse((o) => {
+        if (!o.isMesh) return;
+        o.material = new THREE.MeshPhysicalMaterial({
+          color: 0xffffff, roughness: 0.8, sheen: 0.35, sheenRoughness: 0.6, side: THREE.DoubleSide,
+          normalMap: part === jersey ? normal : null,
+        });
+        o.castShadow = o.receiveShadow = true;
+      });
+      group.add(part);
+    }
+    group.scale.setScalar(0.01); // cm -> m
+    group.position.y = -1.618; // their hem (y = 161.8 cm) on our hem line (y = 0)
+    return group;
+  })();
+  fkcShirt.catch(() => (fkcShirt = null)); // a missing file can be added and retried
+  return fkcShirt;
+}
 
 // ---------------------------------------------------------------- seams
 // Every edge of the sewing pattern (the UV islands: side seams, armholes, shoulders, collar, hems and cuffs) gets a

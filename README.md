@@ -180,3 +180,7 @@ The editor is also published as a private claude.ai page, so it opens on a phone
 - Draco runs as the plain JS decoder.
 
 Republish after changing the models or the editor.
+
+## Credits
+
+The optional "FIFA Kit Creator jersey" 3D model and its normal maps are by FIFA Kit Creator — fifakitcreator.com, used with permission (see `assets/third_party/fifakitcreator/CREDIT.txt`).
