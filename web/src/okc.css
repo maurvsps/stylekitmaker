@@ -1,0 +1,154 @@
+/* ---------------------------------------------------------------- Open Kit Creator
+   The layout modelled on fifakitcreator.com: a 300px left column (title, banner, icon rail, section) and a right
+   column with the tab bar, notice, stage and bottom buttons. Scoped to .okc so the studio layout is untouched. */
+.open-kc-switch {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; margin: -6px 0 12px;
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--raised);
+  color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.open-kc-switch:hover { background: var(--hover); }
+
+.okc {
+  --g: #08ed66; --okc-bg: #1a1a1a; --okc-field: #3a3a3a; --okc-text: #f5f5f5; --okc-dim: rgba(245, 245, 245, .5);
+  display: grid; grid-template-columns: 300px minmax(0, 1fr); height: 100%; overflow: hidden;
+  background: var(--okc-bg); color: var(--okc-text); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.okc button { font: inherit; color: inherit; }
+.okc-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--okc-bg); border-right: 1px solid rgba(255, 255, 255, .08); }
+.okc-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 10px 12px; font-size: 18px; font-weight: 700; line-height: 1.2; }
+.okc-logo { width: 26px; height: 26px; flex: 0 0 auto; }
+.okc-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 12px 12px; padding: 8px;
+  border: 0; border-radius: 4px; background: var(--g); color: #000 !important; text-align: left; cursor: pointer;
+}
+.okc-banner:hover { filter: brightness(1.06); }
+.okc-banner strong { display: block; font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.okc-banner small { display: block; font-size: 13px; line-height: 1.25; }
+.okc-banner svg { width: 36px; height: 36px; flex: 0 0 auto; }
+
+.okc-body { flex: 1; display: flex; min-height: 0; border-top: 1px solid rgba(255, 255, 255, .06); }
+.okc-rail { flex: 0 0 55px; display: flex; flex-direction: column; gap: 2px; padding: 5px 0 5px 5px; overflow-y: auto; scrollbar-width: none; }
+.okc-rail button {
+  width: 44px; height: 44px; flex: 0 0 auto; display: grid; place-items: center; padding: 10px; border: 0; border-radius: 8px;
+  background: transparent; cursor: pointer;
+}
+.okc-rail button svg { width: 100%; height: 100%; }
+.okc-rail button b { font-size: 19px; font-weight: 800; letter-spacing: -.03em; }
+.okc-rail button:hover:not(:disabled) { background: rgba(255, 255, 255, .08); }
+.okc-rail button.active { color: var(--g); }
+.okc-rail button:disabled { opacity: .35; cursor: not-allowed; }
+.okc-content { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 8px 16px 2px; scrollbar-width: thin; scrollbar-color: #555 transparent; }
+
+.okc-login { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-top: 1px solid rgba(255, 255, 255, .06); font-size: 13px; }
+.okc-login .warn { color: #ff8a80; }
+.okc-login button { padding: 4px 10px; border: 0; border-radius: 4px; background: #fff; color: #000 !important; cursor: pointer; }
+
+/* Right column */
+.okc-main { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #000; }
+.okc-tabbar { flex: 0 0 41px; display: flex; align-items: stretch; background: var(--okc-bg); border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.okc-quick { display: flex; align-items: center; gap: 0; padding: 0 4px; }
+.okc-quick button { width: 34px; height: 34px; display: grid; place-items: center; padding: 5px; border: 0; border-radius: 6px; background: transparent; color: var(--okc-dim); cursor: pointer; font-size: 20px; line-height: 1; }
+.okc-quick button svg { width: 100%; height: 100%; }
+.okc-quick button:hover:not(:disabled) { color: var(--okc-text); background: rgba(255, 255, 255, .08); }
+.okc-quick button:disabled { opacity: .35; cursor: default; }
+.okc-quick .okc-wheel { background: conic-gradient(#ff4b00, #ff9f00, #7d0, #00cc71, #0095ff, #6b77e8, #b760ea, #ff193d, #ff4b00); border-radius: 50%; width: 24px; height: 24px; margin: 0 5px; padding: 0; }
+.okc-tabs { display: flex; margin-left: 8px; overflow-x: auto; scrollbar-width: none; }
+.okc-tabs button { padding: 12px 12px 9px; border: 0; border-bottom: 2.4px solid transparent; background: transparent; font-size: 14px; font-weight: 500; color: var(--okc-dim); cursor: pointer; white-space: nowrap; }
+.okc-tabs button:hover { color: var(--okc-text); }
+.okc-tabs button.active { color: var(--okc-text); border-bottom-color: var(--g); }
+
+.okc-notice { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; margin: 0; padding: 8px 12px; font-size: 14px; background: #101010; border-bottom: 1px solid rgba(255, 255, 255, .06); }
+.okc-notice-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--g); flex: 0 0 auto; }
+.okc-notice span:nth-child(2) { flex: 1; min-width: 0; }
+.okc-notice-x { margin-left: auto; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--okc-dim); cursor: pointer; font-size: 16px; }
+.okc-notice-x:hover { color: var(--okc-text); background: rgba(255, 255, 255, .08); }
+
+.okc-tabcontent { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.okc-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #161616, #000 70%); }
+.okc-garments { position: absolute; z-index: 2; top: 8px; left: 8px; display: flex; gap: 2px; }
+.okc-garments button, .okc-viewtools button { width: 34px; height: 34px; display: grid; place-items: center; padding: 6px; border: 0; border-radius: 8px; background: transparent; color: var(--okc-text); cursor: pointer; }
+.okc-garments button svg, .okc-viewtools button svg { width: 100%; height: 100%; }
+.okc-garments button:hover:not(:disabled), .okc-viewtools button:hover { background: rgba(255, 255, 255, .1); }
+.okc-garments button.active, .okc-viewtools button.on { color: var(--g); }
+.okc-garments button:disabled { opacity: .3; cursor: not-allowed; }
+.okc-viewtools { position: absolute; z-index: 2; top: 8px; right: 8px; display: flex; gap: 2px; }
+.okc-angles { position: absolute; z-index: 2; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; gap: 4px; }
+.okc-angles button { padding: 5px 12px; border: 0; border-radius: 999px; background: rgba(40, 40, 40, .85); cursor: pointer; font-size: 13px; }
+.okc-angles button:hover { background: rgba(70, 70, 70, .95); }
+
+.okc-pill {
+  position: absolute; z-index: 3; left: 32px; bottom: 32px; display: flex; align-items: center; gap: 8px; height: 44px; padding: 12px 16px;
+  border: 0; border-radius: 999px; background: var(--g); color: #000 !important; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+}
+.okc-pill:hover { filter: brightness(1.07); }
+.okc-bottom { position: absolute; z-index: 3; right: 20px; bottom: 20px; display: flex; align-items: center; gap: 6px; }
+.okc-bottom > button, .okc-download {
+  height: 28px; padding: 3px 10px; border-radius: 4px; background: #1d1d1d; color: var(--okc-text); font-size: 14px; cursor: pointer; border: 1px solid rgba(255, 255, 255, .14);
+}
+.okc-bottom > button:hover { background: #2a2a2a; }
+.okc-bottom .okc-download { background: #fff; color: #000 !important; border-color: transparent; }
+.okc-dl { position: relative; }
+.okc-menu { position: absolute; right: 0; bottom: 34px; display: grid; min-width: 210px; padding: 4px; border-radius: 8px; background: #242424; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 10px 30px rgba(0, 0, 0, .6); }
+.okc-menu button { text-align: left; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; font-size: 14px; }
+.okc-menu button:hover { background: rgba(255, 255, 255, .1); }
+
+/* Info pages (Upcoming, How to, About, Account) */
+.okc-info { flex: 1; overflow-y: auto; padding: 24px clamp(16px, 5vw, 56px) 90px; max-width: 760px; }
+.okc-info h2 { margin: 0 0 14px; font-size: 24px; }
+.okc-info h3 { margin: 18px 0 4px; font-size: 15px; color: var(--g); }
+.okc-info p { margin: 0; color: #d6d6d6; line-height: 1.55; }
+
+/* Settings pane */
+.okc-settings { display: grid; gap: 12px; padding: 6px 4px; }
+.okc-settings h2 { margin: 0; font-size: 16px; }
+.okc-settings h3 { margin: 0; font-size: 13px; color: var(--okc-dim); font-weight: 600; }
+.okc-settings hr { width: 100%; border: 0; border-top: 1px solid rgba(255, 255, 255, .1); margin: 2px 0; }
+.okc-field { display: grid; gap: 4px; font-size: 13px; color: var(--okc-dim); }
+.okc-field select { width: 100%; padding: 6px 8px; border: 0; border-radius: 4px; background: var(--okc-field); color: var(--okc-text); font: inherit; }
+.okc-check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+
+/* The studio's Panel, restyled inside the left column */
+.okc-panel { display: block; width: auto; height: auto; padding: 0; overflow: visible; background: transparent; border: 0; --field: #3a3a3a; --raised: #232323; --hover: #333; --line: rgba(255, 255, 255, .1); --line-strong: rgba(255, 255, 255, .22); --panel: transparent; --accent: #08ed66; --accent-text: #000; }
+.okc-panel .panel-body, .okc-panel .panel-content { display: block; padding: 0; overflow: visible; height: auto; background: transparent; }
+.okc-panel .section { padding: 8px 0; border-top: 0; }
+.okc-panel .section h2 { font-size: 15px; }
+.okc-panel .section-index { display: none; }
+.okc-panel .layers > .tabs { display: none; }
+.okc-panel .layer-help { display: none; }
+.okc-panel .layer-tools { margin: 0; }
+.okc-panel .okc-add { display: grid; gap: 4px; width: 100%; }
+.okc-panel .okc-add h3 { margin: 6px 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--okc-dim); }
+.okc-panel .okc-add button { padding: 6px 8px; border: 0; border-radius: 4px; background: #333; color: var(--okc-text); font-size: 13px; cursor: pointer; }
+.okc-panel .okc-add button:hover { background: #444; }
+.okc-panel .okc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.okc-panel .okc-chip { padding: 8px 6px; border: 0; border-radius: 4px; background: #333; color: var(--okc-text); font-size: 13px; cursor: pointer; }
+.okc-panel .okc-chip:hover { background: #444; }
+.okc-panel .okc-chip.done { box-shadow: inset 0 0 0 1px var(--g); }
+.okc-panel .inspector-card { border-radius: 8px; }
+
+@media (max-width: 820px) {
+  .okc { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(260px, 46%) minmax(0, 1fr); overflow-y: auto; }
+  .okc-main { order: -1; }
+  .okc-side { border-right: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+  .okc-pill { left: 12px; bottom: 12px; }
+  .okc-bottom { right: 8px; bottom: 8px; }
+}
+
+/* Layer stack first (as on the original), then the add buttons; the selected layer's options sit on top. */
+.okc-panel .layer-studio { display: flex; flex-direction: column; gap: 10px; }
+.okc-panel .layer-studio > .inspector-card { order: 0; }
+.okc-panel .layer-studio > .layer-list { order: 1; }
+.okc-panel .layer-studio > .layer-tools { order: 2; }
+.okc-panel .layer-list { margin: 0; }
+
+@media (max-width: 820px) {
+  .okc-pill { display: none; }
+  .okc-angles { bottom: 44px; }
+  .okc-bottom { left: 8px; right: 8px; justify-content: flex-end; }
+}
+
+/* Undo the studio panel's floating-card look (radius, border, shadow, blur) inside the Open Kit Creator column. */
+aside.panel.okc-panel {
+  position: static; inset: auto; width: auto; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0;
+  box-shadow: none; backdrop-filter: none; background: transparent; padding: 0; overflow: visible; grid-column: auto; grid-row: auto;
+}

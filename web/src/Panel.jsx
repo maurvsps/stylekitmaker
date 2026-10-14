@@ -9,6 +9,8 @@ import { imageSize, normalizeImageUrl, resolveRemoteImage } from "./remoteImage.
 import { fetchLogo, searchKitBrands, searchSponsors } from "./logoSearch.js";
 import { KIT_BRANDS, POPULAR_CLUBS, presetToFile } from "./brandPresets.js";
 import { brandLibrary } from "./brandVariants.js";
+import { MATERIALS } from "./library.js";
+import ColorsStep from "./ColorsStep.jsx";
 
 const BRAND_LIBRARY = brandLibrary(KIT_BRANDS); // the bundled brands plus their symbol / wordmark / combined variants
 import ClubPickerModal from "./ClubPickerModal.jsx";
@@ -51,16 +53,21 @@ const DEFAULT_SLOT_SIZES = {
   "sleeve-right": 0.065,
 };
 
-export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError }) {
+export default function Panel({ project, setProject, garment, setGarment, templates, models, shirts, fonts, actions, onError, variant = "studio", section, setSection }) {
+  // "open" is the Open Kit Creator shell: it draws its own header and icon rail and tells this panel which section to show.
+  const open = variant === "open";
   const designInput = useRef(null);
   const [selection, setSelection] = useState({ shirt: COLORS_ID });
-  const [tab, setTab] = useState(savedTab);
+  const [tabState, setTabState] = useState(savedTab);
+  const tab = open ? section : tabState;
+  const setTab = open ? setSection : setTabState;
   const [activeSponsorSlotId, setActiveSponsorSlotId] = useState("shirt-sponsor");
   const [clubModalOpen, setClubModalOpen] = useState(false);
   const [logoModal, setLogoModal] = useState(null); // "brand" | "sponsor" | "patch"
   const [activePatchSlotId, setActivePatchSlotId] = useState("sleeve-left");
 
   useEffect(() => {
+    if (open) return;
     try {
       localStorage.setItem(TAB_KEY, tab);
     } catch {
@@ -432,26 +439,31 @@ export default function Panel({ project, setProject, garment, setGarment, templa
   };
 
   return (
-    <aside className="panel" aria-label="Kit design">
-      <header className="panel-header">
+    <aside className={`panel${open ? " okc-panel" : ""}`} aria-label="Kit design">
+      {!open && <header className="panel-header">
         <div className="brand-mark" aria-hidden="true">K</div>
         <div><h1>Kit Maker</h1><p>Custom kit studio</p></div>
         <button className="quiet header-action" type="button" onClick={actions.reset} title="Start a new design" aria-label="New design">+</button>
-      </header>
+      </header>}
+      {!open && actions.openKitCreator && (
+        <button type="button" className="open-kc-switch" onClick={actions.openKitCreator} title="Switch to the Open Kit Creator layout">
+          <span aria-hidden="true">⇄</span> Open Kit Creator
+        </button>
+      )}
 
       <div className="panel-body">
-      <nav className="panel-nav" aria-label="Panel sections">
+      {!open && <nav className="panel-nav" aria-label="Panel sections">
         {TABS.map((t) => (
           <button key={t.id} type="button" className={tab === t.id ? "on" : ""} aria-current={tab === t.id ? "page" : undefined} onClick={() => setTab(t.id)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={t.icon} /></svg>
             <span>{t.label}</span>
           </button>
         ))}
-      </nav>
-      <div className="panel-sub">
+      </nav>}
+      {!open && <div className="panel-sub">
         <span title={TABS[stepIndex].hint}>Step {stepIndex + 1} of {TABS.length}</span>
         <span className="panel-sub-hint">{TABS[stepIndex].hint}</span>
-      </div>
+      </div>}
       <div className="panel-content">
       {tab === "layers" && <Section title="Layers" eyebrow="01" className="layers-section">
         <LayersPanel
@@ -469,7 +481,39 @@ export default function Panel({ project, setProject, garment, setGarment, templa
           fonts={fonts}
           uploadImage={uploadImage}
           addLink={addImageLink}
+          variant={variant}
         />
+      </Section>}
+
+      {tab === "logos" && <Section title="Logos">
+        <p className="section-copy">Crest, kit brand, sponsors and sleeve patches. Pick a spot to add or change its logo.</p>
+        <div className="okc-grid">
+          {logoSlots.map((s) => (
+            <button key={s.id} type="button" className={`okc-chip${filledSlots[s.id] ? " done" : ""}`}
+              onClick={() => { logo.add(s.id); }}>
+              {s.label}{filledSlots[s.id] ? " ✓" : ""}
+            </button>
+          ))}
+        </div>
+      </Section>}
+
+      {tab === "effects" && <Section title="Material effects">
+        <p className="section-copy">A fabric finish over the kit: it changes how light hits the cloth. Added on top of the layer list.</p>
+        <div className="okc-grid">
+          {MATERIALS.map((m) => (
+            <button key={m.id} type="button" className="okc-chip" onClick={() => {
+              const layer = makeLayer("material", garment, { effect: m.id, name: m.label });
+              setProject((p) => editLayers(p, garment, (ls) => [...ls, layer]));
+              select(layer.id, garment);
+              setSection("layers");
+            }}>{m.label}</button>
+          ))}
+        </div>
+      </Section>}
+
+      {tab === "colors" && <Section title="Kit colours">
+        <p className="section-copy">The three colours every layer can use (primary, secondary, trim).</p>
+        <ColorsStep palette={project.palette} setPalette={(palette) => set({ palette })} />
       </Section>}
 
       {tab === "images" && <Section title="Kit images" eyebrow="02">
@@ -635,13 +679,13 @@ export default function Panel({ project, setProject, garment, setGarment, templa
         <MyKits actions={actions} onError={onError} />
       </Section>}
       </div>
-      <footer className="panel-footer">
+      {!open && <footer className="panel-footer">
         <button type="button" className="quiet" disabled={stepIndex === 0} onClick={() => go(stepIndex - 1)}>Back</button>
         <span className="step-dots" aria-hidden="true">{TABS.map((t, i) => <i key={t.id} className={i === stepIndex ? "on" : i < stepIndex ? "past" : ""} />)}</span>
         {stepIndex < TABS.length - 1
           ? <button type="button" onClick={() => go(stepIndex + 1)}>Next: {TABS[stepIndex + 1].label}</button>
           : <button type="button" onClick={() => actions.screenshot()}>Screenshot</button>}
-      </footer>
+      </footer>}
       </div>
       <ClubPickerModal
         isOpen={clubModalOpen}

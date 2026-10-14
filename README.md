@@ -11,6 +11,17 @@ A football kit maker: a Blender pipeline that generates kit meshes, and a three.
 
 Status: both parts work. Blender builds four shirt templates (crew, V-neck, polo, long sleeve), shorts and socks; the React editor paints and exports them.
 
+## Open Kit Creator layout
+
+The editor has two layouts that share one design, one 3D viewer and one layer engine:
+
+- **Studio** (default): the guided Layers / Images / Player / Export panel.
+- **Open Kit Creator**: a layout modelled on fifakitcreator.com. An icon rail (settings, logos, shirt layers, name and number, images, colours, effects, export) drives the left column, with 3D / Texture / How to / About tabs on the right and a Download menu.
+
+Switch with the **Open Kit Creator** button at the top of the Studio panel, and back with **Studio view** in the Open Kit Creator layout. The choice is remembered in the browser. The code lives in `web/src/OpenKitCreator.jsx` and `web/src/okc.css`; `Panel.jsx` takes `variant="open"` to render its sections without its own header and navigation.
+
+It reproduces the layout and workflow only. It does not use the original site's code, models or branding, and it has no accounts, paywall or AI render features.
+
 ## Part 1: Blender pipeline
 
 Needs Blender 4.2 or newer (the glTF exporter ships with it). From the repository root:

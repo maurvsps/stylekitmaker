@@ -37,7 +37,7 @@ let clipboard = null; // the copied layer (kept while the page is open)
 
 export default function LayersPanel({
   project, setProject, garment, setGarment, selected, select, colorsSelected, selectColors, setPalette, logo,
-  template, fonts, uploadImage, addLink,
+  template, fonts, uploadImage, addLink, variant = "studio",
 }) {
   const layers = project.garments[garment].layers;
   const layer = selected ? findLayer(layers, selected) : null;
@@ -245,7 +245,14 @@ export default function LayersPanel({
             Paste
           </button>
         )}
-        <Select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
+        {variant === "open" ? (
+          <div className="okc-add" role="group" aria-label="Add layer">
+            <h3>Add layer</h3>
+            {[["base", "Base design"], ["image", "Image…"], ["pattern", "Pattern"], ["text", "Text"], ["graphic", "Graphic"], ["trim", "Sleeve cuffs / trim"], ["material", "Material"], ["group", "Group"]].map(([t, label]) => (
+              <button key={t} type="button" onClick={() => onAdd(t)}>{label}</button>
+            ))}
+          </div>
+        ) : <Select value="" onChange={(e) => e.target.value && onAdd(e.target.value)} aria-label="Add layer" aria-describedby="layer-help">
           <option value="" hidden>+ Add layer</option>
           <optgroup label="Logos">
             {LOGO_ADD.map(([id, label]) => (
@@ -259,7 +266,7 @@ export default function LayersPanel({
               </option>
             ))}
           </optgroup>
-        </Select>
+        </Select>}
         <input ref={imageInput} type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" hidden onChange={(e) => {
           if (e.target.files[0]) onImageFile(e.target.files[0]);
           e.target.value = "";

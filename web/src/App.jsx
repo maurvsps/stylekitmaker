@@ -10,6 +10,7 @@ import { FONTS, fontCss, resolveTemplate } from "./design.js";
 import { DEFAULT_PROJECT, GARMENTS, fontsInUse, sanitizeProject, serializeProject, walk } from "./project.js";
 import { KitRenderer } from "./kitRenderer.js";
 import Select from "./Select.jsx";
+import OpenKitCreator from "./OpenKitCreator.jsx";
 
 const TEXTURE_SIZES = [1024, 2048, 4096];
 const PREFS_KEY = "kit-maker:prefs"; // view settings of this browser (not part of the design)
@@ -35,6 +36,7 @@ export default function App() {
   const setPref = (k, v) => setPrefs((p) => ({ ...p, [k]: v }));
   const [garment, setGarment] = useState("shirt");
   const [view, setView] = useState("3d"); // "3d" | "flat" | "texture"
+  const [section, setSection] = useState("layers"); // Open Kit Creator: the rail section shown in the left panel
   const [handTool, setHandTool] = useState(false);
 
   // Hold Space to pan: the hand tool is on while the key is down (the toolbar button still toggles it).
@@ -351,6 +353,8 @@ export default function App() {
       setView("3d");
       viewer.current?.view(preset);
     },
+    openKitCreator: () => { setView("3d"); setPref("mode", "open"); },
+    openStudio: () => { setView("3d"); setPref("mode", "studio"); },
     undo,
     redo,
     canUndo: history.current.past.length > 0,
@@ -370,16 +374,77 @@ export default function App() {
     }
   }
 
+  const stageContent = (
+    <>
+      {kits && (
+        <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
+          onLoading={onLoading}
+          onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld} />
+      )}
+      {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
+      {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
+      {busyNote && <div className="stage-note" role="status">{busyNote}</div>}
+      {!loaded && !error && !busyNote && <div className="stage-note loading" role="status"><span className="spinner" aria-hidden="true" />Loading kit…</div>}
+      {error && (
+        <div className="stage-note error" role="alert">
+          <strong>Something went wrong</strong>
+          <span>{error}</span>
+          <div className="error-actions">
+            {errorCanRetry && <button type="button" onClick={() => location.reload()}>Reload</button>}
+            <button type="button" className="quiet" onClick={() => { setError(null); setErrorCanRetry(false); }}>Dismiss</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const overlays = (
+    <>
+      {sheet && <ExportSheet file={sheet} onClose={() => setSheet(null)}
+        onDownload={CAN_DOWNLOAD ? () => { download(sheet.url, sheet.filename); setSheet(null); } : null} />}
+      {confirmReset && <div className="sheet-backdrop" onClick={() => setConfirmReset(false)}>
+        <div className="sheet confirm-sheet" role="alertdialog" aria-modal="true" aria-label="Reset design" onClick={(e) => e.stopPropagation()}>
+          <h2>Reset this design?</h2>
+          <p>This replaces the current kit with the starter design. Save a JSON copy first if you want to keep it.</p>
+          <div className="row">
+            <button type="button" className="quiet" onClick={() => setConfirmReset(false)}>Cancel</button>
+            <button type="button" onClick={() => {
+              setProject({ ...structuredClone(DEFAULT_PROJECT), template: shirtNames[0]?.name || DEFAULT_PROJECT.template });
+              setConfirmReset(false);
+            }}>Reset design</button>
+          </div>
+        </div>
+      </div>}
+    </>
+  );
+
+  const panelProps = {
+    project, setProject, garment, setGarment, templates, models, shirts: shirtNames, fonts: FONTS, actions, onError: setError,
+  };
+
+  if (prefs.mode === "open") {
+    return (
+      <>
+        <OpenKitCreator
+          section={section} setSection={setSection} view={view} setView={setView} stage={stageContent}
+          panel={<div hidden={section === "settings"}><Panel {...panelProps} variant="open" section={section === "settings" ? "layers" : section} setSection={setSection} /></div>}
+          actions={actions} project={project} setProject={setProject} shirts={shirtNames} template={project.template}
+          setTemplate={(template) => setProject((p) => ({ ...p, template }))}
+          lighting={prefs.lighting} setLighting={(v) => setPref("lighting", v)}
+          handTool={handTool || spaceHeld} setHandTool={setHandTool}
+          onStudio={actions.openStudio}
+          notice={prefs.okcNotice === false ? null : "Open Kit Creator layout: switch back to the classic studio any time with “Studio view”."}
+          dismissNotice={() => setPref("okcNotice", false)}
+        />
+        {overlays}
+      </>
+    );
+  }
+
   return (
     <div className="app" ref={app} style={previewHeight == null ? undefined : { "--preview-height": `${previewHeight}px` }}>
       <main className="stage">
-        {kits && (
-          <Viewer ref={viewer} models={models} textures={textures} collar={renderer.collar} maps={maps} templates={templates}
-            onLoading={onLoading}
-            onLoaded={onLoaded} onError={setError} lighting={prefs.lighting} pixelRatio={1.5} handTool={handTool || spaceHeld} />
-        )}
-        {view === "flat" && <FlatView texture={textures[garment]} template={templates[models[garment]]} />}
-        {view === "texture" && <TextureView texture={textures[garment]} uvSrc={`models/${models[garment]}_uv.png`} />}
+        {stageContent}
         <div className="stage-tools">
           <div className="seg" role="group" aria-label="History">
             <button type="button" onClick={undo} disabled={!actions.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
@@ -405,18 +470,6 @@ export default function App() {
             ))}
           </Select>}
         </div>
-        {busyNote && <div className="stage-note" role="status">{busyNote}</div>}
-        {!loaded && !error && !busyNote && <div className="stage-note loading" role="status"><span className="spinner" aria-hidden="true" />Loading kit…</div>}
-        {error && (
-          <div className="stage-note error" role="alert">
-            <strong>Something went wrong</strong>
-            <span>{error}</span>
-            <div className="error-actions">
-              {errorCanRetry && <button type="button" onClick={() => location.reload()}>Reload</button>}
-              <button type="button" className="quiet" onClick={() => { setError(null); setErrorCanRetry(false); }}>Dismiss</button>
-            </div>
-          </div>
-        )}
         <div className="view-buttons" role="group" aria-label="Camera" hidden={view !== "3d"}>
           {CAMERAS.map(([v, label]) => (
             <button key={v} type="button" onClick={() => actions.view(v)}>
@@ -442,44 +495,21 @@ export default function App() {
           setPreviewHeight(Math.max(200, Math.min(app.current.clientHeight - 200,
             (previewHeight ?? app.current.clientHeight * 0.46) + (e.key === "ArrowDown" ? 24 : -24))));
         }}><span aria-hidden="true" /></div>
-      {sheet && <ExportSheet file={sheet} onClose={() => setSheet(null)}
-        onDownload={CAN_DOWNLOAD ? () => { download(sheet.url, sheet.filename); setSheet(null); } : null} />}
-      {confirmReset && <div className="sheet-backdrop" onClick={() => setConfirmReset(false)}>
-        <div className="sheet confirm-sheet" role="alertdialog" aria-modal="true" aria-label="Reset design" onClick={(e) => e.stopPropagation()}>
-          <h2>Reset this design?</h2>
-          <p>This replaces the current kit with the starter design. Save a JSON copy first if you want to keep it.</p>
-          <div className="row">
-            <button type="button" className="quiet" onClick={() => setConfirmReset(false)}>Cancel</button>
-            <button type="button" onClick={() => {
-              setProject({ ...structuredClone(DEFAULT_PROJECT), template: shirtNames[0]?.name || DEFAULT_PROJECT.template });
-              setConfirmReset(false);
-            }}>Reset design</button>
-          </div>
-        </div>
-      </div>}
-      <Panel
-        project={project}
-        setProject={setProject}
-        garment={garment}
-        setGarment={setGarment}
-        templates={templates}
-        models={models}
-        shirts={shirtNames}
-        fonts={FONTS}
-        actions={actions}
-        onError={setError}
-      />
+      {overlays}
+      <Panel {...panelProps} />
     </div>
   );
 }
 
 function readPrefs() {
-  const prefs = { textureSize: 1024, lighting: "studio", transparent: false };
+  const prefs = { textureSize: 1024, lighting: "studio", transparent: false, mode: "studio", okcNotice: true };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
     if (TEXTURE_SIZES.includes(saved.textureSize)) prefs.textureSize = saved.textureSize;
     if (LIGHTING_PRESETS.includes(saved.lighting)) prefs.lighting = saved.lighting;
     if (typeof saved.transparent === "boolean") prefs.transparent = saved.transparent;
+    if (saved.mode === "open" || saved.mode === "studio") prefs.mode = saved.mode;
+    if (saved.okcNotice === false) prefs.okcNotice = false;
   } catch {
     // defaults
   }
